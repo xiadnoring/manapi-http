@@ -54,8 +54,8 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     if (!conn)
         return;
 
-    this->waiting(conn, true);
     auto const connection = conn->as<tls_connection_t>();
+    bool keep_alive_disabled;
 
     if (connection->flags & CONN_REMOVED)
         return;
@@ -69,23 +69,33 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
         return;
     }
 
+    /* Draining timeout is enabled, thus, connection is draining */
+    if (flags & CLOSE_CONN_EOR || flags & CLOSE_CONN_EOS) {
+        conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
+    }
+
+    if ((flags & CLOSE_CONN_EOR)) {
+        connection->flags |= CONN_RECV_END;
+
+        if (connection->flags == CLOSE_CONN_EOR) {
+            if (!connection->t && !(connection->flags & CONN_READ)) {
+                return;
+            }
+        }
+    }
+
+    this->waiting(conn, true);
     connection->flags |= CONN_TLS_SHUTDOWN;
 
-    if (!this->config_->force_conn_shutdown
-        && (
-            (flags & (CLOSE_CONN_SHUTDOWN|CLOSE_CONN_ERR))
-            || (!flags
-                && (!this->config_->keep_alive
-                    || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
-                    )
-                ))) {
+    keep_alive_disabled = (!this->config_->keep_alive || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE));
+    if (!this->config_->force_conn_shutdown && ((flags & (CLOSE_CONN_SHUTDOWN|CLOSE_CONN_ERR)) || (!flags && keep_alive_disabled))) {
 
         if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
             conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
         if (connection->ev_callback) {
             auto cb = std::move(connection->ev_callback);
-            if (this->call_user_callback(&cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
+            if (manapi::net::worker::TLS::call_user_callback(&cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
                 /* skip */
             }
         }
@@ -99,10 +109,13 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
 
     eof:
     if (flags & (CLOSE_CONN_EOR|CLOSE_CONN_EOS)) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TLS:conn %p was destroyed "
+                "CLOSE_CONN_EOR=%d CLOSE_CONN_EOS=%d", conn.get(),
+            CLOSE_CONN_EOR & flags, CLOSE_CONN_EOS & flags);
         this->ssl_set_shutdown_(connection->ssl,
             this->ssl_recv_shutdown_|this->ssl_send_shutdown_);
         /* connection is destroyed */
-        flags |= CLOSE_CONN_FINISHED;
+        flags |= CLOSE_CONN_SHUTDOWN;
     }
     //
     // if (connection->accept_timer) {

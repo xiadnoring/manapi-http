@@ -388,9 +388,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
     auto connection = conn->as<tcp_connection_t>();
 
+    if (flags & CLOSE_CONN_EOR || flags & CLOSE_CONN_EOS) {
+        conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
+    }
+
     /* Draining timeout is enabled, thus, connection is draining */
     if ((flags & CLOSE_CONN_EOR)) {
-        conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
         connection->flags |= CONN_RECV_END;
 
         if (connection->flags == CLOSE_CONN_EOR) {
@@ -400,9 +403,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         }
     }
 
-    if (flags & CLOSE_CONN_FINISHED) {
+    if (flags & (CLOSE_CONN_FINISHED|CLOSE_CONN_SHUTDOWN) && !(flags & (CLOSE_CONN_EOS|CLOSE_CONN_ERR))) {
         connection->flags |= CONN_RECV_END;
         connection->flags |= CONN_SEND_END;
+
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "tcp:closing the connection %p with CLOSE_CONN_FINISHED "
+            "top->cur_send_size=%d top->send_size=%d", conn.get(), connection->top->cur_send_size, connection->top->send_size);
 
         if (connection->top->cur_send_size != connection->top->send_size) {
             // wait
