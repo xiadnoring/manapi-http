@@ -1270,7 +1270,10 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), e.what());
     }
 
-    err: //co_await parallel.get_or(0);
+    err:
+    if (parallel.some()) {
+        co_await parallel.get_or(0);
+    }
     co_return;
 }
 

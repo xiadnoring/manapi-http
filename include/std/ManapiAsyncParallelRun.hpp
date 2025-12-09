@@ -15,8 +15,9 @@ namespace manapi::async {
                     if (this->flags)
                         reinterpret_cast<T *> (this->value)->~T();
 
-                    this->flags = 1;
                     new (this->value) T (co_await task);
+                    this->flags = 1;
+
                     co_return manapi::error::status_ok();
                 }
                 catch (std::exception const &e) {
@@ -102,10 +103,7 @@ namespace manapi::async {
         requires(!std::is_same_v<T1, void>)
         MANAPIHTTP_NODISCARD manapi::future<T1> get_or (T1 v) const;
 
-        template<typename T1 = T>
-        requires(!std::is_same_v<T1, void>)
         MANAPIHTTP_NODISCARD bool some () const MANAPIHTTP_NOEXCEPT;
-        //manapi::future<void> async_run_with_prepare(std::move_only_function<manapi::future<T>()> task, std::move_only_function<void()> cb);
     private:
         std::shared_ptr<data_t> data;
     };
@@ -192,7 +190,6 @@ namespace manapi::async {
     }
 
     template<typename T>
-    template<typename T1> requires (!std::is_same_v<T1, void>)
     bool parallel_run<T>::some() const MANAPIHTTP_NOEXCEPT {
         return this->data->value.some();
     }
