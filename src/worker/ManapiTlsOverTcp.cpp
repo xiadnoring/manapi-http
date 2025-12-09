@@ -226,7 +226,7 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
 
     bool const cfinish = finish && total == size;
-    auto const err = this->ssl_bio_flush_write_(conn, connection, maxcnt, cfinish);
+    auto const err = this->ssl_bio_flush_write_(conn, connection, maxcnt, false);
 
     if (err) {
         if (err == CONN_IO_WANT_WRITE) {
