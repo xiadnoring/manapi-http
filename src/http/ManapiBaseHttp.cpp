@@ -1098,6 +1098,9 @@ namespace manapi::net::http::internal {
                                     co_return;
                                 }
 
+                                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "conn:%p is %s:%u",
+                                       cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
+
                                 auto const handler = (cdata->router->statics->layer
                                     && cdata->router->statics->layer->handler) ? &cdata->router->statics->layer->handler : nullptr;
 
@@ -1150,6 +1153,9 @@ namespace manapi::net::http::internal {
                 return;
             }
 
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "conn:%p is %s:%u",
+                   cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
+
             auto handler = &cdata->router->handler->handler;
 
             cdata->req_data->handler = cdata->router->handler;
@@ -1181,8 +1187,7 @@ namespace manapi::net::http::internal {
 
 void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "Handle HTTP request on %.*s conn:%p",
-        cdata->req_data->uri.size(), cdata->req_data->uri.data(), cdata->conn->as<void>());
-
+         cdata->req_data->uri.size(), cdata->req_data->uri.data(), cdata->conn.get());
     if (status >= 200 && status < 300)
         return handle_income_request_(std::move(cdata), status);
 
