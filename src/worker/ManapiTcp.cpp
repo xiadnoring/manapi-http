@@ -388,8 +388,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
     auto connection = conn->as<tcp_connection_t>();
 
-    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:close_conection() %p flags=%d",
-        conn.get(), flags);
 
     if (flags & CLOSE_CONN_EOR || flags & CLOSE_CONN_EOS) {
         conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
@@ -406,7 +404,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         }
     }
 
-    if (flags & (CLOSE_CONN_FINISHED|CLOSE_CONN_SHUTDOWN) && !(flags & (CLOSE_CONN_EOS|CLOSE_CONN_ERR))) {
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:close_conection() conn=%p flags=%d",
+        conn.get(), flags);
+
+    if ((flags & CLOSE_CONN_FINISHED || flags &CLOSE_CONN_SHUTDOWN) && !(flags & CLOSE_CONN_EOS) && !(flags & CLOSE_CONN_ERR)) {
         connection->flags |= CONN_RECV_END;
         connection->flags |= CONN_SEND_END;
 
