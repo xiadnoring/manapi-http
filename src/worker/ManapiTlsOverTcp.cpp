@@ -419,7 +419,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
         }
 
         if (err == this->ssl_error_want_write_) {
-            if (this->ssl_bio_flush_write_(conn, s, WORKER_MAX_CNT, false))
+            if (this->ssl_bio_flush_write_(conn, s, this->config_->max_buffer_stack, false))
                 goto err;
             if (this->flush_write_(conn, true))
                 goto err;
@@ -455,7 +455,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
     }
 
     write:
-    if (this->ssl_bio_flush_write_(conn, s, WORKER_MAX_CNT, false))
+    if (this->ssl_bio_flush_write_(conn, s, this->config_->max_buffer_stack, false))
         goto err;
     if (this->flush_write_(conn, true))
         goto err;
@@ -530,7 +530,7 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
                                 err == this->ssl_error_want_read_ ||
                                 err == this->ssl_error_want_write_) {
 
-                                if (this->ssl_bio_flush_write_(conn, data, WORKER_MAX_CNT, false))
+                                if (this->ssl_bio_flush_write_(conn, data, this->config_->max_buffer_stack, false))
                                     goto err;
                                 if (this->flush_write_(conn, true))
                                     goto err;
@@ -740,7 +740,7 @@ int manapi::net::worker::TLS::manapi_do_process(const shared_conn &conn, tls_con
                     auto const err = this->ssl_get_error_(data->ssl, nread);
                     if (err == this->ssl_error_want_read_ || err == this->ssl_error_want_write_) {
                         /* force write all data */
-                        if (this->ssl_bio_flush_write_(conn, data, WORKER_MAX_CNT, false)) {
+                        if (this->ssl_bio_flush_write_(conn, data, this->config_->max_buffer_stack, false)) {
                             return CONN_IO_ERROR;
                         }
 
@@ -803,7 +803,7 @@ int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, tls_
 
         if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {
             /* force write all data */
-            if (this->ssl_bio_flush_write_(conn, data, WORKER_MAX_CNT, false)) {
+            if (this->ssl_bio_flush_write_(conn, data, this->config_->max_buffer_stack, false)) {
                 return CONN_IO_ERROR;
             }
 
@@ -991,7 +991,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, tls_c
                 else {
                     rhs = static_cast<int>(readbytes);
 
-                    if (this->ssl_bio_flush_write_(conn, m, WORKER_MAX_CNT, false)) {
+                    if (this->ssl_bio_flush_write_(conn, m, this->config_->max_buffer_stack, false)) {
                         return CONN_IO_ERROR;
                     }
 
@@ -1032,7 +1032,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, tls_c
 
                 if (err == this->ssl_error_want_read_ || err == this->ssl_error_want_write_) {
                     /* force write all data */
-                    if (this->ssl_bio_flush_write_(conn, m, WORKER_MAX_CNT, false)) {
+                    if (this->ssl_bio_flush_write_(conn, m, this->config_->max_buffer_stack, false)) {
                         return CONN_IO_ERROR;
                     }
 

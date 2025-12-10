@@ -1263,8 +1263,6 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
 
         cdata->cb->call(current >= size);
-
-        co_return;
     }
     catch (std::exception const &e) {
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), e.what());
