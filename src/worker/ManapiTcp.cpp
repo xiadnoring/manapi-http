@@ -703,12 +703,13 @@ void manapi::net::worker::TCP::read_stop_(const shared_conn &conn, tcp_connectio
 int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) MANAPIHTTP_NOEXCEPT {
     auto conn = connection->as<tcp_connection_t>();
 
+    if (!flush) {
+        flush = (conn->flags & CONN_SEND_END);
+    }
+
     try {
-        if (conn->top && conn->top->cur_send_size) {
-            //std::cout << "flush " << flush << " "<<(bool)conn->top->cur_send_size << " " << (bool)conn->top->send.deque << "\n";
-            while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
-                //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
-                || (flush))) {
+        if (conn->top) {
+            while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack) || (flush))) {
 #ifdef _MSC_VER
                 ev::buff_t *s = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * conn->top->cur_send_size));
 #else
@@ -818,6 +819,9 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         return;
                                     }
 
+                                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets(%d) were sent %p. now=%d",
+                                        nbuff, connection.get(), conn->top->send_size);
+
                                     if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
                                         if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr)) {
                                             conn->worker->close_connection(connection, CLOSE_CONN_ERR);
@@ -835,9 +839,9 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         return;
                                     }
 
-                                    if (conn->flags & CONN_SEND_END && conn->flags & CONN_RECV_END) {
-                                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets were sent after closing conn %p",
-                                            connection.get());
+                                    if ((conn->flags & CONN_SEND_END) && (conn->flags & CONN_RECV_END)) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets(%d) were sent after closing conn %p. now=%d",
+                                            nbuff, connection.get(), conn->top->send_size);
                                         conn->worker->close_connection(connection, CLOSE_CONN_FINISHED);
                                         return;
                                     }

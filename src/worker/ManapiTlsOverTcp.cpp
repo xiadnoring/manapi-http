@@ -175,8 +175,19 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
                     rhs = this->ssl_write_(connection->ssl, buffer + current,
                         static_cast<int>(cursor - current));
 
-                if (rhs > 0)
+                if (rhs > 0) {
                     current += rhs;
+
+                    if (int erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt, false)) {
+                        if (erhs == CONN_IO_WANT_WRITE) {
+                            if (this->flush_write_(conn, true))
+                                return CONN_IO_ERROR;
+                            return total + current;
+                        }
+
+                        return CONN_IO_ERROR;
+                    }
+                }
                 else {
                     int err = this->ssl_get_error_(connection->ssl, rhs);
 
@@ -253,7 +264,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, ev::buff_t
     if (!size)
         return size;
 
-    return this->sync_write_ex(conn, buff, nbuff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
+    return this->sync_write_ex(conn, buff, nbuff, size, finish, this->config_->max_buffer_stack);
 }
 
 int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
@@ -611,20 +622,27 @@ int manapi::net::worker::TLS::conn_after_write(const worker::shared_conn &conn) 
         return rhs;
     }
 
-    auto const err = this->ssl_bio_flush_write_(conn, conn->as<tls_connection_t>(),
+    auto const m = conn->as<tls_connection_t>();
+
+    auto const err = this->ssl_bio_flush_write_(conn, m,
         this->config_->max_buffer_stack, false);
 
     if (err) {
         if (err == CONN_IO_WANT_WRITE) {
             if (this->flush_write_(conn, true)) {
-                this->close_connection(conn, CLOSE_CONN_ERR);
-
                 return ERR_UNAVAILABLE;
             }
+
             return ERR_OK;
         }
 
-        this->close_connection(conn, CLOSE_CONN_ERR);
+        return ERR_UNKNOWN;
+    }
+
+    if (m->flags & CONN_TLS_SHUTDOWN || !ssl_is_init_fininshed_(m->ssl)) {
+        if (this->flush_write_(conn, true)) {
+            return ERR_UNAVAILABLE;
+        }
     }
 
     return ERR_OK;
