@@ -414,7 +414,11 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:closing the connection %p with CLOSE_CONN_FINISHED "
             "top->cur_send_size=%d top->send_size=%d", conn.get(), connection->top->cur_send_size, connection->top->send_size);
 
-        if (connection->top->cur_send_size != connection->top->send_size) {
+        if (connection->top->cur_send_size) {
+            this->flush_write_(conn, true);
+        }
+
+        if (connection->top->send_size) {
             // wait
             return;
         }
@@ -438,12 +442,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
 
         connection->flags |= CONN_CLOSED;
-
-        if (flags & CLOSE_CONN_SHUTDOWN && connection->top->send_size) {
-            if (!this->flush_write_(conn, true)) {
-                return;
-            }
-        }
 
         if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
             conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
