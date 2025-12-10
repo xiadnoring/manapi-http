@@ -136,10 +136,13 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
     if (connection->flags & (ev::DISCONNECT))
         return -1;
 
+    this->ssl_bio_flush_write_(conn, connection, maxcnt, false);
+
     char buffer[32768];
     int cursor = 0;
     size_t lastcur = 0;
     ssize_t total = 0;
+
 
     while (nbuff) {
         if (connection->top->send_size > maxcnt)
@@ -175,18 +178,18 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
                     rhs = this->ssl_write_(connection->ssl, buffer + current,
                         static_cast<int>(cursor - current));
 
+                if (int erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt, false)) {
+                    if (erhs == CONN_IO_WANT_WRITE) {
+                        if (this->flush_write_(conn, true))
+                            return CONN_IO_ERROR;
+                        return total + current;
+                    }
+
+                    return CONN_IO_ERROR;
+                }
+
                 if (rhs > 0) {
                     current += rhs;
-
-                    if (int erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt, false)) {
-                        if (erhs == CONN_IO_WANT_WRITE) {
-                            if (this->flush_write_(conn, true))
-                                return CONN_IO_ERROR;
-                            return total + current;
-                        }
-
-                        return CONN_IO_ERROR;
-                    }
                 }
                 else {
                     int err = this->ssl_get_error_(connection->ssl, rhs);
@@ -194,18 +197,6 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
                     if (err) {
                         if (err == this->ssl_error_want_read_
                             || err == this->ssl_error_want_write_) {
-                            auto const erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt, false);
-
-                            if (erhs) {
-                                if (erhs == CONN_IO_WANT_WRITE) {
-                                    if (this->flush_write_(conn, true))
-                                        return CONN_IO_ERROR;
-                                    return total + current;
-                                }
-
-                                return CONN_IO_ERROR;
-                            }
-
                             if (this->flush_write_(conn, true))
                                 return CONN_IO_ERROR;
 
@@ -237,17 +228,6 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
 
     bool const cfinish = finish && total == size;
-    auto const err = this->ssl_bio_flush_write_(conn, connection, maxcnt, false);
-
-    if (err) {
-        if (err == CONN_IO_WANT_WRITE) {
-            if (this->flush_write_(conn, true))
-                return CONN_IO_ERROR;
-            return total;
-        }
-
-        return CONN_IO_ERROR;
-    }
 
     if (this->flush_write_(conn, cfinish))
         return CONN_IO_ERROR;

@@ -822,13 +822,6 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets(%d) were sent %p. now=%d",
                                         nbuff, connection.get(), conn->top->send_size);
 
-                                    if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
-                                        if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr)) {
-                                            conn->worker->close_connection(connection, CLOSE_CONN_ERR);
-                                            return;
-                                        }
-                                    }
-
                                     if (conn->flags & ev::DISCONNECT) {
                                         conn->worker->close_connection(connection, CLOSE_CONN_SHUTDOWN);
                                         return;
@@ -837,6 +830,13 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                     if (dynamic_cast<TCP*> (conn->worker)->conn_after_write(connection)) {
                                         conn->worker->close_connection(connection, CLOSE_CONN_ERR);
                                         return;
+                                    }
+
+                                    if (conn->flags & ev::WRITE && conn->ev_callback) {
+                                        if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr)) {
+                                            conn->worker->close_connection(connection, CLOSE_CONN_ERR);
+                                            return;
+                                        }
                                     }
 
                                     if ((conn->flags & CONN_SEND_END) && (conn->flags & CONN_RECV_END)) {
