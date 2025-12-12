@@ -58,18 +58,9 @@ namespace manapi::net::worker {
 
         manapi::bytebuffer recv_first_buffer (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        inline ssize_t sync_write(interface_worker *w, const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
-            auto const connection = conn->as<connection_prepared_base_t>();
-            auto const config = w->config();
-            ssize_t const limit_size = config->speed_limit_rate - connection->transfered;
+        ssize_t sync_write(interface_worker *w, const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT;
 
-            auto const size = base::buffs_cut_by_size (buff, nbuff, limit_size, finish);
-
-            if (!size)
-                return 0;
-
-            return w->sync_write_ex(conn, buff, nbuff, size, finish, config->max_buffer_stack);
-        }
+        ssize_t sync_write(interface_worker *w, const shared_conn &conn, connection_prepared_base_t *connection, ev::buff_t *buff, uint32_t nbuff, std::size_t limit_rate, bool finish) MANAPIHTTP_NOEXCEPT;
 
         void waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT;
 

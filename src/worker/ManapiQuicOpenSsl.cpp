@@ -18,6 +18,9 @@
 #   include <openssl/quic.h>
 #   include <openssl/err.h>
 
+#   define SPEED_LIMIT_DEFAULT 1024000
+#   define SPEED_LIMIT_INIT 2048000
+#   define SPEED_LIMIT_STEP 1024000
 
 #   define MANAPI_AS_BIO(n) static_cast<BIO*>(n)
 #   define MANAPI_AS_SSL(n) static_cast<SSL*>(n)
@@ -78,8 +81,7 @@ struct manapi::net::worker::openssl_quic::quic_stream_t : connection_prepared_t 
     SSL *stream;
     worker::connection *parent;
     std::size_t poll_id;
-    uint32_t sent_an_tick;
-    uint32_t send_an_tick_state;
+    std::size_t cur_speed_lim;
 };
 
 manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
@@ -638,6 +640,10 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int 
             }
         }
 
+        if (status & ev::WRITE) {
+            this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
+        }
+
         MANAPIHTTP_WORKER_EVENT_BREAK(data)
     }
 
@@ -668,7 +674,8 @@ manapi::bytebuffer manapi::net::worker::openssl_quic::recv_first_buffer(const sh
 }
 
 ssize_t manapi::net::worker::openssl_quic::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
-    return prepared::sync_write(this, conn, buff, nbuff, finish);
+    auto p = conn->as<quic_stream_t>();
+    return prepared::sync_write(this, conn, p, buff, nbuff, p->cur_speed_lim, finish);
 }
 
 ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
@@ -678,10 +685,13 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
     if (s->flags & ev::DISCONNECT)
         return -1;
 
+
     assert(!(s->flags & CONN_SEND_END));
 
     if (prepared::write_buffs_is_full(s->top.get(), maxcnt))
         return 0;
+
+    this->bio_flush_write();
 
     while (nbuff) {
         int flags = 0;
@@ -692,39 +702,15 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         std::size_t written = 0;
         int rhs;
 
-        if (s->sent_an_tick > s->send_an_tick_state) {
-            rhs = 1;
-            written = 0;
+        if (!s->top->send_size) {
+            ERR_clear_error();
+            rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
+
+            this->bio_flush_write();
         }
         else {
-            if (!s->top->send_size) {
-                ERR_clear_error();
-                rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-                s->sent_an_tick += static_cast<decltype(s->sent_an_tick)>(written);
-                 if (s->sent_an_tick > s->send_an_tick_state) {
-                     try {
-                         manapi::async::current()->etaskpool()->append_task(
-                             [this, conn, s] () -> void {
-                             if (s->flags & ev::DISCONNECT)
-                                 return;
-
-                             s->sent_an_tick = 0;
-                             if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
-                                 s->send_an_tick_state += DATA_SIZE_PARTBYTE;
-
-                             this->flush_write_(conn, s);
-                             this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
-                         });
-                     }
-                     catch (...) {
-                         return -1;
-                     }
-                 }
-            }
-            else {
-                rhs = 1;
-                written = 0;
-            }
+            rhs = 1;
+            written = 0;
         }
 
         if (rhs!=1) {
@@ -733,7 +719,6 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             switch (err) {
                 case SSL_ERROR_WANT_READ:
                 case SSL_ERROR_WANT_WRITE:
-                    this->bio_flush_write ();
                 break;
                 default: {
                     auto bioerr = ERR_peek_error();
@@ -749,8 +734,6 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         }
 
         s->transfered += written;
-
-        this->bio_flush_write();
 
         if (!written) {
             auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
@@ -783,7 +766,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         }
 
         buff->base += written;
-        buff->len -= static_cast<decltype(buff->len)>(written);
+        buff->len -= written;
     }
 
     return res;
@@ -958,7 +941,7 @@ std::size_t manapi::net::worker::openssl_quic::streams_size(const shared_conn &c
 void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     try {
-        char buffer[2000];
+        char buffer[4100];
         sockaddr_storage storage_peer{};
         sockaddr_storage storage_local{};
 
@@ -1167,7 +1150,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
         break;
     }
 
-    if (!data->top->send.last_deque)
+    if (!prepared::write_buffs_is_full(data->top.get(), this->config_->max_buffer_stack))
         this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
 }
 
@@ -1200,8 +1183,20 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
             auto data = it->second->as<quic_stream_t>();
 
             conn_data->transfered += data->transfered;
+            bool force_recall = false;
 
-            if (data->transfered >= config->speed_limit_rate
+            if (data->transfered >= data->cur_speed_lim) {
+                data->cur_speed_lim += std::max<std::size_t>(SPEED_LIMIT_STEP, data->cur_speed_lim / 2);
+                force_recall = true;
+            }
+            else {
+                auto const s = std::max<std::size_t>(data->transfered, SPEED_LIMIT_DEFAULT);
+                data->cur_speed_lim = std::max<std::size_t>(s, config->speed_stream_check_bytes / config->speed_stream_check_delay);
+            }
+
+            std::cout << data->cur_speed_lim << " - SPEED\n";
+
+            if ((force_recall || data->transfered >= config->speed_limit_rate)
                 && data->ev_callback) {
                 data->transfered = 0;
 
@@ -1640,6 +1635,9 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         auto p = std::make_unique<quic_stream_t>();
         auto top = std::make_unique<connection_io>();
+
+        p->cur_speed_lim = std::max<std::size_t>(SPEED_LIMIT_INIT, this->config_->speed_stream_check_bytes
+            / this->config_->speed_stream_check_delay);
 
         auto stream_conn = std::shared_ptr<worker::connection> (
                 new worker::connection{p.release()}, stream_interface_eraser);

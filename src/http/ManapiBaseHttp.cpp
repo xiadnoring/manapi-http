@@ -19,6 +19,7 @@
 #include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "../include/ManapiHttpStructs.hpp"
+#include "std/ManapiAsyncTimer.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
@@ -1098,7 +1099,7 @@ namespace manapi::net::http::internal {
                                     co_return;
                                 }
 
-                                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "conn:%p is %s:%u",
+                                manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
                                        cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
 
                                 auto const handler = (cdata->router->statics->layer
@@ -1153,7 +1154,7 @@ namespace manapi::net::http::internal {
                 return;
             }
 
-            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "conn:%p is %s:%u",
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
                    cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
 
             auto handler = &cdata->router->handler->handler;
@@ -1186,7 +1187,7 @@ namespace manapi::net::http::internal {
 
 
 void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
-    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "Handle HTTP request on %.*s conn:%p",
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "Handle HTTP request on %.*s conn:%p",
          cdata->req_data->uri.size(), cdata->req_data->uri.data(), cdata->conn.get());
     if (status >= 200 && status < 300)
         return handle_income_request_(std::move(cdata), status);
@@ -1208,6 +1209,8 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
 manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, filesystem::fstream f, ssize_t size) {
     ssize_t const block_size = 4096 * 16;
     auto const cdata = res->connection_data();
+
+    //bool check_conn = false;
 
     auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
     auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
@@ -1253,6 +1256,14 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
                 /* failed to send */
                 goto err;
             }
+            //
+            // if (!check_conn && current >= 10240) {
+            //     check_conn = true;
+            //
+            //     if (size >= 20971520) {
+            //         co_await async::delay (100, res->req()->cancellation().sub());
+            //     }
+            // }
 
             if ((rhs = co_await parallel.get_or(0)) <= 0) {
                 break;
