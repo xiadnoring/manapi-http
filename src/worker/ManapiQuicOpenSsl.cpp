@@ -688,10 +688,10 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
 
     assert(!(s->flags & CONN_SEND_END));
 
+    this->bio_flush_write();
+
     if (prepared::write_buffs_is_full(s->top.get(), maxcnt))
         return 0;
-
-    this->bio_flush_write();
 
     while (nbuff) {
         int flags = 0;
@@ -705,8 +705,6 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         if (!s->top->send_size) {
             ERR_clear_error();
             rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-
-            this->bio_flush_write();
         }
         else {
             rhs = 1;
@@ -731,6 +729,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
                     break;
                 }
             }
+            this->bio_flush_write();
         }
 
         s->transfered += written;
@@ -899,14 +898,17 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
         if (!stream)
             return error::status_resource_exhausted();
 
-        auto res = this->stream_accept(conn, stream);
+        auto res = this->stream_accept(conn, stream, flags);
         if (!res.ok())
             return res.err();
 
         auto stream_conn = res.unwrap();
+        auto const id = this->stream_id(stream_conn);
 
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl_quic: new local stream %p was created using %p id=%zu",
-            stream, data->conn, this->stream_id(stream_conn));
+            stream, data->conn, id);
+
+
 
         return std::move(stream_conn);
     }
@@ -941,7 +943,7 @@ std::size_t manapi::net::worker::openssl_quic::streams_size(const shared_conn &c
 void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     try {
-        char buffer[4100];
+        char buffer[1350];
         sockaddr_storage storage_peer{};
         sockaddr_storage storage_local{};
 
@@ -968,10 +970,7 @@ void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
                 buff.base = static_cast<char *>(msg->data);
                 buff.len = static_cast<decltype(buff.len)>(msg->data_len);
 
-                if (!this->pending_writes)
-                    rhs = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&storage_local));
-                else
-                    rhs = ev::ERR_AGAIN;
+                rhs = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&storage_local));
 
                 if (rhs != msg->data_len) {
                     if (rhs == ev::ERR_AGAIN) {
@@ -1077,8 +1076,6 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
     if (data->flags & CONN_CLOSED)
         return;
 
-    ERR_clear_error();
-
     while (data->top->send.last_deque) {
         int flags = 0;
         bool const last = data->top->send.deque.get() == data->top->send.last_deque;
@@ -1101,6 +1098,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
         std::size_t written;
 
         if (size) {
+            ERR_clear_error();
             auto rhs = SSL_write_ex2(data->stream, buffer.data() + data->top->send.deque_current, size, flags, &written);
 
             if (rhs!=1) {
@@ -1109,7 +1107,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                 switch (err) {
                     case SSL_ERROR_WANT_READ:
                     case SSL_ERROR_WANT_WRITE:
-                        this->bio_flush_write ();
+
                     break;
                     default: {
                         auto bioerr = ERR_peek_error();
@@ -1126,7 +1124,6 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
             }
 
             data->transfered += written;
-            this->bio_flush_write();
         }
         else
             written = 0;
@@ -1150,11 +1147,15 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
         break;
     }
 
+    this->bio_flush_write();
+
     if (!prepared::write_buffs_is_full(data->top.get(), this->config_->max_buffer_stack))
         this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
 }
 
 void manapi::net::worker::openssl_quic::update_limit_rate() MANAPIHTTP_NOEXCEPT {
+    this->bio_flush_write ();
+
     /* in event loop */
     for (auto nit = this->conns_.begin(); nit != this->conns_.end(); ) {
         auto &conns = nit->second;
@@ -1194,8 +1195,6 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                 data->cur_speed_lim = std::max<std::size_t>(s, config->speed_stream_check_bytes / config->speed_stream_check_delay);
             }
 
-            std::cout << data->cur_speed_lim << " - SPEED\n";
-
             if ((force_recall || data->transfered >= config->speed_limit_rate)
                 && data->ev_callback) {
                 data->transfered = 0;
@@ -1221,16 +1220,18 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                 data->transfered_k += data->transfered;
 
                 if (--data->speed_min_delay <= 0) {
-                    if (data->flags & (base::CONN_IO_WAITING) && (data->transfered_k < config->speed_stream_check_bytes)) {
-                        manapi::async::current()->etaskpool()->append_task([conn = it->second] () -> void {
-                            auto data = conn->as<quic_stream_t>();
-                            assert(data && data->parent);
-                            auto conn_data = data->parent->as<quic_conn_t>();
-                            assert(conn_data && conn_data->worker);
-                            conn_data->worker->close_connection(conn, CLOSE_CONN_ERR);
-                        });
+                    if (!(it->second->wrk.flags & WRK_INTERFACE_IS_CTRL)) {
+                        if (data->flags & (base::CONN_IO_WAITING) && (data->transfered_k < config->speed_stream_check_bytes)) {
+                            manapi::async::current()->etaskpool()->append_task([conn = it->second] () -> void {
+                                auto data = conn->as<quic_stream_t>();
+                                assert(data && data->parent);
+                                auto conn_data = data->parent->as<quic_conn_t>();
+                                assert(conn_data && conn_data->worker);
+                                conn_data->worker->close_connection(conn, CLOSE_CONN_ERR);
+                            });
 
-                        continue;
+                            continue;
+                        }
                     }
                     data->transfered_k = 0;
                     data->speed_min_delay = static_cast<int>(config->speed_stream_check_delay);
@@ -1427,7 +1428,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                         auto conn = *static_cast<shared_conn *>(SSL_get_app_data(it->desc.value.ssl));
                         auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
                         if (stream) {
-                            auto res = this->stream_accept(conn, stream);
+                            auto res = this->stream_accept(conn, stream, 0);
                             it = &this->polls_[i];
 
                             if (res.ok()) {
@@ -1489,7 +1490,6 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
                 /* read stream */
                 if (it->revents & SSL_POLL_EVENT_R) {
-
                     auto data = SSL_get_app_data(it->desc.value.ssl);
 
                     if (data) {
@@ -1625,7 +1625,7 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
     }
 }
 
-manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT {
     try {
         if (!conn->wrk.data) {
             /* it hasn't be initialized yet */
@@ -1641,6 +1641,9 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         auto stream_conn = std::shared_ptr<worker::connection> (
                 new worker::connection{p.release()}, stream_interface_eraser);
+
+        if (flags & CONN_STREAM_FLAG_CTRL)
+            stream_conn->wrk.flags |= WRK_INTERFACE_IS_CTRL;
 
         stream_conn->wrk.flags |= WRK_INTERFACE_IS_STREAM;
         stream_conn->version = conn->version;

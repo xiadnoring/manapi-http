@@ -7,22 +7,40 @@
 #include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 
+#define HTTP_ALL_SWITCH_CASE(namecb__, cb__, ver__, name__) \
+case manapi::net::http::versions::ver__: \
+httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->name__.get(); \
+return httpctx->cb__;
+
+#define HTTP_ALL_SWITCH_CASE2(namecb__, cb__, ver__, name__) \
+case manapi::net::http::versions::ver__: \
+httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->name__.get(); \
+if (httpctx->namecb__) { return httpctx->cb__; } break;
+
+#define HTTP_ALL_SWITCH_DEFAULTCASE(name__, cb__) \
+default: assert(false && "unreachable code");
+
 #define HTTP_ALL_SWITCH(namecb, ...) \
 manapi::net::worker::wrk_interface_global_t * httpctx; \
-switch (conn->version) { case manapi::net::http::versions::HTTP_v0_9: \
-case manapi::net::http::versions::HTTP_v1_0: \
-case manapi::net::http::versions::HTTP_v1_1: \
-httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http1.get(); \
-return httpctx->namecb(__VA_ARGS__); \
-case manapi::net::http::versions::HTTP_v2: \
-httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http2.get(); \
-return httpctx->namecb(__VA_ARGS__); \
-case manapi::net::http::versions::HTTP_v3: \
-httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http3.get(); \
-return httpctx->namecb(__VA_ARGS__); \
-default: assert(false && "unreachable code");  } \
+switch (conn->version) { \
+HTTP_ALL_SWITCH_CASE(namecb, namecb(__VA_ARGS__), HTTP_v0_9, http1) \
+HTTP_ALL_SWITCH_CASE(namecb, namecb(__VA_ARGS__), HTTP_v1_0, http1) \
+HTTP_ALL_SWITCH_CASE(namecb, namecb(__VA_ARGS__), HTTP_v1_1, http1) \
+HTTP_ALL_SWITCH_CASE(namecb, namecb(__VA_ARGS__), HTTP_v2, http2) \
+HTTP_ALL_SWITCH_CASE(namecb, namecb(__VA_ARGS__), HTTP_v3, http3) \
+HTTP_ALL_SWITCH_DEFAULTCASE(namecb, namecb(__VA_ARGS__)) } \
 httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http1.get(); \
 return httpctx->namecb(__VA_ARGS__);
+
+#define HTTP_ALL_SWITCH2(namecb, ...) \
+manapi::net::worker::wrk_interface_global_t * httpctx; \
+switch (conn->version) { \
+HTTP_ALL_SWITCH_CASE2(namecb, namecb(__VA_ARGS__), HTTP_v0_9, http1) \
+HTTP_ALL_SWITCH_CASE2(namecb, namecb(__VA_ARGS__), HTTP_v1_0, http1) \
+HTTP_ALL_SWITCH_CASE2(namecb, namecb(__VA_ARGS__), HTTP_v1_1, http1) \
+HTTP_ALL_SWITCH_CASE2(namecb, namecb(__VA_ARGS__), HTTP_v2, http2) \
+HTTP_ALL_SWITCH_CASE2(namecb, namecb(__VA_ARGS__), HTTP_v3, http3) } \
+return;
 
 enum http_v1_flags {
     HTTP1_BODY_CHUNKED = 1

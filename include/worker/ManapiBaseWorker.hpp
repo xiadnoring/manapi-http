@@ -24,7 +24,8 @@ namespace manapi::net::worker {
         WRK_INTERFACE_TCP_KEEP_ALIVE = 8,
         WRK_INTERFACE_IS_STREAM = 16,
         WRK_INTERFACE_IS_READ_STOP = 32,
-        WRK_INTERFACE_IS_DRAINING = 64
+        WRK_INTERFACE_IS_DRAINING = 64,
+        WRK_INTERFACE_IS_CTRL = 128
     };
 
     enum worker_base_flags {
@@ -149,7 +150,6 @@ namespace manapi::net::worker {
          */
         int (*shutdown_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, bool force) MANAPIHTTP_NOEXCEPT;
 
-
         ssize_t custom_cb (const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, void *data) MANAPIHTTP_NOEXCEPT;
     };
 
@@ -215,7 +215,8 @@ namespace manapi::net::worker {
              * says to create a new unidirectional stream
              * instead of a bidirectional stream
              */
-            CONN_STREAM_FLAG_UNI = 1
+            CONN_STREAM_FLAG_UNI = 1,
+            CONN_STREAM_FLAG_CTRL = 2
         };
 
         base ();

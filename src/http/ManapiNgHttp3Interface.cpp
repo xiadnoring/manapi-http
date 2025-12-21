@@ -400,6 +400,10 @@ static int ng_wrk_http3_stream_init (const manapi::net::worker::shared_conn &con
 
     stream->wrk.data = tp.release();
 
+    if (stream_id == 0) {
+        stream->wrk.flags |= manapi::net::worker::WRK_INTERFACE_IS_CTRL;
+    }
+
     try {
         w->event_on(stream,
             [w, global]
@@ -1041,19 +1045,23 @@ static int ng_wrk_http3_init (const manapi::net::worker::shared_conn &conn, mana
 
         conn->wrk.data = tp.release();
 
-        auto res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI);
+        auto res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI|
+            manapi::net::worker::base::CONN_STREAM_FLAG_CTRL);
         if (!res.ok())
             return manapi::ERR_ABORTED;
 
         auto ctrl_stream = res.unwrap();
 
-        res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI);
+        res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI|
+            manapi::net::worker::base::CONN_STREAM_FLAG_CTRL);
         if (!res.ok())
             return manapi::ERR_ABORTED;
 
         auto encode_stream = res.unwrap();
 
-        res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI);
+        res = w->new_stream(conn, manapi::net::worker::base::CONN_STREAM_FLAG_UNI|
+            manapi::net::worker::base::CONN_STREAM_FLAG_CTRL);
+
         if (!res.ok())
             return manapi::ERR_ABORTED;
 

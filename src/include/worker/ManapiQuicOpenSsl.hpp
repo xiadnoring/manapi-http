@@ -91,7 +91,7 @@ namespace manapi::net::worker {
 
         static void io_unbind_cb (ev::handle *s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<shared_conn> stream_accept (const shared_conn &conn, SSL *stream) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<shared_conn> stream_accept (const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT;
 
         void stream_processing (const shared_conn &s) MANAPIHTTP_NOEXCEPT;
 
