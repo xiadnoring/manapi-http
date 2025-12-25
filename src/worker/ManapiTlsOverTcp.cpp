@@ -893,8 +893,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, tls_
         return CONN_IO_OK;
     }
     catch (std::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service,
-            manapi::ERR_INTERNAL, "TLS::ssl_bio_flush_write_(...): {}", e.what());
+        manapi::async::current()->logger()->error(manapi::ERR_INTERNAL, "TLS::ssl_bio_flush_write_(...): {}", e.what());
     }
 
     // try {
@@ -1063,8 +1062,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, tls_c
         return CONN_IO_OK;
     }
     catch (std::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service,
-            manapi::ERR_INTERNAL, "TLS::ssl_bio_flush_read_(...): {}", e.what());
+        manapi::async::current()->logger()->error(manapi::ERR_INTERNAL, "TLS::ssl_bio_flush_read_(...): {}", e.what());
     }
     return CONN_IO_ERROR;
 }

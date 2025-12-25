@@ -167,7 +167,7 @@ manapi::future<manapi::error::status> manapi::net::http::server::stop_(std::shar
             });
         }
         catch (std::exception const &e) {
-            async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
+            async::current()->logger()->error(ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
         }
 
         if (data->init_watcher) {
@@ -223,8 +223,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
                     res.log();
             }
             catch (std::exception const &e) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service,
-                    ERR_FAILED_PRECONDITION, "init pool failed due to {}", e.what());
+                manapi::async::current()->logger()->error(ERR_FAILED_PRECONDITION, "init pool failed due to {}", e.what());
             }
 
             if (p) {

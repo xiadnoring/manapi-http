@@ -286,6 +286,26 @@ const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEP
     return manapi::async::internal::current_();
 }
 
+const std::shared_ptr<manapi::event_loop> & manapi::async::eventloop() MANAPIHTTP_NOEXCEPT {
+    return manapi::async::current()->eventloop();
+}
+
+const std::shared_ptr<manapi::timerpool> & manapi::async::etimerpool() MANAPIHTTP_NOEXCEPT {
+    return manapi::async::current()->timerpool();
+}
+
+const std::shared_ptr<manapi::threadpool> & manapi::async::etaskpool() MANAPIHTTP_NOEXCEPT {
+    return manapi::async::current()->etaskpool();
+}
+
+const std::shared_ptr<manapi::threadpool> & manapi::async::mtaskpool() MANAPIHTTP_NOEXCEPT {
+    return manapi::async::current()->threadpool();
+}
+
+const std::shared_ptr<manapi::logger> & manapi::async::log() MANAPIHTTP_NOEXCEPT {
+    return manapi::async::current()->logger();
+}
+
 bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
     return manapi::async::internal::current_() != nullptr;
 }

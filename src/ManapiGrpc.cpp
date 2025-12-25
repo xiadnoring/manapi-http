@@ -904,7 +904,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                     return;
                 }
                 catch (std::exception const &e) {
-                    manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_INTERNAL, "creating connection failed due to {}",
+                    manapi::async::current()->logger()->error(manapi::ERR_INTERNAL, "creating connection failed due to {}",
                         e.what());
                 }
 

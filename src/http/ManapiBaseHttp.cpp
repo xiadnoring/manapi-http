@@ -1095,7 +1095,7 @@ namespace manapi::net::http::internal {
 
                                 if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
                                     /* error */
-                                    manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
+                                    manapi::async::current()->logger()->error(ERR_INTERNAL, "stringify_ip(): ip get failed");
                                     co_return;
                                 }
 
@@ -1150,7 +1150,7 @@ namespace manapi::net::http::internal {
             if (handle_request_stringify_ip(client.get(),
                 cdata->worker.get(), cdata->conn.get())) {
                 /* error */
-                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
+                manapi::async::current()->logger()->error(ERR_INTERNAL, "stringify_ip(): ip get failed");
                 return;
             }
 

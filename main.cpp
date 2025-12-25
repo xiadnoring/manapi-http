@@ -4,6 +4,7 @@
 #include <ManapiInitTools.hpp>
 
 #define FOLDER "/home/Timur/Downloads/anime-main/"
+
 int main() {
     manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HARD);
 
@@ -18,6 +19,10 @@ int main() {
         auto route = manapi::net::http::server::create(server_ctx).unwrap();
 
         route.GET ("/", [] (http::req &req, http::uresp resp) -> void {
+            resp->file (manapi::filesystem::path::join(FOLDER, "index.html")).unwrap();
+        }).unwrap();
+
+        route.POST ("/", [] (http::req &req, http::uresp resp) -> void {
             resp->file (manapi::filesystem::path::join(FOLDER, "index.html")).unwrap();
         }).unwrap();
 

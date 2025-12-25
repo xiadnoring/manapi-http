@@ -11,7 +11,7 @@ import os
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
     description = "Fast http server/client"
-    version = "1.0.4"
+    version = "1.0.5"
 
     settings = "os", "compiler", "build_type", "arch"
 

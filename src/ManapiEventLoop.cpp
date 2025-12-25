@@ -1197,7 +1197,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
             //MANAPIHTTP_LOG("CURL EV: {} {}", revents, static_cast<int>(fd));
             int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher->curl_multi.get(), fd, (revents & 0b11), &cnt);
             if (rhs != CURLM_OK) {
-                data->logger_->debug(manapi::logger::default_service, "curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));
+                data->logger_->debug("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));
             }
             data2->handle_curl_check_connections();
         });

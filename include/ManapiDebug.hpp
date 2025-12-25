@@ -22,32 +22,37 @@ namespace manapi::debug {
         LOG_TRACE_HARD
     } trace_level;
 
-    static const char* level_strings[] = {
-        "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
-    };
-
-#ifdef LOG_NO_COLOR
-    static const char* level_colors[] = {
-        "", "", "", "", "", ""
-    };
-#else
-    static const char* level_colors[] = {
-        "\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
-    };
-#endif
-
     extern int log_trace_enabled;
 
-    void log_log(log_level type, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
+    void logit(log_level type, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
 
-    void log_log(log_level type, const char* file, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
+    void logit(log_level type, const char* file, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+    void flogit(log_level type, const char* file, const char *func, int line, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+    void flogit(log_level type, const char* file, const char *func, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
 
     // Convenience macros
-#define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
-#define manapi_log_trace_hard(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, manapi::debug::LOG_TRACE_HARD, __VA_ARGS__)
-#define manapi_log_debug(...) manapi::debug::log_log(manapi::debug::LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define manapi_log_info(...)  manapi::debug::log_log(manapi::debug::LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
-#define manapi_log_warn(...)  manapi::debug::log_log(manapi::debug::LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)
-#define manapi_log_error(...) manapi::debug::log_log(manapi::debug::LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define manapi_log_fatal(...) manapi::debug::log_log(manapi::debug::LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_trace(...) manapi::debug::logit(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_trace_hard(...) manapi::debug::logit(manapi::debug::LOG_TRACE, __FILE__, __LINE__, manapi::debug::LOG_TRACE_HARD, __VA_ARGS__)
+#define manapi_log_debug(...) manapi::debug::logit(manapi::debug::LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_info(...)  manapi::debug::logit(manapi::debug::LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_warn(...)  manapi::debug::logit(manapi::debug::LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_error(...) manapi::debug::logit(manapi::debug::LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_fatal(...) manapi::debug::logit(manapi::debug::LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#ifdef _MSC_VER
+#   define manapi_log_ferror(...) manapi::debug::flogit(manapi::debug::LOG_ERROR, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#   define manapi_log_ftrace(...) manapi::debug::flogit(manapi::debug::LOG_TRACE, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#   define manapi_log_finfo(...) manapi::debug::flogit(manapi::debug::LOG_INFO, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#   define manapi_log_fwarn(...) manapi::debug::flogit(manapi::debug::LOG_WARN, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#   define manapi_log_fdebug(...) manapi::debug::flogit(manapi::debug::LOG_DEBUG, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#   define manapi_log_ffatal(...) manapi::debug::flogit(manapi::debug::LOG_FATAL, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#else
+#   define manapi_log_ferror(...) manapi::debug::flogit(manapi::debug::LOG_ERROR, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#   define manapi_log_ftrace(...) manapi::debug::flogit(manapi::debug::LOG_TRACE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#   define manapi_log_finfo(...) manapi::debug::flogit(manapi::debug::LOG_INFO, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#   define manapi_log_fwarn(...) manapi::debug::flogit(manapi::debug::LOG_WARN, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#   define manapi_log_fdebug(...) manapi::debug::flogit(manapi::debug::LOG_DEBUG, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#   define manapi_log_ffatal(...) manapi::debug::flogit(manapi::debug::LOG_FATAL, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#endif
 }

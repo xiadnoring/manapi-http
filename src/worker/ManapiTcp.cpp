@@ -284,8 +284,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
                     this->onrecv(w, connection, std::move(object));
                 }
                 catch (std::exception const &e) {
-                    manapi::async::current()->logger()->error(manapi::logger::default_service,
-                        manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
+                    manapi::async::current()->logger()->error(manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
                 }
         }, [this] (const std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) MANAPIHTTP_NOEXCEPT -> void {
             auto res = this->bufferpool().buffer(suggested_size);
@@ -311,7 +310,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
 
         if (auto rhs = client->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
             manapi_log_error("%s due to %s", "tcp:couldn't set keep-alive", ev::strerror(rhs));
-            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
+            manapi::async::current()->logger()->error(ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
             manapi::async::current()->eventloop()->stop_watcher(std::move(client));
             return nullptr;
         }

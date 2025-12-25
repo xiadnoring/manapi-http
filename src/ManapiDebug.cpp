@@ -5,7 +5,7 @@ void manapi::debug::do_log_(std::string_view file_name, std::string_view func, s
     if (ctx) {
         auto &logger = ctx->logger();
         auto msg = std::format ("{}() ({}:{}): {}", func, file_name, line, data);
-        logger->debug(manapi::logger::default_service, std::move(msg));
+        logger->debug(std::move(msg));
     }
     else {
         manapi_log_debug("%.*s() (%.*s:%zu): %.*s", func.size(), func.data(), file_name.size(), file_name.data(), line, data.size(), data.data());

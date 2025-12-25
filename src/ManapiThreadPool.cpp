@@ -13,12 +13,10 @@ void task_doit(std::move_only_function<void()>&task, manapi::logger *logger) {
         task();
     }
     catch (const manapi::exception &e) {
-        logger->warning(manapi::logger::default_service,
-            std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
+        logger->warning( std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
     }
     catch (const std::exception &e) {
-        logger->warning(manapi::logger::default_service,
-            std::format("unexpected exception in the task: {}", e.what()));
+        logger->warning( std::format("unexpected exception in the task: {}", e.what()));
     }
 }
 
@@ -29,12 +27,10 @@ void task_doit(manapi::fixed_function<void()> &task, manapi::logger *logger) {
         task();
     }
     catch (const manapi::exception &e) {
-        logger->warning(manapi::logger::default_service,
-            std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
+        logger->warning(std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
     }
     catch (const std::exception &e) {
-        logger->warning(manapi::logger::default_service,
-            std::format("unexpected exception in the task: {}", e.what()));
+        logger->warning(std::format("unexpected exception in the task: {}", e.what()));
     }
 }
 

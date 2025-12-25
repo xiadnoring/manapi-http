@@ -158,7 +158,7 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
 
     do {
         if (auto rhs = this->udp_accept_->recv_start()) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
+            manapi::async::current()->logger()->error(ERR_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
             goto err;
         }
 

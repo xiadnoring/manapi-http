@@ -8,7 +8,23 @@
 #include "std/ManapiAsyncContext.hpp"
 #include "./include/ManapiUtils.hpp"
 
+static const char* level_strings[] = {
+    "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+};
+
+#ifdef LOG_NO_COLOR
+static const char* level_colors[] = {
+    "", "", "", "", "", ""
+};
+#else
+static const char* level_colors[] = {
+    "\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
+};
+#endif
+
+
 int manapi::debug::log_trace_enabled = -1;
+
 static std::mutex log_mx;
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
@@ -286,10 +302,18 @@ manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
 }
 
-void log_log_ (manapi::debug::log_level type, int level, const char *file, int line, const char *fmt, va_list args) {
+void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *fmt, va_list args) {
     if (type == manapi::debug::LOG_TRACE && level > manapi::debug::log_trace_enabled)
         return;
 
+    auto timepoint = std::chrono::system_clock::now();
+    auto coarse = std::chrono::system_clock::to_time_t(timepoint);
+    auto fine = std::chrono::time_point_cast<std::chrono::milliseconds>(timepoint);
+
+    char tstr[sizeof "9999-12-31 23:59:59.999"];
+    std::snprintf(tstr + std::strftime(tstr, sizeof tstr - 3,
+                                         "%F %T.", std::localtime(&coarse)),
+                  4, "%03lu", fine.time_since_epoch().count() % 1000);
 
     // Remove path from filename
     const char* base = strrchr(file, '/');
@@ -297,16 +321,31 @@ void log_log_ (manapi::debug::log_level type, int level, const char *file, int l
     base = base ? base + 1 : file;
 
     std::lock_guard<std::mutex> lk (log_mx);
-    // Print timestamp, log level, and file info
-    fprintf(
-        stderr,
-        "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
-        manapi::debug::level_colors[type],
-        manapi::debug::level_colors[type],
-        manapi::debug::level_strings[type],
-        base,
-        line
-    );
+    if (func) {
+        // Print timestamp, log level, and file info
+        fprintf(
+            stderr,
+            "%s%-5s\x1b[0m \x1b[90m%s %s:%d(%s):\x1b[0m ",
+            level_colors[type],
+            level_strings[type],
+            tstr,
+            base,
+            line,
+            func
+        );
+    }
+    else {
+        // Print timestamp, log level, and file info
+        fprintf(
+            stderr,
+            "%s%-5s\x1b[0m \x1b[90m%s %s:%d:\x1b[0m ",
+            level_colors[type],
+            level_strings[type],
+            tstr,
+            base,
+            line
+        );
+    }
 
     // Print user message
     vfprintf(stderr, fmt, args);
@@ -316,16 +355,31 @@ void log_log_ (manapi::debug::log_level type, int level, const char *file, int l
     fflush(stderr);
 }
 
-void manapi::debug::log_log(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::logit(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    log_log_(type, LOG_TRACE_HIGH, file, line, fmt, args);
+    logit_(type, LOG_TRACE_HIGH, file, nullptr, line, fmt, args);
     va_end(args);
 }
 
-void manapi::debug::log_log(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::logit(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    log_log_(type, level, file, line, fmt, args);
+    logit_(type, level, file, nullptr, line, fmt, args);
     va_end(args);
 }
+
+void manapi::debug::flogit(log_level type, const char *file, const char *func, int line, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
+    va_list args;
+    va_start(args, fmt);
+    logit_(type, LOG_TRACE_HIGH, file, func, line, fmt, args);
+    va_end(args);
+}
+
+void manapi::debug::flogit(log_level type, const char *file, const char *func, int level, int line, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
+    va_list args;
+    va_start(args, fmt);
+    logit_(type, LOG_TRACE_HIGH, file, func, line, fmt, args);
+    va_end(args);
+}
+

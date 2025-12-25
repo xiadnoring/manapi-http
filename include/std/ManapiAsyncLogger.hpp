@@ -18,13 +18,17 @@ namespace manapi {
     };
 
     class logger {
-    private:
         typedef std::move_only_function<void(logger_type type, std::string_view service, int error_code, std::string msg)> callback_t;
-        struct data_t {
-            callback_t callback;
-        };
     public:
-        logger(callback_t callback = nullptr);
+        struct data_t;
+
+        logger();
+
+        logger(callback_t callback);
+
+        logger(std::string service, callback_t callback);
+
+        logger(std::string service, std::shared_ptr<data_t> data);
 
         ~logger();
 
@@ -61,33 +65,56 @@ namespace manapi {
          */
         void callback (callback_t callback);
 
+        void callback (logger_type type, std::string_view service, int error_code, std::string msg) MANAPIHTTP_NOEXCEPT;
+
+        void fcallback (logger_type type, std::string_view service, int error_code, const char *fmt, va_list args) MANAPIHTTP_NOEXCEPT;
+
         template<typename ...Args>
-        void warning (std::string_view service, std::string msg, Args &&...args) {
-            this->call_(LOGGER_WARNING, service, 0, std::move(msg), args...);
+        void swarning (std::string_view service, std::string msg, Args &&...args) {
+            this->callback(LOGGER_WARNING, service, 0, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
         }
 
         template<typename ...Args>
-        void error (std::string_view service, int error_code, std::string msg, Args &&...args){
-            this->call_(LOGGER_ERROR, service, error_code, std::move(msg), args...);
+        void serror (std::string_view service, int error_code, std::string msg, Args &&...args){
+            this->callback(LOGGER_ERROR, service, error_code, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
         }
 
         template<typename ...Args>
-        void debug (std::string_view service, std::string msg, Args &&...args){
-            this->call_(LOGGER_DEBUG, service, 0, std::move(msg), args...);
+        void sdebug (std::string_view service, std::string msg, Args &&...args){
+            this->callback(LOGGER_DEBUG, service, 0, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
         }
 
-        MANAPIHTTP_NODISCARD static std::string_view label_by_type (logger_type type);
+        template<typename ...Args>
+        void warning (std::string msg, Args &&...args) {
+            this->callback(LOGGER_WARNING, this->m_service, 0, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
+        }
 
-        static const char default_service[];
+        template<typename ...Args>
+        void error (int error_code, std::string msg, Args &&...args){
+            this->callback(LOGGER_ERROR, this->m_service, error_code, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
+        }
+
+        template<typename ...Args>
+        void debug (std::string msg, Args &&...args){
+            this->callback(LOGGER_DEBUG, this->m_service, 0, (sizeof...(Args)) ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
+        }
+
+        std::shared_ptr<manapi::logger> create (std::string service);
+
+        void fsdebug (std::string_view service, const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+        void fserror (std::string_view service, int error_code, const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+        void fswarning (std::string_view service, const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+        void fdebug (const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
+
+        void ferror (const char *fmt, int error_code, ...) MANAPIHTTP_NOEXCEPT;
+
+        void fwarning (const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
     private:
-        static void setup_default_callback_(const std::shared_ptr<data_t> &data);
-        template<typename ...Args>
-        void call_(logger_type type, std::string_view service, int error_code, std::string msg, Args &&...args) {
-            if (this->data) {
-                constexpr std::size_t n = sizeof...(Args);
-                this->data->callback(type, service, error_code, n ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
-            }
-        }
-        std::shared_ptr<data_t> data;
+        std::string m_service;
+
+        std::shared_ptr<data_t> m_data;
     };
 }

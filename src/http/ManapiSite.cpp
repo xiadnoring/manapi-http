@@ -411,11 +411,11 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
             }
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
+            manapi::async::current()->logger()->error(ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
         }
     }
     catch (manapi::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory ({}) couldn't be created due to {}.",
+        manapi::async::current()->logger()->error(e.err_num(), "The configuration directory ({}) couldn't be created due to {}.",
          cache_path, e.what());
     }
 
