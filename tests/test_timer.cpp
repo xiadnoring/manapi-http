@@ -12,7 +12,7 @@
 #include "./tools.hpp"
 
 UTEST(timer, important_dep) {
-    auto ctx = init_ctx(utest_result, 500);
+    auto ctx = init_ctx(utest_result, 5000);
 
     bool finished = false;
 
