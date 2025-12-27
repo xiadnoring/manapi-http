@@ -159,13 +159,13 @@ int default_wrk_http_all_global_alpn (manapi::net::worker::wrk_interface_global_
     return manapi::net::http::versions::HTTP_v1_1;
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
     if (global->data)
-        return manapi::error::status_invalid_argument("global->data already exists");
+        return manapi::status_invalid_argument("global->data already exists");
 
     global->data = new (std::nothrow) manapi::net::worker::wrk_http_ctx_global_t{};
     if (!global->data)
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
 
     global->alpn_cb = default_wrk_http_all_global_alpn;
     global->flags_cb = default_wrk_http_all_global_flags;
@@ -180,12 +180,12 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_
     global->send_response = default_wrk_http_all_send_response;
     global->shutdown_cb = default_wrk_http_all_shutdown_conn;
 
-    return manapi::error::status_ok();
+    return manapi::status_ok();
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http_all_global_add_version(wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::default_wrk_http_all_global_add_version(wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) MANAPIHTTP_NOEXCEPT {
     if (!global)
-        return manapi::error::status_invalid_argument("global is null");
+        return manapi::status_invalid_argument("global is null");
 
 
     auto data = static_cast<worker::wrk_http_ctx_global_t *> (global->data);
@@ -206,10 +206,10 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_add_versi
             break;
         }
         default:
-            return error::status_out_of_range("http version incorrect");
+            return status_out_of_range("http version incorrect");
     }
 
-    return error::status_ok();
+    return status_ok();
 }
 
 void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
@@ -592,13 +592,13 @@ manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::
     co_return manapi::ERR_OK;
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
     if (global->data)
-        return manapi::error::status_invalid_argument("global->data already exists");
+        return manapi::status_invalid_argument("global->data already exists");
 
     global->data = new (std::nothrow) manapi::net::worker::wrk_http1_ctx_global_t{};
     if (!global->data)
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
 
     global->accept_cb = default_wrk_http1;
     global->cleanup_cb = default_wrk_http1_cleanup;
@@ -609,5 +609,5 @@ manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi
     global->update_limit_rate = nullptr;
     global->send_response = default_wrk_http1_send_response;
 
-    return manapi::error::status_ok();
+    return manapi::status_ok();
 }

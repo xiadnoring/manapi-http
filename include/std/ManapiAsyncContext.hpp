@@ -172,7 +172,7 @@ namespace manapi::async {
         /**
          * start working synchronously
          */
-        virtual manapi::sys_error::status start ();
+        virtual manapi::ev::status start ();
 
         /**
          * join all threads
@@ -223,21 +223,21 @@ namespace manapi::async {
          * @param threadnum the additional threads
          * @return
          */
-        static manapi::error::status_or<std::shared_ptr<context>> create () MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<context>> create () MANAPIHTTP_NOEXCEPT;
 
         /**
          * create a context and return it
          * @param threadnum the additional threads
          * @return
          */
-        static manapi::error::status_or<std::shared_ptr<context>> create (unsigned int threadnum) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<context>> create (unsigned int threadnum) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in all contexts
          * @param loops the count of copies of the context
          * @param callback the callback
          */
-        manapi::error::status run (uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
+        manapi::status run (uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in the context

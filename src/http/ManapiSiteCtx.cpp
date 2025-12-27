@@ -7,7 +7,7 @@ struct manapi::net::http::server_ctx::data_t {
 
 manapi::net::http::server_ctx::server_ctx() : data_(nullptr) {}
 
-manapi::error::status_or<manapi::net::http::server_ctx> manapi::net::http::server_ctx::create() MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::http::server_ctx> manapi::net::http::server_ctx::create() MANAPIHTTP_NOEXCEPT {
     try {
         server_ctx ctx;
         auto n = std::make_unique<worker_data_t>();
@@ -18,7 +18,7 @@ manapi::error::status_or<manapi::net::http::server_ctx> manapi::net::http::serve
     }
     catch (std::exception const &e) {
         manapi_log_error(e.what());
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 

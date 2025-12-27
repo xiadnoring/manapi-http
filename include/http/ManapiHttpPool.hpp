@@ -33,13 +33,13 @@ namespace manapi::net {
          * stop the server
          * @return InternalError, ResourceExhausted on error
          */
-        manapi::future<manapi::error::status> stop ();
+        manapi::future<manapi::status> stop ();
 
         /**
          * start the server
          * @return InternalError, ResourceExausted, FailedPrecondition on error
          */
-        manapi::future<manapi::error::status> run ();
+        manapi::future<manapi::status> run ();
 
         /**
          * get the site instance
@@ -49,7 +49,7 @@ namespace manapi::net {
 
         MANAPIHTTP_NODISCARD std::shared_ptr <http::config> config () const;
     private:
-        manapi::future<manapi::error::status> pool_ ();
+        manapi::future<manapi::status> pool_ ();
 
         std::size_t id;
 

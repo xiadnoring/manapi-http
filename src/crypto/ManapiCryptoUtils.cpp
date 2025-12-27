@@ -20,7 +20,7 @@
 #   include "Wincrypt.h"
 #endif
 
-manapi::error::status random_string_ (char *rnd, std::size_t len) {
+manapi::status random_string_ (char *rnd, std::size_t len) {
     try {
 #ifdef _WIN32
         HCRYPTPROV h_crypt_prov;
@@ -30,14 +30,14 @@ manapi::error::status random_string_ (char *rnd, std::size_t len) {
             if (CryptGenRandom(h_crypt_prov, (DWORD) len, (BYTE *) rnd))
             {
                 if (!CryptReleaseContext(h_crypt_prov, 0))
-                    return manapi::error::status_failed_precondition ("CryptReleaseContext() failed");
+                    return manapi::status_failed_precondition ("CryptReleaseContext() failed");
             }
             else
             {
                 if (CryptReleaseContext(h_crypt_prov, 0))
-                    return manapi::error::status_failed_precondition ("CryptGenRandom() failed");
+                    return manapi::status_failed_precondition ("CryptGenRandom() failed");
                 else
-                    return manapi::error::status_failed_precondition ("CryptReleaseContext() failed");
+                    return manapi::status_failed_precondition ("CryptReleaseContext() failed");
             }
         }
 #else
@@ -48,15 +48,15 @@ manapi::error::status random_string_ (char *rnd, std::size_t len) {
         for (size_t i = 0; i < len; i++)
             rnd[i] = static_cast <char> (dist256(rng));
 #endif
-        return manapi::error::status_ok();
+        return manapi::status_ok();
     }
     catch (std::bad_alloc const &) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "random_string_:Failed", e.what());
     }
-    return manapi::error::status_internal("random_string_:Failed");
+    return manapi::status_internal("random_string_:Failed");
 }
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
@@ -71,12 +71,12 @@ void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
 }
 #endif
 
-manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
+manapi::future<manapi::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
     if (!len)
-        co_return error::status_ok();
+        co_return status_ok();
 
-    typedef manapi::async::promise_sync<manapi::error::status> promise;
-    manapi::error::status res;
+    typedef manapi::async::promise_sync<manapi::status> promise;
+    manapi::status res;
     try {
         res = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) mutable
             -> void {
@@ -84,16 +84,16 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
                 auto w = manapi::async::current()->eventloop()->create_watcher_random(buff, len, [resolve, reject] (const std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
                     -> void {
                         if (status) {
-                            resolve(manapi::error::status_internal("random() failed"));
+                            resolve(manapi::status_internal("random() failed"));
                             return;
                         }
-                        resolve(manapi::error::status_ok());
+                        resolve(manapi::status_ok());
                 }).unwrap();
                 if (cancellation.contains_cancel_callback()) {
                     cancellation.cancel_callback([w, resolve = std::move(resolve)] () mutable
                         -> void {
                         manapi::async::current()->eventloop()->stop_watcher(std::move(w));
-                        resolve(manapi::error::status_cancelled());
+                        resolve(manapi::status_cancelled());
                     });
                 }
             }
@@ -105,16 +105,16 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
         });
     }
     catch (std::bad_alloc const &) {
-        res = error::status_resource_exhausted();
+        res = status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "async_random_string:Failed", e.what());
-        res = error::status_internal("async_random_string:Failed");
+        res = status_internal("async_random_string:Failed");
     }
     co_return std::move(res);
 }
 
-manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
+manapi::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
     try {
         std::string rnd;
         rnd.resize(len);
@@ -126,15 +126,15 @@ manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t 
         return std::move(err);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "random_string:Failed", e.what());
     }
-    return error::status_internal("random_string:Failed");
+    return status_internal("random_string:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
+manapi::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
     try {
         static const char hex_digits[] = "0123456789ABCDEF";
         std::string output;
@@ -147,7 +147,7 @@ manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_
         return std::move(output);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 
@@ -167,7 +167,7 @@ static int chrhex2chrdec (char &a) {
     return 0;
 }
 
-manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
+manapi::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
     try {
         auto len = hex.length();
         if (len % 2 != 0) {
@@ -187,10 +187,10 @@ manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_
         return std::move(newString);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 err:
-    return error::status_invalid_argument("hex string invalid");
+    return status_invalid_argument("hex string invalid");
 }
 
 // int manapi::crypto::binpow(int a, int n) {

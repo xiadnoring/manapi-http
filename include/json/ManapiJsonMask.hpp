@@ -7,13 +7,13 @@
 
 namespace manapi {
     namespace json_error {
-        class status : public manapi::error::status {
+        class status : public manapi::status {
         public:
             status ();
 
             ~status () override;
 
-            status (const error::status &err);
+            status (const status &err);
 
             status (err_num code, std::string_view msg, std::size_t pos, std::string path);
 
@@ -22,6 +22,10 @@ namespace manapi {
             status (json_error::status &&n) MANAPIHTTP_NOEXCEPT;
 
             status &operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT;
+
+            status (manapi::status &&n) MANAPIHTTP_NOEXCEPT;
+
+            status &operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT;
 
             void log () const override;
 
@@ -33,17 +37,17 @@ namespace manapi {
 
             MANAPIHTTP_NODISCARD std::size_t pos () const;
         private:
-            std::string data_;
-            std::string path_;
-            std::size_t pos_;
+            std::string m_data;
+            std::string m_path;
+            std::size_t m_pos;
         };
 
         template<typename T, typename E = manapi::json_error::status>
-        class status_or : public manapi::error::status_or<T, E> {
+        class status_or : public manapi::status_or<T, E> {
         public:
-            status_or (json_error::status n) : error::status_or<T, E>(std::move(n)) {}
+            status_or (json_error::status n) : manapi::status_or<T, E>(std::move(n)) {}
 
-            status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
+            status_or (T &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
             status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 

@@ -1229,12 +1229,12 @@ static manapi::future<int> ng_wrk_http3_send_response (const manapi::net::worker
     co_return ng_wrk_http3_send_response_sync(stream, global, w, res, finish);
 }
 
-manapi::error::status manapi::net::worker::ng_wrk_http3_global_init(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::ng_wrk_http3_global_init(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
     try {
         assert(!global->data);
 
         if (!(w->worker_flags() & WORKER_BASE_FLAG_MULTISTREAM))
-            return error::status_invalid_argument("worker doesn't support multistream");
+            return status_invalid_argument("worker doesn't support multistream");
 
 
         auto tp = std::make_unique<ng_wrk_http3_ctx_global_t>();
@@ -1270,14 +1270,14 @@ manapi::error::status manapi::net::worker::ng_wrk_http3_global_init(manapi::net:
         global->shutdown_cb = ng_wrk_http3_shutdown_conn;
 
 
-        return error::status_ok();
+        return status_ok();
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "nghttp3: init", e.what());
-        return error::status_internal("nghttp3: init");
+        return status_internal("nghttp3: init");
     }
 }
 

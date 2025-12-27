@@ -11,12 +11,12 @@
 static constexpr char header_delimiter[] = ": ";
 
 
-manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
+manapi::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
     std::pair <std::string_view, std::string_view> parsed;
     auto const pos = header.find(':');
 
     if (std::string::npos == pos) {
-        return manapi::error::status_invalid_argument("invalid header: semicolon is missing");
+        return manapi::status_invalid_argument("invalid header: semicolon is missing");
     }
 
     parsed.first = header.substr(0, pos);
@@ -71,7 +71,7 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.divided = -1;
 }
 
-manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi::net::http::parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::vector <manapi::net::http::header_value_t>> manapi::net::http::parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXCEPT {
     try {
         enum header_value_parse_states {
             HTTP_HV_FIELD_START = 0,
@@ -331,7 +331,7 @@ manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi
                             case ',': {
                                 if (next != HTTP_HV_FIELD_START
                                     && next != HTTP_HV_VALUE_START)
-                                    return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                                    return status_invalid_argument("parse_header_value: unexpected symbol");
                                 rhs++;
                                 state = HTTP_HV_FIELD_START;
                                 next = HTTP_HV_ERR;
@@ -340,7 +340,7 @@ manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi
                             case ';': {
                                 if (next != HTTP_HV_VALUE_START
                                     && next != HTTP_HV_FIELD_START)
-                                    return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                                    return status_invalid_argument("parse_header_value: unexpected symbol");
                                 rhs++;
                                 state = HTTP_HV_KEY_START;
                                 next = HTTP_HV_ERR;
@@ -361,10 +361,10 @@ manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi
                                     goto finish;
                                 }
 
-                                return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                                return status_invalid_argument("parse_header_value: unexpected symbol");
                             }
                             default: {
-                                return error::status_invalid_argument("unreachable");
+                                return status_invalid_argument("unreachable");
                             }
                         }
                     }
@@ -384,7 +384,7 @@ manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi
                     break;
                 }
                 default:
-                    return error::status_invalid_argument("unreachable");
+                    return status_invalid_argument("unreachable");
             }
         }
 
@@ -401,18 +401,18 @@ manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi
                 break;
             }
             default: {
-                return error::status_invalid_argument("parse_header_value: unexpected end");
+                return status_invalid_argument("parse_header_value: unexpected end");
             }
         }
 
         return std::move(data);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "parse_header_value", e.what());
-        return error::status_internal("parse_header_value");
+        return status_internal("parse_header_value");
     }
 }
 
@@ -479,9 +479,9 @@ bool manapi::net::http::header_has_more_fields(std::string_view name) MANAPIHTTP
     return false;
 }
 
-manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy_ip(const sockaddr *addr) {
+manapi::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy_ip(const sockaddr *addr) {
     if (!addr)
-        return error::status_invalid_argument("ip: null addr");
+        return status_invalid_argument("ip: null addr");
 
     auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
 
@@ -493,7 +493,7 @@ manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::st
         buffer.resize(size);
 
         if (!inet_ntop(AF_INET, &sn->sin_addr, buffer.data(), size))
-            return error::status_invalid_argument("ip: inet_ntop() returned null");
+            return status_invalid_argument("ip: inet_ntop() returned null");
 
         while (--size >= 0 && buffer[size] == '\0') {
             /* skip null bytes */
@@ -510,7 +510,7 @@ manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::st
         buffer.resize(size);
 
         if (!inet_ntop(AF_INET6, &reinterpret_cast<const sockaddr_in6 *>(addr)->sin6_addr, buffer.data(), size))
-            return error::status_invalid_argument("ip: inet_ntop() returned null");
+            return status_invalid_argument("ip: inet_ntop() returned null");
 
         while (--size >= 0 && buffer[size] == '\0') {
             /* skip null bytes */
@@ -522,12 +522,12 @@ manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::st
         return std::make_pair(std::move(buffer), port);
     }
 
-    return error::status_invalid_argument("ip: invalid sin_family");
+    return status_invalid_argument("ip: invalid sin_family");
 }
 
-manapi::error::status_or<uint16_t> manapi::net::http::port_by_addr(const sockaddr *addr) {
+manapi::status_or<uint16_t> manapi::net::http::port_by_addr(const sockaddr *addr) {
     if (!addr)
-        return error::status_invalid_argument("ip: null addr");
+        return status_invalid_argument("ip: null addr");
 
     auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
 
@@ -537,12 +537,12 @@ manapi::error::status_or<uint16_t> manapi::net::http::port_by_addr(const sockadd
     if (sn->sin_family == manapi::ev::IPv6)
         return (reinterpret_cast<const sockaddr_in6 *> (&addr)->sin6_port);
 
-    return error::status_invalid_argument("ip: invalid sin_family");
+    return status_invalid_argument("ip: invalid sin_family");
 }
 
-manapi::error::status manapi::net::http::ip_by_addr(const sockaddr *addr, char *arr) {
+manapi::status manapi::net::http::ip_by_addr(const sockaddr *addr, char *arr) {
     if (!addr)
-        return error::status_invalid_argument("ip: null addr");
+        return status_invalid_argument("ip: null addr");
 
     auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
 
@@ -551,9 +551,9 @@ manapi::error::status manapi::net::http::ip_by_addr(const sockaddr *addr, char *
     else if (sn->sin_family == manapi::ev::IPv6)
         memcpy (arr, &reinterpret_cast<const sockaddr_in6 *>(addr)->sin6_addr, 16);
     else
-        return error::status_invalid_argument("ip: invalid sin_family");
+        return status_invalid_argument("ip: invalid sin_family");
 
-    return error::status_ok();
+    return status_ok();
 }
 
 bool manapi::net::http::split_http_port(std::string_view name, std::string_view &host, std::string_view &port, bool& has_port) {

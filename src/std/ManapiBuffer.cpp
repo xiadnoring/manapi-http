@@ -36,10 +36,10 @@ manapi::bytebuffer::bytebuffer(void *src, uint32_t size, char flags_) {
     this->shift_ = 0;
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::bytebuffer::create(uint32_t size) {
+manapi::status_or<manapi::bytebuffer> manapi::bytebuffer::create(uint32_t size) {
     auto src = manapi::memory::alloc<uint8_t>(size);
     if (!src)
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     return bytebuffer (src, size);
 }
 
@@ -103,14 +103,14 @@ uint32_t manapi::bytebuffer::realsize() const {
     return this->reserved < 0 ? this->s : this->reserved;
 }
 
-manapi::error::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
     if (this->s == s)
-        return error::status_ok();
+        return status_ok();
 
     if (this->reserved >= s) {
         this->s = static_cast<int>(s);
         this->shift_ = static_cast<uint32_t>(std::min<uint32_t>(this->shift_, this->s));
-        return error::status_ok();
+        return status_ok();
     }
 
     if (this->flags_ & BYTEBUFFER_FLAG_OBJECT_POOL) {
@@ -118,7 +118,7 @@ manapi::error::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEX
         /* is slice */
         auto nm = manapi::memory::alloc<uint8_t>(s);
         if (!nm) {
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
 
         this->flags_ ^= BYTEBUFFER_FLAG_OBJECT_POOL;
@@ -139,14 +139,14 @@ manapi::error::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEX
             this->src = manapi::memory::realloc(this->src, s);
             if (!this->src) {
                 this->clear();
-                return error::status_resource_exhausted();
+                return status_resource_exhausted();
             }
         }
         else {
             this->src = manapi::memory::alloc<uint8_t>(s);
             if (!this->src) {
                 this->clear();
-                return error::status_resource_exhausted();
+                return status_resource_exhausted();
             }
         }
 
@@ -155,14 +155,14 @@ manapi::error::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEX
     }
 
     this->shift_ = static_cast<uint32_t>(std::min<std::size_t>(this->shift_, this->s));
-    return error::status_ok();
+    return status_ok();
 }
 
-manapi::error::status manapi::bytebuffer::resize(uint32_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::bytebuffer::resize(uint32_t s) MANAPIHTTP_NOEXCEPT {
     return this->realresize(s + this->shift_);
 }
 
-manapi::error::status manapi::bytebuffer::resize_max(uint32_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::bytebuffer::resize_max(uint32_t s) MANAPIHTTP_NOEXCEPT {
     return this->resize(std::max<uint32_t>(s, this->realsize()));
 }
 

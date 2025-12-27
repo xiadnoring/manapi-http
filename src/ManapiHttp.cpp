@@ -53,23 +53,23 @@ manapi::net::http::server::server(server_ctx sctx) : site() {
     this->setup();
 }
 
-manapi::error::status_or<manapi::net::http::server> manapi::net::http::server::create(server_ctx sctx) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::http::server> manapi::net::http::server::create(server_ctx sctx) MANAPIHTTP_NOEXCEPT {
     try {
         return server(std::move(sctx));
     }
     catch (std::exception const &e) {
         manapi_log_error(e.what());
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 
-manapi::future<manapi::error::status> manapi::net::http::server::start() {
+manapi::future<manapi::status> manapi::net::http::server::start() {
     try {
         auto data2 = std::static_pointer_cast<data2_t>(this->data);
         auto lk = co_await data2->mx->lock_guard();
 
         if (!data2->stopping.exchange(false)) {
-            co_return error::status_already_exists("already running");
+            co_return status_already_exists("already running");
         }
 
         data2->event_id = async::current()->eventloop()->subscribe_finish([data2] ()
@@ -85,11 +85,11 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
 
         co_await this->init_pool_();
 
-        typedef async::promise_sync<error::status> promise;
+        typedef async::promise_sync<manapi::status> promise;
         co_return co_await promise([this, &lk] (const promise::resolve_t& resolve, const promise::reject_t& reject) -> void {
             auto res = this->pool_([&lk, resolve] () mutable -> void {
                 lk.call();
-                resolve (error::status_ok());
+                resolve (status_ok());
             });
 
             if (!res)
@@ -97,48 +97,48 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
         });
     }
     catch (std::bad_alloc const &) {
-        co_return error::status_resource_exhausted();
+        co_return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "start() failed", e.what());
     }
-    co_return error::status_internal("start() failed");
+    co_return status_internal("start() failed");
 }
 
-manapi::error::status manapi::net::http::server::GET(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::GET(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     return this->handler("GET", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::POST(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::POST(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     return this->handler("POST", std::move(uri), std::move(handler),  std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     return this->handler("OPTIONS", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::PUT(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::PUT(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     return this->handler("PUT", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     return this->handler("PATCH", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
     return this->handler ("GET", std::move(uri), std::move(folder), std::move(handler)).err();
 }
 
-manapi::future<manapi::error::status> manapi::net::http::server::stop() {
+manapi::future<manapi::status> manapi::net::http::server::stop() {
     co_return co_await manapi::net::http::server::stop_(std::static_pointer_cast<data2_t>(this->data), false);
 }
 
-manapi::future<manapi::error::status> manapi::net::http::server::stop_(std::shared_ptr<data2_t> data, bool evloop) {
+manapi::future<manapi::status> manapi::net::http::server::stop_(std::shared_ptr<data2_t> data, bool evloop) {
     try {
         auto lk = co_await data->mx->lock_guard();
 
         if (data->stopping.exchange(true)) {
-            co_return error::status_not_found("not exists");
+            co_return status_not_found("not exists");
         }
 
         if (!evloop) {
@@ -185,12 +185,12 @@ manapi::future<manapi::error::status> manapi::net::http::server::stop_(std::shar
             /* clean up */
             clean_up(data);
         }
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "stop() failed", e.what());
     }
-    co_return error::status_internal("stop() failed");
+    co_return status_internal("stop() failed");
 }
 
 manapi::future<> manapi::net::http::server::init_pool_() {
@@ -234,7 +234,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
     }
 }
 
-manapi::error::status manapi::net::http::server::pool_(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::http::server::pool_(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto const data2 = std::static_pointer_cast<data2_t>(this->data);
         auto wres = async::current()->eventloop()->create_watcher_async(
@@ -247,18 +247,18 @@ manapi::error::status manapi::net::http::server::pool_(std::move_only_function<v
         });
 
         if (!wres)
-            return error::status{wres.code(), wres.status_msg()};
+            return manapi::status{wres.code(), wres.status_msg()};
 
         data2->init_watcher = wres.unwrap();
 
         if (auto rhs = data2->init_watcher->send())
             manapi_log_error("%s due to %s", "http:Failed", ev::strerror(rhs));
 
-        return error::status_ok();
+        return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "http:Failed", e.what());
-        return error::status_internal("http:Failed");
+        return status_internal("http:Failed");
     }
 }
 

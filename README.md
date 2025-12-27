@@ -297,8 +297,8 @@ public:
 
     // Assembles the client's payload, sends it and presents the response back
     // from the server.
-    manapi::future<manapi::error::status_or<std::string>> SayHello(const std::string& user) {
-        using promise = manapi::async::promise_sync<manapi::error::status_or<std::string>>;
+    manapi::future<manapi::status_or<std::string>> SayHello(const std::string& user) {
+        using promise = manapi::async::promise_sync<manapi::status_or<std::string>>;
         // Data we are sending to the server.
         helloworld::HelloRequest request;
         request.set_name(user);
@@ -321,7 +321,7 @@ public:
       
                         auto msg = status.error_message();
                         manapi_log_debug("grpc client failed due to %s", msg.data());
-                        resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                        resolve(manapi::status_internal("grpc client: something gets wrong"));
                     }
                     else {
                         ctx->event_loop()->custom_callback([resolve = std::move(resolve), &reply, status = std::move(status)] (manapi::event_loop *ev) -> void {
@@ -332,14 +332,14 @@ public:
           
                             auto msg = status.error_message();
                             manapi_log_debug("grpc client failed due to %s", msg.data());
-                            resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                            resolve(manapi::status_internal("grpc client: something gets wrong"));
                         }).unwrap();
                     }
               });
             }
             catch (std::exception const &e) {
                 manapi_log_error(e.what());
-               resolve(manapi::error::status_internal("sayhello failed"));
+               resolve(manapi::status_internal("sayhello failed"));
            }
         });
 }
@@ -377,9 +377,9 @@ int main () {
                 res.log();
                 res.unwrap();
 
-                res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
+                res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::status {
                     builder.RegisterService(service.get());
-                    return manapi::error::status_ok();
+                    return manapi::status_ok();
                 });
                 
                 res.log();

@@ -116,7 +116,7 @@ std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::wor
     return std::move(worker);
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
     auto status = co_await udp::init(deep + 1);
     if (!status)
         co_return std::move(status);
@@ -166,10 +166,10 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
         this->quiche_h3_config_ = quiche_h3_config_new();
 
         if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, cert.data()))
-            co_return error::status_internal("cf quiche: failed to load cert chain from pem file");
+            co_return status_internal("cf quiche: failed to load cert chain from pem file");
 
         if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, key.data()))
-            co_return error::status_internal("cf quiche: failed to load private key from pem file");
+            co_return status_internal("cf quiche: failed to load private key from pem file");
 
         if(quiche_config_set_application_protos(this->quiche_config_,
             reinterpret_cast <const uint8_t *> (QUICHE_H3_APPLICATION_PROTOCOL), sizeof(QUICHE_H3_APPLICATION_PROTOCOL) - 1)) {
@@ -232,7 +232,7 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
                     else if (manapi::string::equals("bbr2", cc_algo, 0b10))
                         algo = QUICHE_CC_BBR2;
                     else
-                        co_return error::status_internal("cf quiche:Invalid cc_algo");
+                        co_return status_internal("cf quiche:Invalid cc_algo");
 
                     quiche_config_set_cc_algorithm (this->quiche_config_, algo);
                 }
@@ -250,9 +250,9 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
         this->limit_rate_timer = rhs.unwrap();
     }
     while (0);
-    co_return error::status_ok();
+    co_return status_ok();
 err:
-    co_return error::status_internal("quiche: init() failed");
+    co_return status_internal("quiche: init() failed");
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
@@ -422,7 +422,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::gen_mint_token_(char *dcid, 
     return 0;
 }
 
-manapi::error::status quiche_udp_send_data_ (manapi::ev::udp *udp, manapi::ev::buff_t *buff, sockaddr *send_addr, socklen_t send_len) MANAPIHTTP_NOEXCEPT {
+manapi::status quiche_udp_send_data_ (manapi::ev::udp *udp, manapi::ev::buff_t *buff, sockaddr *send_addr, socklen_t send_len) MANAPIHTTP_NOEXCEPT {
     try {
         ssize_t const sent = udp->try_send(buff, 1, send_addr);
         if (sent != buff->len) {
@@ -457,16 +457,16 @@ manapi::error::status quiche_udp_send_data_ (manapi::ev::udp *udp, manapi::ev::b
                 return res.err();
         }
 
-        return manapi::error::status_ok();
+        return manapi::status_ok();
     }
     catch (std::bad_alloc const &) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "quiche_udp_send_data_ failed", e.what());
     }
 
-    return manapi::error::status_internal("quiche_udp_send_data_ failed");
+    return manapi::status_internal("quiche_udp_send_data_ failed");
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connection_t *data) MANAPIHTTP_NOEXCEPT {

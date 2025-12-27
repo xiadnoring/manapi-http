@@ -14,7 +14,7 @@
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
 #endif
-manapi::error::status_or<std::string> manapi::crypto::hmac_digest(std::string_view key, std::string_view data, hashes hash_algorithm) {
+manapi::status_or<std::string> manapi::crypto::hmac_digest(std::string_view key, std::string_view data, hashes hash_algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         std::array<unsigned char, EVP_MAX_MD_SIZE> hash{};
@@ -29,7 +29,7 @@ manapi::error::status_or<std::string> manapi::crypto::hmac_digest(std::string_vi
                 algorithm = EVP_sha512();
             break;
             default:
-                return error::status_invalid_argument("algorithm invalid");
+                return status_invalid_argument("algorithm invalid");
         }
 
         HMAC(
@@ -44,19 +44,19 @@ manapi::error::status_or<std::string> manapi::crypto::hmac_digest(std::string_vi
 
         return std::move(std::string{reinterpret_cast<char const*>(hash.data()), hashLen});
 #else
-        return error::status_unimplemented("openssl or wolfssl is required");
+        return status_unimplemented("openssl or wolfssl is required");
 #endif
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "hmac:Failed", e.what());
     }
-    return error::status_internal("hmac:Failed");
+    return status_internal("hmac:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::hkdf_extract(std::string_view salt, std::string_view ikm, hashes hash) {
+manapi::status_or<std::string> manapi::crypto::hkdf_extract(std::string_view salt, std::string_view ikm, hashes hash) {
     if (salt.empty()) {
         auto res = manapi::crypto::random_string(8);
         if (!res.ok())
@@ -67,7 +67,7 @@ manapi::error::status_or<std::string> manapi::crypto::hkdf_extract(std::string_v
     return std::move(hmac_digest(salt, ikm, hash));
 }
 
-manapi::error::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk, std::string_view info, int length, hashes algorithm) {
+manapi::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk, std::string_view info, int length, hashes algorithm) {
     try {
         std::string t;
         std::string okm;
@@ -88,14 +88,14 @@ manapi::error::status_or<std::string> manapi::crypto::hkdf_expand(std::string_vi
         return std::move(okm);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
-        return error::status_internal();
+        return status_internal();
     }
 }
 
-manapi::error::status_or<std::string> manapi::crypto::hkdf(std::string_view salt, std::string_view ikm, std::string_view info, int length, hashes hash) {
+manapi::status_or<std::string> manapi::crypto::hkdf(std::string_view salt, std::string_view ikm, std::string_view info, int length, hashes hash) {
     auto res = hkdf_extract(salt, ikm);
     if (!res.ok())
         return res.err();

@@ -121,7 +121,7 @@ namespace manapi {
          * @param data source string
          * @return a json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
          */
-        static manapi::error::status_or<json> parse (STRING_VIEW data);
+        static manapi::status_or<json> parse (STRING_VIEW data);
 
         /**
          * Stringify JSON as a string
@@ -998,9 +998,9 @@ namespace manapi {
         MANAPIHTTP_NODISCARD PAIR &as_pair_ () const;
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        manapi::error::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
+        manapi::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
 #else
-        manapi::error::status parse_ (STRING_VIEW plain_text);
+        manapi::status parse_ (STRING_VIEW plain_text);
 #endif
         // integers
         void parse_ (size_t num);

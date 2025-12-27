@@ -233,7 +233,7 @@ namespace manapi::net::worker {
 
         virtual const std::shared_ptr<multithread_storage::worker_t> & worker_data() = 0;
 
-        virtual manapi::future<error::status> init (std::size_t deep) = 0;
+        virtual manapi::future<status> init (std::size_t deep) = 0;
 
         virtual void close_connection (shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT = 0;
 
@@ -320,7 +320,7 @@ namespace manapi::net::worker {
          * @param flags stream flags
          * @return a stream connection on success, otherwise it returns Unimplemeneted, InternalError, ResourceExhausted
          */
-        virtual error::status_or<shared_conn> new_stream (const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT;
+        virtual status_or<shared_conn> new_stream (const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT;
 
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT;
 

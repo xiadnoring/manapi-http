@@ -21,7 +21,7 @@ namespace manapi::net::worker {
 
         ~TCP () override;
 
-        manapi::future<error::status> init (std::size_t deep) override;
+        manapi::future<status> init (std::size_t deep) override;
 
         void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT override;
 

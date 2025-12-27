@@ -37,21 +37,21 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD std::map<std::string, std::string, std::less<>> headers () const;
 
-        MANAPIHTTP_NODISCARD manapi::error::status_or<std::string_view> param (std::string_view param) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<std::string_view> param (std::string_view param) const MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<std::pair<std::string, std::string>> param_extract (std::string_view param) MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<std::pair<std::string, std::string>> param_extract (std::string_view param) MANAPIHTTP_NOEXCEPT;
 
-        future<manapi::error::status_or<std::string>> text ();
+        future<manapi::status_or<std::string>> text ();
 
         future<manapi::json_error::status_or<manapi::json>> json (const manapi::json_mask *mask = nullptr);
 
-        future<manapi::error::status> form (formdata_recv::onparam_cb_t cb);
+        future<manapi::status> form (formdata_recv::onparam_cb_t cb);
 
-        future<manapi::error::status> callback_sync (onrecv_sync_cb callback);
+        future<manapi::status> callback_sync (onrecv_sync_cb callback);
 
-        future<manapi::error::status> callback_async (onrecv_async_cb callback);
+        future<manapi::status> callback_async (onrecv_async_cb callback);
 
-        future<manapi::error::status> file (std::string filepath);
+        future<manapi::status> file (std::string filepath);
 
         ssize_t left ();
 
@@ -67,15 +67,15 @@ namespace manapi::net::http {
 
         bool contains_header (std::string_view name);
 
-        error::status_or<std::string_view> header (std::string_view name);
+        status_or<std::string_view> header (std::string_view name);
 
-        error::status_or<std::pair<std::string, std::string>> header_extract (std::string_view name);
+        status_or<std::pair<std::string, std::string>> header_extract (std::string_view name);
 
         void stop_propagation ();
 
         void propagation (bool state);
 
-        manapi::future<manapi::error::status_or<std::map<std::string, std::string, std::less<>>>> trailers ();
+        manapi::future<manapi::status_or<std::map<std::string, std::string, std::less<>>>> trailers ();
 
         MANAPIHTTP_NODISCARD bool propagation () const;
 
@@ -83,9 +83,9 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD const std::vector<std::string> &path () const;
     private:
-        static future<manapi::error::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
+        static future<manapi::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
 
-        static future<manapi::error::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
+        static future<manapi::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
 
         std::unique_ptr<std::map<std::string, std::string, std::less<>>> get_params_;
 

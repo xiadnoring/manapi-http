@@ -43,6 +43,8 @@ namespace manapi::async {
 
         future<mutex_locker> lock_guard ();
 
+        MANAPIHTTP_NODISCARD std::size_t waiting () const MANAPIHTTP_NOEXCEPT;
+
         ~mutex ();
     private:
         bool own;

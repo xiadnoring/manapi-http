@@ -14,7 +14,7 @@ namespace manapi::net::worker {
 
         ~TLS () override;
 
-        manapi::future<error::status> init (std::size_t deep) override;
+        manapi::future<status> init (std::size_t deep) override;
 
         shared_conn accept (const ev::shared_tcp &w) MANAPIHTTP_NOEXCEPT override;
 

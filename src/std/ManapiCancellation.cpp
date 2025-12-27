@@ -155,7 +155,7 @@ void manapi::async::cancellation_action::ask_cancel_callback() MANAPIHTTP_NOEXCE
     }
 }
 
-manapi::error::status manapi::async::cancellation_action::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::async::cancellation_action::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
     if (this->data) {
         this->data->timeout_ = timeout;
 
@@ -183,16 +183,16 @@ manapi::error::status manapi::async::cancellation_action::timeout(size_t timeout
 
             }
             catch (std::bad_alloc const &) {
-                return error::status_resource_exhausted();
+                return status_resource_exhausted();
             }
             catch (std::exception const &e) {
                 manapi_log_error(e.what());
-                return error::status_internal();
+                return status_internal();
             }
         }
     }
 
-    return error::status_ok();
+    return status_ok();
 }
 
 bool manapi::async::cancellation_action::contains_cancel_callback() const {

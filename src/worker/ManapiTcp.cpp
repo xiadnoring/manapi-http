@@ -48,7 +48,7 @@ manapi::net::worker::TCP::~TCP() {
     }
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::TCP::init(std::size_t deep) {
     try {
         addrinfo hints = {
             .ai_family      = PF_UNSPEC,
@@ -61,7 +61,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
 
         int rhs = co_await dns::getaddrinfo(address.data(), port.data(), &hints, &this->local);
         if (rhs)
-            co_return error::status_internal("tcp:failed to resolve host");
+            co_return status_internal("tcp:failed to resolve host");
 
         this->config_->server_len=static_cast<socklen_t>(this->local->ai_addrlen);
         memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
@@ -95,33 +95,33 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
             rhs = this->watcher_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin));
             if (rhs) {
                 manapi_log_error("tcp:couldn't set ipv4 addr due to result: %s", ev::strerror(rhs));
-                co_return error::status_internal("tcp:ip4_addr failed");
+                co_return status_internal("tcp:ip4_addr failed");
             }
         }
         else if (this->local->ai_family == ev::IPv6) {
             rhs = this->watcher_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin));
             if (rhs) {
                 manapi_log_error("tcp:couldn't set ipv6 addr due to result: %s", ev::strerror(rhs));
-                co_return error::status_internal("tcp:ip6_addr failed");
+                co_return status_internal("tcp:ip6_addr failed");
             }
         }
 
         rhs = this->watcher_accept_->nodelay(this->config_->tcp_no_delay);
         if (rhs) {
             manapi_log_error("tcp:couldn't set nodelay due to result: %s", ev::strerror(rhs));
-            co_return error::status_internal("tcp:nodelay failed");
+            co_return status_internal("tcp:nodelay failed");
         }
 
         rhs = this->watcher_accept_->simultaneous_accepts(this->config_->simultaneous_accepts);
         if (rhs) {
             manapi_log_error ("tcp:couldn't set simultaneous_accepts due to result:%s",ev::strerror(rhs));
-            co_return error::status_internal("tcp:simultaneous_accepts failed");
+            co_return status_internal("tcp:simultaneous_accepts failed");
         }
 
         rhs = this->watcher_accept_->keepalive(!!this->config_->keep_alive, this->config_->keep_alive);
         if (rhs) {
             manapi_log_error("tcp:couldn't set keep-alive due to result:%s", rhs);
-            co_return error::status_internal("tcp:keepalive failed");
+            co_return status_internal("tcp:keepalive failed");
         }
 
         {
@@ -132,24 +132,24 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
             rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), bind_flags);
             if (rhs) {
                 manapi_log_error("tcp:couldn't bind socket due to result:%s", ev::strerror(rhs));
-                co_return error::status_internal("tcp:s_bind failed");
+                co_return status_internal("tcp:s_bind failed");
             }
         }
 
         rhs = this->watcher_accept_->listen(this->config_->tcp_backlog);
         if (rhs) {
             manapi_log_error("tcp:couldn't listen socket due to result:%s", ev::strerror(rhs));
-            co_return error::status_internal("tcp:listen failed");
+            co_return status_internal("tcp:listen failed");
         }
 
 
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "tcp: init failed", e.what());
     }
 
-    co_return error::status_internal("tcp: init failed");
+    co_return status_internal("tcp: init failed");
 }
 
 void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {

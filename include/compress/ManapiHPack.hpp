@@ -53,7 +53,7 @@ namespace manapi::compress::hpack
 
 			virtual ~huffman_tree_t();
 
-			error::status_or<std::string> decode(std::string_view src, uint32_t maxlen);
+			status_or<std::string> decode(std::string_view src, uint32_t maxlen);
 	};
 
 	class ringtable_t
@@ -89,7 +89,7 @@ namespace manapi::compress::hpack
 			bool find(const header_t& h, int64_t& index) const;
 
 
-			MANAPIHTTP_NODISCARD manapi::error::status_or<const header_t *> get_header(std::size_t index) const;
+			MANAPIHTTP_NODISCARD manapi::status_or<const header_t *> get_header(std::size_t index) const;
 
 	};
 	
@@ -144,7 +144,7 @@ namespace manapi::compress::hpack
 
 			void decode_integer(dec_vec_itr_t& beg, const dec_vec_itr_t& end, uint32_t& dst, uint8_t N);
 
-			error::status_or<std::string> parse_string(dec_vec_itr_t& itr, const dec_vec_itr_t& end);
+			status_or<std::string> parse_string(dec_vec_itr_t& itr, const dec_vec_itr_t& end);
 
 		public:
 			/*!
@@ -168,7 +168,7 @@ namespace manapi::compress::hpack
 
 				\Warning Never indexed code paths were under tested.
 			*/
-			manapi::error::status decode(const char* ptr);
+			manapi::status decode(const char* ptr);
 
 
 			/*!
@@ -181,7 +181,7 @@ namespace manapi::compress::hpack
 				\Warning Never indexed code paths were under tested.
 			*/
 
-			manapi::error::status decode(std::string_view data);
+			manapi::status decode(std::string_view data);
 
 
 			/*!
@@ -190,7 +190,7 @@ namespace manapi::compress::hpack
 
 				\Return The map of the decoded headers
 			 */
-			manapi::error::status_or<std::map< std::string, std::string >> headers(uint32_t headers_size);
+			manapi::status_or<std::map< std::string, std::string >> headers(uint32_t headers_size);
 	};
 
 

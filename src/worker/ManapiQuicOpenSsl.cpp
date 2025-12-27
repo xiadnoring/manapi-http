@@ -135,22 +135,22 @@ void ssl_dump_error_ (int err, const char *msg) {
     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s err=%d, %.*s", "openssl_quic", msg, err, len, buf);
 }
 
-manapi::error::status load_certs (SSL_CTX *ctx, std::string_view cert, std::string_view key) {
+manapi::status load_certs (SSL_CTX *ctx, std::string_view cert, std::string_view key) {
     if (SSL_CTX_use_certificate_chain_file(ctx, cert.data()) <= 0) {
         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %.*s", "openssl_quic:couldn't load certificate file",
             cert.size(), cert.data());
-        return manapi::error::status_internal("openssl_quic:couldn't load certificate file");
+        return manapi::status_internal("openssl_quic:couldn't load certificate file");
     }
 
     if (SSL_CTX_use_PrivateKey_file(ctx, key.data(), SSL_FILETYPE_PEM) <= 0) {
         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %.*s", "openssl_quic:couldn't load key file",
             key.size(), key.data());
-        return manapi::error::status_internal("openssl_quic:couldn't load key file");
+        return manapi::status_internal("openssl_quic:couldn't load key file");
     }
     if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(ctx)))
-        return manapi::error::status_failed_precondition("openssl_quic:Private key does not match the certificate public key");
+        return manapi::status_failed_precondition("openssl_quic:Private key does not match the certificate public key");
 
-    return manapi::error::status_ok();
+    return manapi::status_ok();
 }
 
 int manapi::net::worker::openssl_quic::select_alpn(SSL *ssl, const unsigned char **out, unsigned char *out_len, const unsigned char *in, unsigned int in_len, void *arg) {
@@ -200,7 +200,7 @@ std::string generate_alpn_ossltest (const std::vector<std::string_view> &tests) 
     return std::move(b);
 }
 
-manapi::error::status manapi::net::worker::openssl_quic::load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig) {
+manapi::status manapi::net::worker::openssl_quic::load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig) {
     using ci = manapi::internal::config_interface;
 
     auto verify_peer = ci::get_config_param<bool>(sslconfig, "verify_peer", true);
@@ -294,7 +294,7 @@ manapi::error::status manapi::net::worker::openssl_quic::load_params (manapi::ne
             |SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
         );
 
-        return manapi::error::status_ok();
+        return manapi::status_ok();
     }
 err:
     std::unique_ptr<BIO, ssl_bio_deleter_t> bio;
@@ -304,10 +304,10 @@ err:
     size_t len = BIO_get_mem_data(bio.get(), &buf);
 
     manapi_log_error("%s due to %.*s", "openssl_tls:create context failed", len, buf);
-    return error::status_internal("openssl_tls:create context failed");
+    return status_internal("openssl_tls:create context failed");
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size_t deep) {
     auto udp_res = co_await udp::init(deep + 1);
     if (!udp_res)
         co_return std::move(udp_res);
@@ -336,7 +336,7 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         if (!ctx_data->ctx) {
             std::unique_ptr<SSL_CTX, ssl_ctx_deleter_t> ctx (SSL_CTX_new(OSSL_QUIC_server_method()));
             if (!ctx)
-                co_return error::status_internal("openssl_quic:SSL_CTX_new");
+                co_return status_internal("openssl_quic:SSL_CTX_new");
 
             auto &sslconfig = this->config_->ssl;
 
@@ -365,7 +365,7 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         // BIO *rbiop;
         //
         // if (!BIO_new_bio_dgram_pair(&rbiop, 0, &wbiop, 0))
-        //     co_return error::status_internal("openssl_quic:BIO_new");
+        //     co_return status_internal("openssl_quic:BIO_new");
         //
         // wbio.reset(wbiop);
         // rbio.reset(rbiop);
@@ -374,14 +374,14 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         rbio.reset(BIO_new(BIO_s_dgram_mem()));
 
         if (!wbio || !rbio) {
-            co_return error::status_internal("openssl_quic:BIO_new");
+            co_return status_internal("openssl_quic:BIO_new");
         }
         auto const listener = SSL_new_listener (MANAPI_AS_CTX(this->ctx), 0);
         if (!listener)
-            co_return error::status_internal("openssl_quic:SSL_new_listener");
+            co_return status_internal("openssl_quic:SSL_new_listener");
 
         if (!SSL_set_blocking_mode(listener, 0))
-            co_return error::status_internal("openssl_quic:SSL_set_blocking_mode");
+            co_return status_internal("openssl_quic:SSL_set_blocking_mode");
 
         SSL_set_accept_state(listener);
         this->rbio = rbio.get();
@@ -389,34 +389,34 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
 
         if (!BIO_dgram_set_caps(this->rbio, BIO_DGRAM_CAP_HANDLES_DST_ADDR|BIO_DGRAM_CAP_HANDLES_SRC_ADDR|BIO_DGRAM_CAP_PROVIDES_DST_ADDR|BIO_DGRAM_CAP_PROVIDES_SRC_ADDR)
             || !BIO_dgram_set_caps(this->wbio, BIO_DGRAM_CAP_HANDLES_DST_ADDR|BIO_DGRAM_CAP_HANDLES_SRC_ADDR|BIO_DGRAM_CAP_PROVIDES_DST_ADDR|BIO_DGRAM_CAP_PROVIDES_SRC_ADDR)) {
-            co_return error::status_internal("openssl_quic:BIO_dgram_set_caps");
+            co_return status_internal("openssl_quic:BIO_dgram_set_caps");
         }
 
         if (!BIO_dgram_set_local_addr_enable(this->rbio, 1) ||
             !BIO_dgram_set_local_addr_enable(this->wbio, 1))
-            co_return error::status_internal("openssl_quic:BIO_dgram_set_local_addr_enable");
+            co_return status_internal("openssl_quic:BIO_dgram_set_local_addr_enable");
 
         if (!BIO_dgram_set0_local_addr(this->wbio, &this->config_->server_addr) ||
             !BIO_dgram_set0_local_addr(this->rbio, &this->config_->server_addr))
-            co_return error::status_internal("openssl_quic:BIO_dgram_set0_local_addr");
+            co_return status_internal("openssl_quic:BIO_dgram_set0_local_addr");
 
         SSL_set_bio(listener, rbio.release(), wbio.release());
 
         if (!SSL_listen(listener))
-            co_return error::status_internal("openssl_quic:SSL_listen");
+            co_return status_internal("openssl_quic:SSL_listen");
 
         this->listener = listener;
 
         auto loop = manapi::async::current()->eventloop()->loop();
         if (!loop)
-            co_return error::status_not_found("ev:loop");
+            co_return status_not_found("ev:loop");
         this->t_ = std::make_unique<ev::timer>();
 
         auto rhs = this->t_->bind(loop);
 
         if (rhs) {
             manapi_log_trace("%s failed due to %s", "openssl_quic:uv timer bind", ev::strerror(rhs));
-            co_return error::status_internal("openssl_quic:uv timer bind");
+            co_return status_internal("openssl_quic:uv timer bind");
         }
 
         this->t_->data(this);
@@ -442,15 +442,15 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         rhs = this->udp_accept_->recv_start();
         if (rhs) {
             manapi_log_trace("%s failed due to %s", "openssl_quic:recv_start", ev::strerror(rhs));
-            co_return error::status_internal("openssl_quic:recv_start");
+            co_return status_internal("openssl_quic:recv_start");
         }
 
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "openssl_quic:init failed", e.what());
     }
-    co_return error::status_internal("openssl_quic:init failed");
+    co_return status_internal("openssl_quic:init failed");
 }
 
 void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
@@ -878,7 +878,7 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::openssl_quic::i
     return base::ipdata(s->parent);
 }
 
-manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
     try {
         if (!conn)
             goto args;
@@ -896,7 +896,7 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
 
         auto stream = SSL_new_stream(data->conn, openssl_flags);
         if (!stream)
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
 
         auto res = this->stream_accept(conn, stream, flags);
         if (!res.ok())
@@ -913,13 +913,13 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
         return std::move(stream_conn);
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "openssl_quic:new_stream", e.what());
-        return error::status_internal("openssl_quic:new_stream");
+        return status_internal("openssl_quic:new_stream");
     }
-    args: return error::status_invalid_argument("new_stream");
+    args: return status_invalid_argument("new_stream");
 }
 
 int64_t manapi::net::worker::openssl_quic::stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT {
@@ -1625,12 +1625,12 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
     }
 }
 
-manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT {
     try {
         if (!conn->wrk.data) {
             /* it hasn't be initialized yet */
             if (this->try_init_conn_(conn))
-                return error::status_internal("openssl_quic: conn hasn't be init-ed yet");
+                return status_internal("openssl_quic: conn hasn't be init-ed yet");
         }
 
         auto p = std::make_unique<quic_stream_t>();
@@ -1658,7 +1658,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         auto rhs = data->streams.insert({SSL_get_stream_id(stream), stream_conn});
         if (!rhs.second) {
             SSL_free(stream);
-            return error::status_internal("already exists - bug");
+            return status_internal("already exists - bug");
         }
 
         SSL_POLL_ITEM poll_item;
@@ -1669,7 +1669,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         stream_data->poll_id = this->polls_.size() - 1;
 
         if (!SSL_set_app_data(stream, &rhs.first->second))
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
 
         int init_res = 0;
         if (conn->wrk.data) {
@@ -1699,13 +1699,13 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         }
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "openssl_quic:stream_accept", e.what());
     }
 
-    return error::status_internal("openssl_quic:stream_accept");
+    return status_internal("openssl_quic:stream_accept");
 }
 
 void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) MANAPIHTTP_NOEXCEPT {
@@ -1764,7 +1764,7 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
         this->feed_event(s, ev::WRITE, nullptr, 0, nullptr);
 }
 
-manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::conn_accept(SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::conn_accept(SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
     shared_conn conn;
     quic_conn_t *sn;
     try {
@@ -1804,7 +1804,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         if (!res.second) {
             SSL_free(client);
-            return error::status_internal("openssl_quic: conn accept failed");
+            return status_internal("openssl_quic: conn accept failed");
         }
 
         this->count++;
@@ -1830,7 +1830,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         if (!SSL_set_app_data (client, &res.first->second)) {
             manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: %s failed", "openssl_quic", "SSL_set_app_data");
-            return error::status_internal("openssl_quic: conn accept failed");
+            return status_internal("openssl_quic: conn accept failed");
         }
 
         if (conn_by_ip->second.size() > (this->config_->max_connections_by_ip + this->config_->max_connections_by_ip)
@@ -1848,7 +1848,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         }
 
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s due to %s", "openssl_quic: conn accept failed", e.what());
-        return error::status_internal("openssl_quic: conn accept failed");
+        return status_internal("openssl_quic: conn accept failed");
     }
 
     if (!SSL_set_incoming_stream_policy(client, SSL_INCOMING_STREAM_POLICY_ACCEPT, 0))

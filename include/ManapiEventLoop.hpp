@@ -107,7 +107,7 @@ namespace manapi {
     public:
         event_loop();
 
-        static manapi::sys_error::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger);
+        static manapi::ev::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger);
 
         ~event_loop();
 
@@ -131,35 +131,35 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::tcp>> create_watcher_tcp_accept (ev::tcp_accept_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::tcp>> create_watcher_tcp_accept (ev::tcp_accept_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param read Callback
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::tcp>> create_watcher_tcp_connection (ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::tcp>> create_watcher_tcp_connection (ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param read Callback
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::pair<std::shared_ptr<ev::connect>, std::shared_ptr<ev::tcp>>> connect_tcp (const sockaddr *addr, ev::connect_tcp_cb on_connect, ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::pair<std::shared_ptr<ev::connect>, std::shared_ptr<ev::tcp>>> connect_tcp (const sockaddr *addr, ev::connect_tcp_cb on_connect, ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param recv Callback
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::udp>> create_watcher_udp (ev::udp_cb recv, ev::udp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::udp>> create_watcher_udp (ev::udp_cb recv, ev::udp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param callback Callback
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::io>> create_watcher_fd (int fd, ev::io_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::io>> create_watcher_fd (int fd, ev::io_cb callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -167,7 +167,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::idle>> create_watcher_idle (ev::idle_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::idle>> create_watcher_idle (ev::idle_cb callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -175,35 +175,35 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::io>> create_watcher_socket (socket_t sock, ev::io_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::io>> create_watcher_socket (socket_t sock, ev::io_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::async>> create_watcher_async (ev::async_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::async>> create_watcher_async (ev::async_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::timer>> create_watcher_timer (ev::timer_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::timer>> create_watcher_timer (ev::timer_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::prepare>> create_watcher_prepare (ev::prepare_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::prepare>> create_watcher_prepare (ev::prepare_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
          * @param callback Callback
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::fs>> create_watcher_fs (ev::fs_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::fs>> create_watcher_fs (ev::fs_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -211,7 +211,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::getaddrinfo>> create_watcher_getaddrinfo (const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::getaddrinfo>> create_watcher_getaddrinfo (const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -219,7 +219,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -227,7 +227,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::random>> create_watcher_random (char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::random>> create_watcher_random (char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -238,7 +238,7 @@ namespace manapi {
          * @throws manapi::exception with ERR_INTERNAL code
          * @return
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::write>> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::write>> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf) MANAPIHTTP_NOEXCEPT;
 
 
         /**
@@ -250,9 +250,9 @@ namespace manapi {
          * @throws manapi::exception with ERR_INTERNAL code
          * @return
          */
-        manapi::sys_error::status_or<std::shared_ptr<ev::udp_send>> create_watcher_udp_send (ev::udp *conn, ev::udp_send_cb callback, const ev::buff_t *bufs, uint32_t nbuf, sockaddr *addr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::udp_send>> create_watcher_udp_send (ev::udp *conn, ev::udp_send_cb callback, const ev::buff_t *bufs, uint32_t nbuf, sockaddr *addr) MANAPIHTTP_NOEXCEPT;
 
-        sys_error::status_or<ev::shared_work> append_task (std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) MANAPIHTTP_NOEXCEPT;
+        ev::status_or<ev::shared_work> append_task (std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) MANAPIHTTP_NOEXCEPT;
 
         void stop_watcher_ptr (ev::io *w) MANAPIHTTP_NOEXCEPT;
 
@@ -299,17 +299,17 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
 #if MANAPIHTTP_CURL_DEPENDENCY
-        manapi::error::status watch_curl (void *shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT;
+        manapi::status watch_curl (void *shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status unwatch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
+        manapi::status unwatch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status unpause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
+        manapi::status unpause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status pause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
+        manapi::status pause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 #endif
-        manapi::error::status custom_callback (std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT;
+        manapi::status custom_callback (std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status custom_callback (std::move_only_function<void(event_loop *ev)> cb) MANAPIHTTP_NOEXCEPT;
+        manapi::status custom_callback (std::move_only_function<void(event_loop *ev)> cb) MANAPIHTTP_NOEXCEPT;
 
         static void interrupt (int sig) MANAPIHTTP_NOEXCEPT;
 
@@ -317,9 +317,9 @@ namespace manapi {
 
         static void unlock (async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT;
 
-        manapi::sys_error::status run () MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status run () MANAPIHTTP_NOEXCEPT;
 
-        manapi::sys_error::status start () MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status start () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Run Event Loop
@@ -328,7 +328,7 @@ namespace manapi {
          * AlreadExists when event loop already exists,
          * returns Ok in other cases
          */
-        manapi::sys_error::status run (manapi::ev::run_modes mode) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status run (manapi::ev::run_modes mode) MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool is_stopping () const MANAPIHTTP_NOEXCEPT;
 
@@ -347,7 +347,7 @@ namespace manapi {
 #if MANAPIHTTP_CURL_DEPENDENCY
         void wait_all_ () MANAPIHTTP_NOEXCEPT;
 
-        static manapi::sys_error::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
+        static manapi::ev::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
         static socket_t handle_curl_open_socket (void *cbp, int socktype, void *addr);
 
@@ -367,7 +367,7 @@ namespace manapi {
 
         static std::mutex stop_mx;
 
-        manapi::sys_error::status register_ () MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status register_ () MANAPIHTTP_NOEXCEPT;
 
         void unregister_ () MANAPIHTTP_NOEXCEPT;
 

@@ -106,7 +106,7 @@ manapi::net::worker::WolfSSL_TLS::~WolfSSL_TLS() {
     }
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::WolfSSL_TLS::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_t deep) {
     auto res = co_await TLS::init(deep + 1);
     if (!res)
         co_return std::move(res);
@@ -151,12 +151,12 @@ manapi::future<manapi::error::status> manapi::net::worker::WolfSSL_TLS::init(std
         }
         this->ctx = ctx_data->ctx;
 
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "openssl_tls:Failed", e.what());
     }
-    co_return error::status_internal("openssl_tls:Failed");
+    co_return status_internal("openssl_tls:Failed");
 }
 
 std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
@@ -310,11 +310,11 @@ int manapi::net::worker::WolfSSL_TLS::recv_setup_connection(const shared_conn &c
 }
 
 
-manapi::error::status_or<void *> manapi::net::worker::WolfSSL_TLS::ssl_create_context(size_t version) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<void *> manapi::net::worker::WolfSSL_TLS::ssl_create_context(size_t version) MANAPIHTTP_NOEXCEPT {
     if (this->ctx)
         return this->ctx;
 
-    manapi::error::status status;
+    manapi::status status;
     try {
         using ci = manapi::internal::config_interface;
         std::string_view ret;
@@ -341,14 +341,14 @@ manapi::error::status_or<void *> manapi::net::worker::WolfSSL_TLS::ssl_create_co
                 method = wolfTLS_server_method();
             break;
             default:
-                return error::status_internal("wolfssl:can not find the initialization method openssl (tls_version)");
+                return status_internal("wolfssl:can not find the initialization method openssl (tls_version)");
         }
 
 
         ctx = wolfSSL_CTX_new(method);
 
         if (!ctx) {
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
 
         if (sess_cache) {
@@ -404,13 +404,13 @@ manapi::error::status_or<void *> manapi::net::worker::WolfSSL_TLS::ssl_create_co
     }
     catch (std::exception const &e) {
         manapi_log_error("%s:%s due to %s", "wolfssl", "ssl_create_context:Failed", e.what());
-        status = manapi::error::status_internal("ssl_create_context:Failed");
+        status = manapi::status_internal("ssl_create_context:Failed");
     }
 err:
     return std::move(status);
 }
 
-manapi::error::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(void *ctx, http::server_ctx::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(void *ctx, http::server_ctx::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT {
     try {
         using ci = manapi::internal::config_interface;
 
@@ -421,17 +421,17 @@ manapi::error::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(vo
         if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(ctx), cert.data(), SSL_FILETYPE_PEM) <= 0) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %.*s", "wolfssl:couldn't load certificate file",
                 cert.size(), cert.data());
-            return manapi::error::status_internal("wolfssl:couldn't load certificate file");
+            return manapi::status_internal("wolfssl:couldn't load certificate file");
         }
 
         if (wolfSSL_CTX_use_PrivateKey_file(static_cast<WOLFSSL_CTX *>(ctx), key.data(), SSL_FILETYPE_PEM) <= 0) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %.*s", "wolfssl:couldn't load key file",
                 key.size(), key.data());
-            return manapi::error::status_internal("wolfssl:couldn't load key file");
+            return manapi::status_internal("wolfssl:couldn't load key file");
         }
 
         if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(ctx))) {
-            return manapi::error::status_failed_precondition("wolfssl:Private key does not match the certificate public key");
+            return manapi::status_failed_precondition("wolfssl:Private key does not match the certificate public key");
         }
 
         wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
@@ -452,14 +452,14 @@ manapi::error::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(vo
         }
 
         if (!wolfSSL_CTX_set_ex_data(static_cast<WOLFSSL_CTX *>(ctx), SSL_EX_DATA_WORKER_CTX, ctx_data)) {
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
 
-        return manapi::error::status_ok();
+        return manapi::status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "wolfssl:configure", e.what());
-        return manapi::error::status_internal("wolfssl:configure");
+        return manapi::status_internal("wolfssl:configure");
     }
 }
 

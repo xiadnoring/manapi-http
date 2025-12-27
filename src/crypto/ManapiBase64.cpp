@@ -489,7 +489,7 @@ inline constexpr size_t decidx2{3};
     }  // namespace detail
 
     template <class OutputBuffer, class InputIterator>
-    manapi::error::status_or<OutputBuffer> encode_into(InputIterator begin, InputIterator end) {
+    manapi::status_or<OutputBuffer> encode_into(InputIterator begin, InputIterator end) {
         typedef std::decay_t<decltype(*begin)> input_value_type;
         static_assert(std::is_same_v<input_value_type, char> ||
                       std::is_same_v<input_value_type, signed char> ||
@@ -543,7 +543,7 @@ inline constexpr size_t decidx2{3};
                 break;
             }
             default: {
-                return error::status_invalid_argument("base64:Invalid base64 encoded data");
+                return status_invalid_argument("base64:Invalid base64 encoded data");
             }
         }
 
@@ -551,12 +551,12 @@ inline constexpr size_t decidx2{3};
     }
 
     template <class OutputBuffer>
-    manapi::error::status_or<OutputBuffer> encode_into(std::string_view data) {
+    manapi::status_or<OutputBuffer> encode_into(std::string_view data) {
         return encode_into<OutputBuffer>(std::begin(data), std::end(data));
     }
 
     template <class OutputBuffer>
-    manapi::error::status_or<OutputBuffer> decode_into(std::string_view base64Text) {
+    manapi::status_or<OutputBuffer> decode_into(std::string_view base64Text) {
         typedef typename OutputBuffer::value_type output_value_type;
         static_assert(std::is_same_v<output_value_type, char> ||
                       std::is_same_v<output_value_type, signed char> ||
@@ -567,13 +567,13 @@ inline constexpr size_t decidx2{3};
         }
 
         if ((base64Text.size() & 3) != 0) {
-            return error::status_invalid_argument("base64:Invalid base64 encoded data - Size not divisible by 4");
+            return status_invalid_argument("base64:Invalid base64 encoded data - Size not divisible by 4");
         }
 
         const size_t numPadding =
                 std::count(base64Text.rbegin(), base64Text.rbegin() + 4, '=');
         if (numPadding > 2) {
-            return error::status_invalid_argument("base64:Invalid base64 encoded data - Found more than 2 padding signs");
+            return status_invalid_argument("base64:Invalid base64 encoded data - Found more than 2 padding signs");
         }
 
         const size_t decodedsize = (base64Text.size() * 3 >> 2) - numPadding;
@@ -596,7 +596,7 @@ inline constexpr size_t decidx2{3};
             const uint32_t temp = d1 | d2 | d3 | d4;
 
             if (temp >= detail::bad_char) {
-                return error::status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
+                return status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
             }
 
             // Use bit_cast instead of union and type punning to avoid
@@ -626,7 +626,7 @@ inline constexpr size_t decidx2{3};
                 const uint32_t temp = d1 | d2 | d3;
 
                 if (temp >= detail::bad_char) {
-                    return error::status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
+                    return status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
                 }
 
                 // Use bit_cast instead of union and type punning to avoid
@@ -648,7 +648,7 @@ inline constexpr size_t decidx2{3};
                 const uint32_t temp = d1 | d2;
 
                 if (temp >= detail::bad_char) {
-                    return error::status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
+                    return status_invalid_argument("base64:Invalid base64 encoded data - Invalid character");
                 }
 
                 const std::array<char, 4> tempBytes =
@@ -657,7 +657,7 @@ inline constexpr size_t decidx2{3};
                 break;
             }
             default: {
-                return error::status_invalid_argument("base64:Invalid base64 encoded data - Invalid padding number");
+                return status_invalid_argument("base64:Invalid base64 encoded data - Invalid padding number");
             }
         }
 
@@ -676,28 +676,28 @@ inline constexpr size_t decidx2{3};
     }
 }
 
-manapi::error::status_or<std::string> manapi::crypto::base64_encode(std::string_view data) {
+manapi::status_or<std::string> manapi::crypto::base64_encode(std::string_view data) {
     try {
         return base64::encode_into<std::string>(std::begin(data), std::end(data));
     }
     catch (std::bad_alloc const &e) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "base64:Failed", e.what());
     }
-    return manapi::error::status_internal("base64:Failed");
+    return manapi::status_internal("base64:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::base64_decode(std::string_view data) {
+manapi::status_or<std::string> manapi::crypto::base64_decode(std::string_view data) {
     try {
         return base64::encode_into<std::string>(data);
     }
     catch (std::bad_alloc const &e) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "base64:Failed", e.what());
     }
-    return manapi::error::status_internal("base64:Failed");
+    return manapi::status_internal("base64:Failed");
 }

@@ -39,7 +39,7 @@ manapi::timer::timer(std::shared_ptr<timer_data_t> data) {
     this->data = std::move(data);
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,timer_types type,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::timer> manapi::timer::create (bool interval,timer_types type,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -61,11 +61,11 @@ manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,tim
         return std::move(w);
     }
     catch (std::exception const &) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,timer_types type, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::timer> manapi::timer::create(bool interval,timer_types type, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -87,7 +87,7 @@ manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,time
         return std::move(w);
     }
     catch (std::exception const &) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
 
 }
@@ -237,7 +237,7 @@ void manapi::timer::callback_sync(sync_cb_t cb) MANAPIHTTP_NOEXCEPT {
     }
 }
 
-manapi::error::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXCEPT {
     this->data->flags |= TIMER_TASK_ENABLED;
 
     if (this->data->flags & TIMER_TASK_ACTIVE)

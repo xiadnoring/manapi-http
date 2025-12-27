@@ -43,9 +43,9 @@ namespace manapi {
 
         manapi::future<std::shared_ptr<worker_t>> subscribe (subscribe_cb cb);
 
-        manapi::future<manapi::error::status> edit (const std::shared_ptr<worker_t> &m, std::move_only_function<bool(manapi::json &data)> cb);
+        manapi::future<manapi::status> edit (const std::shared_ptr<worker_t> &m, std::move_only_function<bool(manapi::json &data)> cb);
 
-        manapi::future<manapi::error::status> edit_async (const std::shared_ptr<worker_t> &m, std::move_only_function<manapi::future<bool>(manapi::json &data)> cb);
+        manapi::future<manapi::status> edit_async (const std::shared_ptr<worker_t> &m, std::move_only_function<manapi::future<bool>(manapi::json &data)> cb);
 
         manapi::future<> unsubscribe (const std::shared_ptr<worker_t> &m);
 
@@ -60,7 +60,7 @@ namespace manapi {
 
         void unsubscribe_ (const std::shared_ptr<worker_t> &w) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status call_sync_callback_ (worker_t *w) MANAPIHTTP_NOEXCEPT;
+        manapi::status call_sync_callback_ (worker_t *w) MANAPIHTTP_NOEXCEPT;
 
         void call_callback_ (worker_t *w) MANAPIHTTP_NOEXCEPT;
 

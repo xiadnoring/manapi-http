@@ -25,7 +25,7 @@ namespace manapi::net::worker {
 
         static std::shared_ptr<worker::openssl_quic> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
-        manapi::future<error::status> init(std::size_t deep) override;
+        manapi::future<status> init(std::size_t deep) override;
 
         void stop(std::function<void()> cb) override;
 
@@ -61,7 +61,7 @@ namespace manapi::net::worker {
 
         connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT override;
 
-        error::status_or<shared_conn> new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT override;
+        status_or<shared_conn> new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
         int64_t stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT override;
 
@@ -91,11 +91,11 @@ namespace manapi::net::worker {
 
         static void io_unbind_cb (ev::handle *s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<shared_conn> stream_accept (const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<shared_conn> stream_accept (const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT;
 
         void stream_processing (const shared_conn &s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<shared_conn> conn_accept (SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<shared_conn> conn_accept (SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
 
         void conn_processing (SSL *client) MANAPIHTTP_NOEXCEPT;
 
@@ -106,7 +106,7 @@ namespace manapi::net::worker {
         std::map<std::string, std::map<std::uintptr_t, shared_conn>, std::less<>> conns_;
         std::size_t count;
     private:
-        static manapi::error::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
+        static manapi::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
 
         static int select_alpn (SSL *ssl, const unsigned char **out, unsigned char *out_len, const unsigned char *in, unsigned int in_len, void *arg);
 

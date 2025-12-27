@@ -31,7 +31,7 @@ namespace manapi {
 
         bytebuffer (void *src, uint32_t size, char flags);
 
-        static manapi::error::status_or<bytebuffer> create (uint32_t size);
+        static manapi::status_or<bytebuffer> create (uint32_t size);
 
         ~bytebuffer ();
 
@@ -60,11 +60,11 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD uint32_t realsize () const;
 
-        manapi::error::status realresize (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status realresize (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status resize (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status resize (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status resize_max (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status resize_max (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
         void remove_shift () MANAPIHTTP_NOEXCEPT;
 

@@ -67,9 +67,9 @@ manapi::net::formdata_recv::formdata_recv(formdata_recv &&n) MANAPIHTTP_NOEXCEPT
 
 manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb_t cb) {
+manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) {
     assert(this->onparam_cb_ == nullptr);
-    manapi::error::status status;
+    manapi::status status;
 
     try {
         this->onparam_cb_ = std::move(cb);
@@ -79,19 +79,19 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
             auto const hit = this->req_->headers.find(http::header::CONTENT_TYPE);
 
             if (hit == this->req_->headers.end())
-                co_return error::status_invalid_argument("formdata:Content-Type header is missing");
+                co_return status_invalid_argument("formdata:Content-Type header is missing");
 
             auto rhs = http::parse_header_value(hit->second);
             auto hparams = rhs.unwrap();
             if (hparams.size() != 1) {
-                status = error::status_invalid_argument("formdata:Content-Type header is invalid");
+                status = status_invalid_argument("formdata:Content-Type header is invalid");
                 goto finish;
             }
 
             if (manapi::string::equals(hparams[0].value, mime::types.MULTIPART_FORM_DATA, 0b10)) {
                 auto pit = hparams[0].params.find("boundary");
                 if (pit == hparams[0].params.end()) {
-                    status =  error::status_invalid_argument("formdata:boundary is missing");
+                    status =  status_invalid_argument("formdata:boundary is missing");
                     goto finish;
                 }
 
@@ -103,7 +103,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
                 type = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
             }
             else {
-                status = error::status_invalid_argument("formdata:FormData is not supported for the current Content-Type");
+                status = status_invalid_argument("formdata:FormData is not supported for the current Content-Type");
                 goto finish;
             }
         }
@@ -131,7 +131,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
 
                 if (this->ctx_.current != FORMDATA_URLEN_VALUE
                     && this->ctx_.current != FORMDATA_URLEN_INIT) {
-                    status = error::status_invalid_argument("formdata:x-www-form-urlencoded data is not complete");
+                    status = status_invalid_argument("formdata:x-www-form-urlencoded data is not complete");
                     goto finish;
                 }
 
@@ -145,7 +145,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
                         b.push_back(this->ctx_.hctx->s2.data(), size);
 
                         if (size != co_await ucb (slice_view(b), true)) {
-                            status = error::status_invalid_argument("formdata:user callback returned an invalid result");
+                            status = status_invalid_argument("formdata:user callback returned an invalid result");
                             goto finish;
                         }
 
@@ -157,11 +157,11 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
             }
         }
 
-        status = manapi::error::status_ok();
+        status = manapi::status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "formdata:Failed", e.what());
-        status = manapi::error::status_internal("formdata:Failed");
+        status = manapi::status_internal("formdata:Failed");
     }
 
 finish:
@@ -716,42 +716,42 @@ manapi::net::formdata_send::formdata_send(formdata_send &&n) MANAPIHTTP_NOEXCEPT
 
 manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::error::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT {
     try {
         auto filename = manapi::filesystem::path::basename(filepath);
         auto filemime = manapi::mime::mime_by_file_path(filename);
 
         auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
         if (!res.second)
-            return error::status_already_exists("formdata:param exists");
-        return error::status_ok();
+            return status_already_exists("formdata:param exists");
+        return status_ok();
     }
     catch (...) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 
-manapi::error::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT {
     try {
         auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
         if (!res.second)
-            return error::status_already_exists("formdata:param exists");
-        return error::status_ok();
+            return status_already_exists("formdata:param exists");
+        return status_ok();
     }
     catch (...) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 
-manapi::error::status manapi::net::formdata_send::set_text(const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::formdata_send::set_text(const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT {
     try {
         auto const res = this->data.insert({name, {DATA_PLAIN, std::move(data), {}}});
         if (!res.second)
-            return error::status_already_exists("formdata:param exists");
-        return error::status_ok();
+            return status_already_exists("formdata:param exists");
+        return status_ok();
     }
     catch (...) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
 }
 
@@ -765,7 +765,7 @@ bool manapi::net::formdata_send::contains(std::string_view name) const MANAPIHTT
     return this->data.contains(name);
 }
 
-manapi::future<manapi::error::status_or<ssize_t>> manapi::net::formdata_send::payload_size() const {
+manapi::future<manapi::status_or<ssize_t>> manapi::net::formdata_send::payload_size() const {
     ssize_t s = 0;
     for (const auto &param : this->data) {
         switch (param.second.type) {
@@ -786,7 +786,7 @@ manapi::future<manapi::error::status_or<ssize_t>> manapi::net::formdata_send::pa
     co_return s;
 }
 
-manapi::error::status_or<ssize_t> manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT {
+manapi::status_or<ssize_t> manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT {
     try {
         auto s = static_cast<ssize_t>(boundary_size + (sizeof ("--\r\n") - 1));
         for (const auto &param : this->data) {
@@ -821,7 +821,7 @@ manapi::error::status_or<ssize_t> manapi::net::formdata_send::multipart_size(ssi
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "formdata: failed", e.what());
     }
-    return error::status_internal("formdata: failed");
+    return status_internal("formdata: failed");
 }
 
 static constexpr char boundary_label[] = "--boundary";
@@ -836,8 +836,8 @@ std::string manapi::net::formdata_send::generate_boundary() const {
     return std::move(boundary);
 }
 
-manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view slice, bool fin)> write) {
-    manapi::error::status status;
+manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::move_only_function<manapi::future<manapi::status>(manapi::slice_view slice, bool fin)> write) {
+    manapi::status status;
 
     slice_part_t part{};
 
@@ -949,7 +949,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
                     auto rhs = co_await f.read(slices);
 
                     if (rhs < 0)
-                        co_return error::status_internal("formdata:Read data failed");
+                        co_return status_internal("formdata:Read data failed");
 
                     if (rhs == 0) {
                         continue;
@@ -968,7 +968,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s due to %s", "data2multipart:Failed", e.what());
-                status = manapi::error::status_internal("data2multipart:Failed");
+                status = manapi::status_internal("data2multipart:Failed");
             }
 
             co_await f.close();

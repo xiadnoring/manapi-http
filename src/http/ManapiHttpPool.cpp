@@ -29,7 +29,7 @@ manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithrea
 
 manapi::net::http_pool::~http_pool() = default;
 
-manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
+manapi::future<manapi::status> manapi::net::http_pool::stop() {
     try {
         auto lk = co_await this->mx->lock_guard();
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "shutdown socket");
@@ -44,18 +44,18 @@ manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
                 }
             });
         }
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::bad_alloc const &) {
-        co_return error::status_resource_exhausted();
+        co_return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "stop() failed", e.what());
     }
-    co_return error::status_internal("stop() failed");
+    co_return status_internal("stop() failed");
 }
 
-manapi::future<manapi::error::status> manapi::net::http_pool::run() {
+manapi::future<manapi::status> manapi::net::http_pool::run() {
     co_return co_await this->pool_();
 }
 
@@ -74,7 +74,7 @@ std::string concat_keys_in_map (const std::map<std::string, T> &m) {
     return std::move(available);
 }
 
-manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
+manapi::future<manapi::status> manapi::net::http_pool::pool_() {
     try {
         manapi_log_trace("http: pool init №%zu", this->id);
 
@@ -117,7 +117,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
 
                     }
                     else {
-                        co_return manapi::error::status_internal("http: QUIC(quiche) must be only working with HTTP3(quiche)");
+                        co_return manapi::status_internal("http: QUIC(quiche) must be only working with HTTP3(quiche)");
                     }
                 }
                 else {
@@ -148,7 +148,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                             auto it_http_impl = http_implementation.find(*http_impl_name);
                             if (it_http_impl == http_implementation.end()) {
                                 MANAPIHTTP_LOG("http: implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
-                                co_return error::status_failed_precondition("http implementation not found");
+                                co_return status_failed_precondition("http implementation not found");
                             }
 
                             implement_http_callback = &it_http_impl->second;
@@ -180,17 +180,17 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
             auto keys = concat_keys_in_map(implementations);
             manapi_log_error("http: implementation by %.*s not found in %.*s. Available: [%.*s]", implementation.size(),
                 implementation.data(), transport.size(), transport.data(), keys.size(), keys.data());
-            co_return error::status_failed_precondition("implementation not found");
+            co_return status_failed_precondition("implementation not found");
         }
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::bad_alloc const &) {
-        co_return error::status_resource_exhausted();
+        co_return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "http: pool() failed", e.what());
     }
-    co_return error::status_internal("pool() failed");
+    co_return status_internal("pool() failed");
 }
 
 manapi::net::http::site manapi::net::http_pool::site() const {

@@ -85,9 +85,9 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD bool is_sync_cb () const MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<http::async_handler_t*> async_cb () MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<http::async_handler_t*> async_cb () MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<http::sync_handler_t*> sync_cb () MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<http::sync_handler_t*> sync_cb () MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
     private:
@@ -100,16 +100,16 @@ namespace manapi::net::http {
         /**
          * Compress file callback
          */
-        typedef std::move_only_function<future<manapi::error::status>(std::string src, std::string dest)> compress_file_cb_t;
+        typedef std::move_only_function<future<manapi::status>(std::string src, std::string dest)> compress_file_cb_t;
 
         /**
          * Compress string callback
          */
-        typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb_t;
+        typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb_t;
 
         typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
 
-        typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
+        typedef std::function<manapi::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
 
         struct data_t;
 
@@ -143,7 +143,7 @@ namespace manapi::net::http {
          * @param handler handler
          * @return
          */
-        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set a folder sharing handler by its method and URI
@@ -153,7 +153,7 @@ namespace manapi::net::http {
          * @param handler callback
          * @return
          */
-        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<http_uri_part *> handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the handler by its method and URI
@@ -223,14 +223,14 @@ namespace manapi::net::http {
          * @param path file path
          * @return a future
          */
-        manapi::future<manapi::error::status> config (std::string path);
+        manapi::future<manapi::status> config (std::string path);
 
         /**
          * set a config JSON object
          * @param config config JSON object
          * @return a future
          */
-        manapi::future<manapi::error::status> config_object (json config);
+        manapi::future<manapi::status> config_object (json config);
 
         // const manapi::json &config ();
 
@@ -241,7 +241,7 @@ namespace manapi::net::http {
          * @param filetime file time
          * @return InternalError, NotFound, Unavailable on error
          */
-        manapi::future<manapi::error::status_or<std::string>> get_compressed_cache_file (std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime);
+        manapi::future<manapi::status_or<std::string>> get_compressed_cache_file (std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime);
 
         /**
          * Set compressed by file path
@@ -251,7 +251,7 @@ namespace manapi::net::http {
          * @param filetime File Time
          * @return OK if there's no error, otherwise - InternalError
          */
-        manapi::future<manapi::error::status> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
+        manapi::future<manapi::status> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
 
         /**
          * Set not avaiable file for compressing for other threads
@@ -261,7 +261,7 @@ namespace manapi::net::http {
          * @return InternalError, Unavailable on error
          */
 
-        manapi::future<manapi::error::status> set_locked_cache_file (std::string file, bool lock, std::string algorithm);
+        manapi::future<manapi::status> set_locked_cache_file (std::string file, bool lock, std::string algorithm);
 
         MANAPIHTTP_NODISCARD const std::string &config_cache_dir();
 

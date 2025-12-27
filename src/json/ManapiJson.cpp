@@ -243,7 +243,7 @@ void manapi::json::parse_(const NULLPTR &n) {
     set_nullptr_();
 }
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-manapi::error::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigint, size_t bigint_precision) {
+manapi::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigint, size_t bigint_precision) {
     json_builder builder (json_mask(nullptr), use_bigint, bigint_precision);
     auto res = builder.parse(plain_text);
     if (!res.ok())
@@ -252,10 +252,10 @@ manapi::error::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigi
     if (!rhs.ok())
         return std::move(rhs.err());
     *this = std::move(rhs.unwrap());
-    return error::status_ok();
+    return status_ok();
 }
 #else
-manapi::error::status manapi::json::parse_(STRING_VIEW plain_text) {
+manapi::status manapi::json::parse_(STRING_VIEW plain_text) {
     json_builder builder (json_mask(nullptr));
     auto res = builder.parse(plain_text);
     if (!res.ok())
@@ -264,7 +264,7 @@ manapi::error::status manapi::json::parse_(STRING_VIEW plain_text) {
     if (!rhs.ok())
         return std::move(rhs.err());
     *this = rhs.unwrap();
-    return error::status_ok();
+    return status_ok();
 }
 #endif
 
@@ -877,7 +877,7 @@ manapi::json manapi::json::array(manapi::json data) {
     return json::array({std::move(data)});
 }
 
-manapi::error::status_or<manapi::json> manapi::json::parse(STRING_VIEW data) {
+manapi::status_or<manapi::json> manapi::json::parse(STRING_VIEW data) {
     manapi::json b;
     auto res = b.parse_(data);
     if (!res.ok())

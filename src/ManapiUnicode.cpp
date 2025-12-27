@@ -32,27 +32,27 @@ int manapi::unicode::count_of_octet(unsigned char c) {
     return i;
 }
 //
-// manapi::error::status_or<std::string> manapi::unicode::utf::str32to8(std::u32string_view str32) {
+// manapi::status_or<std::string> manapi::unicode::utf::str32to8(std::u32string_view str32) {
 //
 // }
 //
-// manapi::error::status_or<std::string> manapi::unicode::utf::str32to8(char32_t str32) {
+// manapi::status_or<std::string> manapi::unicode::utf::str32to8(char32_t str32) {
 //
 // }
 //
-// manapi::error::status_or<std::u32string> manapi::unicode::utf::str8to32(std::string_view str) {
+// manapi::status_or<std::u32string> manapi::unicode::utf::str8to32(std::string_view str) {
 //     uv_wtf8_to_utf16()
 // }
 //
-// manapi::error::status_or<std::string> manapi::unicode::utf::str16to8(std::u16string_view str16) {
+// manapi::status_or<std::string> manapi::unicode::utf::str16to8(std::u16string_view str16) {
 //
 // }
 //
-// manapi::error::status_or<std::string> manapi::unicode::utf::str16to8(char16_t str16) {
+// manapi::status_or<std::string> manapi::unicode::utf::str16to8(char16_t str16) {
 //
 // }
 //
-// manapi::error::status_or<std::u16string> manapi::unicode::utf::str8to16(std::string_view str) {
+// manapi::status_or<std::u16string> manapi::unicode::utf::str8to16(std::string_view str) {
 //
 // }
 

@@ -21,15 +21,15 @@
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception(errnum, std::format(msg, __VA_ARGS__));
 #define THROW_MANAPIHTTP_JSON_ERROR2(errnum, msg) throw manapi::json_parse_exception(errnum, std::format(msg));
 
-manapi::json_error::status::status(err_num code, std::string_view msg, std::string data, std::size_t pos, std::string path) : error::status(code, msg) {
-    this->pos_ = pos;
-    this->path_ = std::move(path);
-    this->data_ = std::move(data);
+manapi::json_error::status::status(err_num code, std::string_view msg, std::string data, std::size_t pos, std::string path) : manapi::status(code, msg) {
+    this->m_pos = pos;
+    this->m_path = std::move(path);
+    this->m_data = std::move(data);
 }
 
 
-manapi::json_error::status::status() : error::status() {
-    this->pos_ = 0;
+manapi::json_error::status::status() : manapi::status() {
+    this->m_pos = 0;
 }
 
 
@@ -38,35 +38,57 @@ manapi::json_error::status::status(err_num code, std::string_view msg, std::size
 
 manapi::json_error::status::~status() = default;
 
-manapi::json_error::status::status(const error::status &err) {
-    this->code_ = err.code();
-    this->msg_ = err.msg();
-    this->pos_ = 0;
+manapi::json_error::status::status(const status &err) {
+    this->m_pos = 0;
+    manapi::status::operator=(std::forward<decltype(err)>(err));
 }
 
-manapi::json_error::status::status(json_error::status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::json_error::status::status(json_error::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_data = std::move(n.m_data);
+    this->m_path = std::move(n.m_path);
+    this->m_pos = std::exchange(n.m_pos, 0);
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+}
 
-manapi::json_error::status & manapi::json_error::status::operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::json_error::status & manapi::json_error::status::operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_data = std::move(n.m_data);
+    this->m_path = std::move(n.m_path);
+    this->m_pos = std::exchange(n.m_pos, 0);
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+    return *this;
+}
+
+manapi::json_error::status::status(manapi::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_pos = 0;
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+
+}
+
+manapi::json_error::status & manapi::json_error::status::operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_pos = 0;
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+    return *this;
+}
 
 void manapi::json_error::status::log() const {
-    MANAPIHTTP_LOG ("{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg_, this->pos_, this->path_, this->data_);
+    MANAPIHTTP_LOG ("{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg(), this->m_pos, this->m_path, this->m_data);
 }
 
 void manapi::json_error::status::unwrap() const {
-    if (this->code_ != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION(this->code_, "{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg_, this->pos_, this->path_, this->data_);
+    if (this->code() != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION(this->code(), "{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg(), this->m_pos, this->m_path, this->m_data);
 }
 
 std::string manapi::json_error::status::path() {
-    return std::move(this->path_);
+    return std::move(this->m_path);
 }
 
 std::string manapi::json_error::status::additional_data() {
-    return std::move(this->data_);
+    return std::move(this->m_data);
 }
 
 std::size_t manapi::json_error::status::pos() const {
-    return this->pos_;
+    return this->m_pos;
 }
 
 manapi::json_error::status manapi::json_error::status_invalid_argument(std::string_view msg, std::size_t pos, std::string path) {

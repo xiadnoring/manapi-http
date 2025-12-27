@@ -694,6 +694,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/pq/AsyncPostgreValue.hpp
         include/ext/pq/AsyncPostgreValueTypes.hpp
         include/ext/pq/AsyncPostgreNotification.hpp
+        include/ext/pq/AsyncPostgrePool.hpp
+        include/ext/pq/AsyncPostgreImpl.ipp
         include/std/ManapiAsyncParallelRun.hpp
         include/ManapiFetch2.hpp
         include/ManapiTimerObject.hpp
@@ -916,7 +918,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
     endif ()
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_HTTP_AS_EXECUTABLE)
-    target_sources(${PROJECT_NAME} PRIVATE main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+    target_sources(${PROJECT_NAME} PRIVATE main.cpp impl.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 
     #    target_sources(${PROJECT_NAME} PUBLIC
     #            FILE_SET CXX_MODULES

@@ -65,7 +65,7 @@ namespace manapi::net::worker {
 
         worker_watcher_cb event_on(const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT override;
 
-        manapi::future<manapi::error::status> init(std::size_t deep) override;
+        manapi::future<manapi::status> init(std::size_t deep) override;
 
         connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT override;
 

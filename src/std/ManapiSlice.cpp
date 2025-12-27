@@ -171,9 +171,9 @@ manapi::slice_base::slice_base(const slice_base &n) = default;
 
 manapi::slice_base & manapi::slice_base::operator=(const slice_base &n) = default;
 
-manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTTP_NOEXCEPT {
     if (this->size() < shift)
-        return error::status_out_of_range("slice: shift is too large");
+        return status_out_of_range("slice: shift is too large");
 
     if (this->last) {
         this->shift_ += shift;
@@ -196,15 +196,15 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTT
         }
     }
 
-    return error::status_ok();
+    return status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice_base::copy_from(const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
     if (!size)
-        return manapi::error::status_ok();
+        return manapi::status_ok();
 
     if (!this->last)
-        return error::status_out_of_range("shift and size is too large");
+        return status_out_of_range("shift and size is too large");
 
     auto buffer_casted = static_cast<const char *>(buffer);
 
@@ -218,7 +218,7 @@ manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::siz
 
     while (size) {
         if (current == this->last->next)
-            return manapi::error::status_out_of_range("shift and size is too large");
+            return manapi::status_out_of_range("shift and size is too large");
 
         std::size_t copy;
         if (current == this->last)
@@ -234,15 +234,15 @@ manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::siz
         shift = 0;
     }
 
-    return manapi::error::status_ok();
+    return manapi::status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice_base::copy_to(void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
     auto buffer_casted = static_cast<char *>(buffer);
 
     if (size) {
         if (!this->last)
-            return error::status_out_of_range("shift and size is too large");
+            return status_out_of_range("shift and size is too large");
 
         auto current = this->first;
         shift += this->shift_;
@@ -253,7 +253,7 @@ manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shif
         }
         while (size) {
             if (current == this->last->next)
-                return manapi::error::status_out_of_range("shift and size is too large");
+                return manapi::status_out_of_range("shift and size is too large");
 
             std::size_t copy;
             if (current == this->last)
@@ -269,15 +269,15 @@ manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shif
             buffer_casted+=copy;
         }
     }
-    return error::status_ok();
+    return status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice_base::copy_from(slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT {
     if (!size)
-        return error::status_ok();
+        return status_ok();
 
     if (!this->last)
-        return error::status_out_of_range("shift and size is too large");
+        return status_out_of_range("shift and size is too large");
 
     auto current = this->first,
          current_n = n.first;
@@ -300,7 +300,7 @@ manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t s
     while (size) {
         if (current == this->last->next
             || current_n == n.last->next)
-            return manapi::error::status_out_of_range("shift and size is too large");
+            return manapi::status_out_of_range("shift and size is too large");
 
         std::size_t fcopy;
         if (current->next == this->last->next)
@@ -334,10 +334,10 @@ manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t s
         }
     }
 
-    return manapi::error::status_ok();
+    return manapi::status_ok();
 }
 
-manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT {
     pos += this->shift_;
     auto const size_ = this->size_ - this->rshift_;
     if (!size)
@@ -347,14 +347,14 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
         return slice_base(nullptr, nullptr, 0, 0, 0, 0);
 
     if (!this->last)
-        return error::status_out_of_range("shift and size is too large");
+        return status_out_of_range("shift and size is too large");
 
     if (pos == this->shift_ && size == size_) {
         return *this;
     }
 
     if (pos + size > size_) {
-        return manapi::error::status_out_of_range("subslice size is too large");
+        return manapi::status_out_of_range("subslice size is too large");
     }
 
     auto tmp_size = size;
@@ -377,7 +377,7 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
         scurrent=scurrent->next;
     }
     if (this->last->next == scurrent)
-        return error::status_out_of_range("pos and size too large");
+        return status_out_of_range("pos and size too large");
 
     ssize_t rshift;
 
@@ -564,9 +564,9 @@ std::size_t manapi::slice_base::size() const {
     return this->size_ - this->shift_ - this->rshift_;
 }
 
-manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice_base::rshift_add_(std::size_t s) MANAPIHTTP_NOEXCEPT {
     if (s > this->size())
-        return error::status_out_of_range("s is too large");
+        return status_out_of_range("s is too large");
 
     this->rshift_ += s;
 
@@ -617,7 +617,7 @@ manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) MANAPIHTTP_
         this->count--;
     }
 
-    return error::status_ok();
+    return status_ok();
 
 }
 
@@ -691,7 +691,7 @@ manapi::slice_ref::~slice_ref() {
     this->clear();
 }
 
-manapi::error::status manapi::slice_ref::push_back(const void *buffer, std::size_t size) {
+manapi::status manapi::slice_ref::push_back(const void *buffer, std::size_t size) {
     auto t = std::make_unique<slice_part_t>();
     t->buff.base = (char*)(buffer);
     t->buff.len = size;
@@ -706,7 +706,7 @@ manapi::error::status manapi::slice_ref::push_back(const void *buffer, std::size
         this->last = this->first;
     }
     this->count++;
-    return error::status_ok();
+    return status_ok();
 }
 
 void manapi::slice_ref::clear() MANAPIHTTP_NOEXCEPT {
@@ -728,7 +728,7 @@ void manapi::slice_ref::clear() MANAPIHTTP_NOEXCEPT {
 manapi::slice::slice() : slice_base(nullptr, nullptr, 0, 0, 0, 0) {
 }
 
-manapi::error::status_or<manapi::slice> manapi::slice::create(std::size_t n) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::slice> manapi::slice::create(std::size_t n) MANAPIHTTP_NOEXCEPT {
     return manapi::async::current()->memory_fabric().slice(n);
 }
 
@@ -786,11 +786,11 @@ manapi::slice::~slice() {
     this->clear();
 }
 
-manapi::error::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEPT {
     auto const cur = this->size();
 
     if (size == cur)
-        return error::status_ok();
+        return status_ok();
 
     if (size < cur) {
         assert(this->rshift_add_(cur - size).ok());
@@ -810,17 +810,17 @@ manapi::error::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEP
         }
     }
 
-    return error::status_ok();
+    return status_ok();
 }
 
-manapi::error::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOEXCEPT {
     if (buffer.empty())
-        return error::status_ok();
+        return status_ok();
 
     if (buffer.flags() & bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL) {
         std::unique_ptr<slice_part_t> t (new (std::nothrow) slice_part_t{});
         if (!t)
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
 
         auto const shift = buffer.shift();
 
@@ -844,13 +844,13 @@ manapi::error::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOE
         this->count++;
 
 
-        return error::status_ok();
+        return status_ok();
     }
 
     return this->push_back(buffer.data(), buffer.size());
 }
 
-manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
     if (!s.empty()) {
         if (this->count) {
             assert(this->first && this->last);
@@ -922,13 +922,13 @@ manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
         }
     }
 
-    return error::status_ok();
+    return status_ok();
 }
 
-manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice::push_back(const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
     try {
         if (!size)
-            return error::status_ok();
+            return status_ok();
 
         if (this->rshift_) {
             auto const copy = static_cast<uint32_t>(std::min<ssize_t>(size, this->rshift_));
@@ -940,7 +940,7 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
             buffer = static_cast<const char *>(buffer) + copy;
 
             if (!size)
-                return error::status_ok();
+                return status_ok();
         }
 
         auto slice_res = manapi::async::current()->memory_fabric().slice(size);
@@ -973,7 +973,7 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
             *this = std::move(slice);
         }
 
-        return error::status_ok();
+        return status_ok();
     }
     catch (std::bad_alloc const &) {
 
@@ -981,7 +981,7 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
     catch (std::exception const &e) {
         manapi_log_error(e.what());
     }
-    return error::status_resource_exhausted();
+    return status_resource_exhausted();
 }
 
 

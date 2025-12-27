@@ -24,7 +24,7 @@ namespace manapi::crypto {
      * @param algorithm the encoding algorithm
      * @return the encoded output string, but otherwise, it returns InternalError, InvalidArgument, ResourceExhausted, Unimplemented
      */
-    manapi::error::status_or<std::string> aes_encrypt (std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm = ciphers::AES_128_CBC);
+    manapi::status_or<std::string> aes_encrypt (std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm = ciphers::AES_128_CBC);
 
     /**
      * AES string decoder
@@ -35,5 +35,5 @@ namespace manapi::crypto {
      * @param algorithm the encoding algorithm
      * @return the decoded string, but otherwise, it returns InternalError, InvalidArgument, ResourceExhausted, Unimplemented
      */
-    manapi::error::status_or<std::string> aes_decrypt (std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm = ciphers::AES_128_CBC);
+    manapi::status_or<std::string> aes_decrypt (std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm = ciphers::AES_128_CBC);
 }

@@ -36,9 +36,9 @@ namespace manapi {
 
         timer (std::shared_ptr<timer_data_t> data);
 
-        static manapi::error::status_or<timer> create (bool interval,timer_types type,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<timer> create (bool interval,timer_types type,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
 
-        static manapi::error::status_or<timer> create (bool interval,timer_types type,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<timer> create (bool interval,timer_types type,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
 
         timer (const timer &n);
 
@@ -64,7 +64,7 @@ namespace manapi {
 
         void callback_sync (sync_cb_t cb) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status again (std::size_t ms) MANAPIHTTP_NOEXCEPT;
+        manapi::status again (std::size_t ms) MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::chrono::milliseconds interval () const MANAPIHTTP_NOEXCEPT;
 

@@ -149,16 +149,47 @@ namespace manapi {
      */
     void extract_exception_ptr (std::exception_ptr err, int *errnum, char *msg, std::size_t *msg_size);
 
+    union messages_storage {
+        std::string_view m_view{};
+        std::string m_str;
+
+        ~messages_storage();
+    };
+
+    class messages {
+    public:
+        messages();
+
+        ~messages();
+
+        messages (messages &&n) MANAPIHTTP_NOEXCEPT;
+
+        messages& operator= (messages &&n) MANAPIHTTP_NOEXCEPT;
+
+        messages (const messages &n);
+
+        messages& operator= (const messages &n);
+
+        void errnum (manapi::err_num code) MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD manapi::err_num errnum () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD std::string_view msg_view () const MANAPIHTTP_NOEXCEPT;
+
+        std::string msg () MANAPIHTTP_NOEXCEPT;
+
+        void msg_view (std::string_view msg) MANAPIHTTP_NOEXCEPT;
+
+        void msg (std::string msg) MANAPIHTTP_NOEXCEPT;
+    private:
+        messages_storage m_data;
+        uint32_t m_errnum;
+    };
+
     /**
      * manapi exception
      */
     class exception final : public std::exception {
-        union messages {
-            std::string_view view{};
-            std::string storage;
-
-            ~messages();
-        };
     public:
         /**
          * initialize exception
@@ -194,181 +225,176 @@ namespace manapi {
          *
          * @return the error code
          */
-        MANAPIHTTP_NODISCARD int err_num () const;
+        MANAPIHTTP_NODISCARD manapi::err_num err_num () const;
     private:
-        uint8_t flags;
-        manapi::err_num errnum_;
-        messages data_;
+        messages m_data;
     };
 
-    namespace error {
-        class status {
-        public:
-            status ();
+    class status {
+    public:
+        status ();
 
-            virtual ~status ();
+        virtual ~status ();
 
-            status (err_num code, std::string_view msg);
+        status (err_num code, std::string_view msg);
 
-            status (status &&n) MANAPIHTTP_NOEXCEPT;
+        status (status &&n) MANAPIHTTP_NOEXCEPT;
 
-            status& operator= (status &&n) MANAPIHTTP_NOEXCEPT;
+        status& operator= (status &&n) MANAPIHTTP_NOEXCEPT;
 
-            status (const status &n);
+        status (const status &n);
 
-            status& operator= (const status &n);
+        status& operator= (const status &n);
 
-            /**
-             * Get the error message from the status
-             *
-             * @return the error message
-             */
-            MANAPIHTTP_NODISCARD std::string_view msg () const;
+        /**
+         * Get the error message from the status
+         *
+         * @return the error message
+         */
+        MANAPIHTTP_NODISCARD std::string_view msg () const;
 
-            /**
-             * Get the error code from the status
-             *
-             * @return the error code
-             */
-            MANAPIHTTP_NODISCARD err_num code () const;
+        /**
+         * Get the error code from the status
+         *
+         * @return the error code
+         */
+        MANAPIHTTP_NODISCARD err_num code () const;
 
-            /**
-             * Is there no error
-             *
-             * @return true if there's no error
-             */
-            MANAPIHTTP_NODISCARD bool ok () const;
+        /**
+         * Is there no error
+         *
+         * @return true if there's no error
+         */
+        MANAPIHTTP_NODISCARD bool ok () const;
 
-            /**
-             * do log using the status
-             */
-            virtual void log () const;
+        /**
+         * do log using the status
+         */
+        virtual void log () const;
 
-            /**
-             * get the error code as a string
-             *
-             * @return the error code as a string
-             */
-            MANAPIHTTP_NODISCARD std::string_view status_msg () const;
+        /**
+         * get the error code as a string
+         *
+         * @return the error code as a string
+         */
+        MANAPIHTTP_NODISCARD std::string_view status_msg () const;
 
-            /**
-             * If there is error it throws an exception
-             *
-             * @throws manapi::exception with the error code from the status
-             */
-            virtual void unwrap () const;
+        /**
+         * If there is error it throws an exception
+         *
+         * @throws manapi::exception with the error code from the status
+         */
+        virtual void unwrap () const;
 
-            void stacktrace () const MANAPIHTTP_NOEXCEPT;
+        void stacktrace () const MANAPIHTTP_NOEXCEPT;
 
-            MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
-        protected:
-            std::string_view msg_;
-            err_num code_;
-        };
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
+    protected:
+        messages m_data;
+    };
 
-        template<typename T, typename E = manapi::error::status>
-        requires(!std::is_same_v<E, T>)
-        class status_or {
-        public:
-            status_or (T value) : err_() {
-                this->value_ = std::move(value);
-            }
+    template<typename T, typename E = manapi::status>
+    requires(!std::is_same_v<E, T>)
+    class status_or {
+    public:
+        status_or (T value) : err_() {
+            this->value_ = std::move(value);
+        }
 
-            status_or (E st) {
-                this->err_ = std::move(st);
-            }
+        status_or (E st) {
+            this->err_ = std::move(st);
+        }
 
-            status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
+        status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
-            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
+        status_or&operator=(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
-            /**
-             * get the error code from the status
-             *
-             * @return the error code from the status
-             */
-            MANAPIHTTP_NODISCARD manapi::err_num code () const {
-                return this->err_.code();
-            }
+        /**
+         * get the error code from the status
+         *
+         * @return the error code from the status
+         */
+        MANAPIHTTP_NODISCARD manapi::err_num code () const {
+            return this->err_.code();
+        }
 
-            /**
-             * get the error code as a string from the status
-             *
-             * @return the error code as a string
-             */
-            MANAPIHTTP_NODISCARD std::string_view status_msg () const {
-                return this->err_.status_msg();
-            }
+        /**
+         * get the error code as a string from the status
+         *
+         * @return the error code as a string
+         */
+        MANAPIHTTP_NODISCARD std::string_view status_msg () const {
+            return this->err_.status_msg();
+        }
 
-            /**
-             * get the error message from the status
-             *
-             * @return the error message
-             */
-            MANAPIHTTP_NODISCARD std::string_view message () const {
-                return this->err_.msg();
-            }
+        /**
+         * get the error message from the status
+         *
+         * @return the error message
+         */
+        MANAPIHTTP_NODISCARD std::string_view message () const {
+            return this->err_.msg();
+        }
 
-            /**
-             * get the result if it exists
-             *
-             * @return the result if it exists, but otherwise, it throws
-             * the exception
-             * @throws manapi::exception with error code from the status
-             */
-            T unwrap () {
-                this->err_.unwrap();
-                return std::move(this->value_.value());
-            }
+        /**
+         * get the result if it exists
+         *
+         * @return the result if it exists, but otherwise, it throws
+         * the exception
+         * @throws manapi::exception with error code from the status
+         */
+        T unwrap () {
+            this->err_.unwrap();
+            return std::move(this->value_.value());
+        }
 
-            /**
-             * is there no error
-             *
-             * @return true if there's no error, otherwise it returns false
-             */
-            MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT {
-                return this->err_.code() == manapi::ERR_OK;
-            }
+        /**
+         * is there no error
+         *
+         * @return true if there's no error, otherwise it returns false
+         */
+        MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT {
+            return this->err_.code() == manapi::ERR_OK;
+        }
 
-            /**
-             * get the error status
-             *
-             * @return the error status
-             */
-            E err () MANAPIHTTP_NOEXCEPT {
-                return std::move(this->err_);
-            }
+        /**
+         * get the error status
+         *
+         * @return the error status
+         */
+        E err () MANAPIHTTP_NOEXCEPT {
+            return std::move(this->err_);
+        }
 
-            MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT {
-                return this->err_.ok();
-            }
-        protected:
-            std::optional<T> value_;
-            E err_;
-        };
+        MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT {
+            return this->err_.ok();
+        }
+    protected:
+        std::optional<T> value_;
+        E err_;
+    };
 
-        status status_ok ();
-        status status_unknown (std::string_view msg);
-        status status_cancelled ();
-        status status_cancelled (std::string_view msg);
-        status status_invalid_argument (std::string_view msg);
-        status status_deadline_exceeded (std::string_view msg);
-        status status_not_found (std::string_view msg);
-        status status_already_exists (std::string_view msg);
-        status status_already_exists ();
-        status status_permission_denied (std::string_view msg);
-        status status_unauthenticated (std::string_view msg);
-        status status_resource_exhausted ();
-        status status_resource_exhausted (std::string_view msg);
-        status status_failed_precondition (std::string_view msg);
-        status status_aborted (std::string_view msg);
-        status status_unavailable (std::string_view msg);
-        status status_out_of_range (std::string_view msg);
-        status status_unimplemented (std::string_view msg);
-        status status_internal (std::string_view msg);
-        status status_internal ();
-        status status_data_loss (std::string_view msg);
-    }
+    status status_ok ();
+    status status_unknown (std::string_view msg);
+    status status_cancelled ();
+    status status_cancelled (std::string_view msg);
+    status status_invalid_argument (std::string_view msg);
+    status status_deadline_exceeded (std::string_view msg);
+    status status_not_found (std::string_view msg);
+    status status_already_exists (std::string_view msg);
+    status status_already_exists ();
+    status status_permission_denied (std::string_view msg);
+    status status_unauthenticated (std::string_view msg);
+    status status_resource_exhausted ();
+    status status_resource_exhausted (std::string_view msg);
+    status status_failed_precondition (std::string_view msg);
+    status status_aborted (std::string_view msg);
+    status status_unavailable (std::string_view msg);
+    status status_out_of_range (std::string_view msg);
+    status status_unimplemented (std::string_view msg);
+    status status_internal (std::string_view msg);
+    status status_internal ();
+    status status_data_loss (std::string_view msg);
 
     template<typename T>
     auto unwrap (T status) {

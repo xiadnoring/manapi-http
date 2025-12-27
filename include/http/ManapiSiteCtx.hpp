@@ -28,7 +28,7 @@ namespace manapi::net::http {
 
         server_ctx ();
 
-        static manapi::error::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
 
         ~server_ctx ();
 

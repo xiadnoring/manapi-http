@@ -44,16 +44,14 @@ namespace manapi::ext::pq {
     /**
      * error status for the OS event
      */
-    class status final : public manapi::error::status {
+    class status final : public manapi::status {
     public:
         /**
          * initialize error status
          */
-        status () : manapi::error::status() {
+        status ();
 
-        }
-
-        ~status () override = default;
+        ~status () override;
 
         /**
          * initialize error status
@@ -63,76 +61,60 @@ namespace manapi::ext::pq {
          * @param sqlcode sql status code
          * @param sqlmsg sql error message
          */
-        status (manapi::err_num code, std::string_view msg, std::size_t sqlcode, std::string_view sqlmsg) : manapi::error::status(code, msg) {
-            this->sqlmsg_ = (sqlmsg);
-            this->sqlcode_ = sqlcode;
-        }
+        status (manapi::err_num code, std::string_view msg, std::size_t sqlcode, std::string sqlmsg);
 
-        status (status &&n) MANAPIHTTP_NOEXCEPT = default;
+        status (status &&n) MANAPIHTTP_NOEXCEPT;
 
-        status &operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
+        status &operator=(status &&n) MANAPIHTTP_NOEXCEPT;
 
-        status (const error::status &n) : error::status(n) {
-            this->sqlcode_ = 0;
-        }
+        status (manapi::status &&n) MANAPIHTTP_NOEXCEPT;
+
+        status &operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT;
+
+        status (const status &n);
 
         /**
          * print log to the logger() if it exists,
          * otherwise it prints to the stdout
          */
-        void log () const override {
-            manapi_log_debug ("%.*s: msg: %.*s sqlmsg: %.*s",
-                this->status_msg().size(), this->status_msg().data(), this->msg_.size(), this->msg_.data(),
-                this->sqlmsg_.size(), this->sqlmsg_.data());
-        }
+        void log () const override;
 
         /**
          * throw a error if it exists, otherwise it does nothing
          */
-        void unwrap() const override {
-            if (this->code_) {
-                throw manapi::exception (this->code_, std::format("{} sql-{}={}",
-                    this->msg_, this->sqlcode_, this->sqlmsg_));
-            }
-        }
+        void unwrap() const override;
 
-        MANAPIHTTP_NODISCARD bool is_sqlerr () const MANAPIHTTP_NOEXCEPT {
-            return !this->sqlmsg_.empty();
-        }
+        MANAPIHTTP_NODISCARD bool is_sqlerr () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the sql error msg
          * @return sql error msg
          */
-        MANAPIHTTP_NODISCARD std::string_view sqlmsg () const MANAPIHTTP_NOEXCEPT {
-            return this->sqlmsg_;
-        }
+        MANAPIHTTP_NODISCARD std::string_view sqlmsg () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the sql status code
          * @return sql status code
          */
-        MANAPIHTTP_NODISCARD sql_states sqlcode () const MANAPIHTTP_NOEXCEPT {
-            return static_cast<sql_states>(this->sqlcode_);
-        }
+        MANAPIHTTP_NODISCARD sql_states sqlcode () const MANAPIHTTP_NOEXCEPT;
 
     private:
-        std::size_t sqlcode_;
-        std::string_view sqlmsg_;
+        std::size_t m_sqlcode;
+        std::string m_sqlmsg;
     };
 
     template<typename T, typename E = manapi::ext::pq::status>
-    class status_or final : public manapi::error::status_or<T, E> {
+    class status_or final : public manapi::status_or<T, E> {
     public:
         /**
          * Initialize the status_or() instence
          * @param n the status error
          */
-        status_or (ext::pq::status n) : error::status_or<T, E>(std::move(n)) {}
+        status_or (ext::pq::status n) : manapi::status_or<T, E>(std::move(n)) {}
 
-        status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
+        status_or (T &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
-        status_or (const T &n) : error::status_or<T, E>(n) {}
+        status_or (const T &n) : manapi::status_or<T, E>(n) {}
 
         status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 

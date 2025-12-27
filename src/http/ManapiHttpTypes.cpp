@@ -81,10 +81,10 @@ static const std::map<uint16_t, std::string_view> status_to_string_map = {
     {526, manapi::net::http::status::INVALID_SSL_CERTIFICATE_526}
 };
 
-manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(uint16_t status) {
+manapi::status_or<std::string_view> manapi::net::http::status_to_string(uint16_t status) {
     auto const it = status_to_string_map.find(status);
     if (it != status_to_string_map.end())
         return it->second;
 
-    return error::status_not_found("http:Status not found");
+    return status_not_found("http:Status not found");
 }

@@ -100,12 +100,12 @@ namespace manapi {
             return !!this->src;
         }
 
-        manapi::error::status ref () MANAPIHTTP_NOEXCEPT {
+        manapi::status ref () MANAPIHTTP_NOEXCEPT {
             if (this->src) {
                 ++this->src->refcnt;
-                return manapi::error::status_ok();
+                return manapi::status_ok();
             }
-            return manapi::error::status_internal("ref:Object doesn't exist");
+            return manapi::status_internal("ref:Object doesn't exist");
         }
 
         void unref () MANAPIHTTP_NOEXCEPT {

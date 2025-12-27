@@ -344,8 +344,8 @@ std::size_t manapi::net::worker::base::streams_size(const shared_conn &conn) con
     return 0;
 }
 
-manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
-    return error::status_unimplemented("worker:Streams not supported");
+manapi::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
+    return status_unimplemented("worker:Streams not supported");
 }
 
 void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT {

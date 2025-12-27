@@ -13,7 +13,7 @@ namespace manapi::net::worker {
 
     struct ng_wrk_http2_ctx_t;
 
-    manapi::error::status ng_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT;
+    manapi::status ng_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT;
 }
 
 #endif

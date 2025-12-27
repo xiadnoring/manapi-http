@@ -53,7 +53,7 @@ namespace manapi::crypto {
      * @param cancellation the cancellation token
      * @return Ok if there's no error, otherwise it returns Internal, ResourceExhausted, Cancelled
      */
-    manapi::future<manapi::error::status> async_random_string (char *buff, size_t len, async::cancellation_action cancellation = nullptr);
+    manapi::future<manapi::status> async_random_string (char *buff, size_t len, async::cancellation_action cancellation = nullptr);
 
     /**
      * Get randomly generated string
@@ -61,7 +61,7 @@ namespace manapi::crypto {
      * @param len the size of the output string
      * @return the randomly generated string, but otherwise, it returns Internal, ResourceExhausted, InvalidArgument
      */
-    manapi::error::status_or<std::string> random_string (std::size_t len);
+    manapi::status_or<std::string> random_string (std::size_t len);
 
     /**
      * convert the decimal string to the heximal string
@@ -69,7 +69,7 @@ namespace manapi::crypto {
      * @param input the decimal string
      * @return the heximal string, on error it returns ResourceExhausted
      */
-    manapi::error::status_or<std::string> strdec2strhex(std::string_view input);
+    manapi::status_or<std::string> strdec2strhex(std::string_view input);
 
     /**
      * convert the heximal string to the decimal string
@@ -77,7 +77,7 @@ namespace manapi::crypto {
      * @param hex the heximal string
      * @return the decimal string, on error it returns ResourceExhausted
      */
-    manapi::error::status_or<std::string> strhex2strdec (std::string_view hex);
+    manapi::status_or<std::string> strhex2strdec (std::string_view hex);
 
 
     /**
@@ -88,7 +88,7 @@ namespace manapi::crypto {
      * @return the output string, on error it returns ResourceExhausted, InternalError
      */
     template <typename T>
-    manapi::error::status_or<std::string> number2bytes (T n) {
+    manapi::status_or<std::string> number2bytes (T n) {
         try {
             std::string result;
             result.reserve(sizeof (n));
@@ -98,10 +98,10 @@ namespace manapi::crypto {
             return std::move(result);
         }
         catch (std::bad_alloc const &) {
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
         catch (std::exception const &) {
-            return error::status_internal();
+            return status_internal();
         }
     }
 }

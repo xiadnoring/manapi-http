@@ -10,7 +10,7 @@ namespace manapi::async {
     public:
         struct value_t {
         public:
-            manapi::future<manapi::error::status> run (manapi::future<T> task) {
+            manapi::future<manapi::status> run (manapi::future<T> task) {
                 try {
                     if (this->flags)
                         reinterpret_cast<T *> (this->value)->~T();
@@ -18,11 +18,11 @@ namespace manapi::async {
                     new (this->value) T (co_await task);
                     this->flags = 1;
 
-                    co_return manapi::error::status_ok();
+                    co_return manapi::status_ok();
                 }
                 catch (std::exception const &e) {
                     manapi_log_trace("%s due to %s", "parallel_run:Failed", e.what());
-                    co_return manapi::error::status_internal("parallel_run:Failed");
+                    co_return manapi::status_internal("parallel_run:Failed");
                 }
             }
 
@@ -30,9 +30,9 @@ namespace manapi::async {
                 return this->flags;
             }
 
-            manapi::error::status_or<T> get () {
+            manapi::status_or<T> get () {
                 if (!this->flags)
-                    return manapi::error::status_not_found("parallel_run:no data");
+                    return manapi::status_not_found("parallel_run:no data");
                 auto v1 = std::move(*reinterpret_cast<T *> (this->value));
                 if (this->flags)
                     reinterpret_cast<T *> (this->value)->~T();
@@ -63,18 +63,18 @@ namespace manapi::async {
 
         parallel_run () : data(nullptr) {}
 
-        static manapi::error::status_or<parallel_run> create () MANAPIHTTP_NOEXCEPT {
+        static manapi::status_or<parallel_run> create () MANAPIHTTP_NOEXCEPT {
             try {
                 parallel_run run;
                 run.data = std::make_shared<data_t>();
                 return std::move(run);
             }
             catch (std::exception const &e) {
-                return manapi::error::status_resource_exhausted();
+                return manapi::status_resource_exhausted();
             }
         }
 
-        static manapi::error::status_or<parallel_run> create (manapi::future<T> task) MANAPIHTTP_NOEXCEPT {
+        static manapi::status_or<parallel_run> create (manapi::future<T> task) MANAPIHTTP_NOEXCEPT {
             try {
                 parallel_run run;
                 run.data = std::make_shared<data_t>();
@@ -82,18 +82,18 @@ namespace manapi::async {
                 return std::move(run);
             }
             catch (std::exception const &e) {
-                return manapi::error::status_resource_exhausted();
+                return manapi::status_resource_exhausted();
             }
         }
 
         ~parallel_run () = default;
 
-        manapi::error::status run (manapi::future<T> task);
-        manapi::future<manapi::error::status> async_run (manapi::future<T> task);
+        manapi::status run (manapi::future<T> task);
+        manapi::future<manapi::status> async_run (manapi::future<T> task);
 
         template<typename T1 = T>
         requires(!std::is_same_v<T1, void>)
-        MANAPIHTTP_NODISCARD manapi::future<manapi::error::status_or<T>> get () const;
+        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<T>> get () const;
 
         template<typename T1 = T>
         requires(std::is_same_v<T1, void>)
@@ -111,42 +111,42 @@ namespace manapi::async {
     template<>
     struct parallel_run<void>::value_t {
     public:
-        manapi::future<manapi::error::status> run (manapi::future<void> task) {
+        manapi::future<manapi::status> run (manapi::future<void> task) {
             try {
                 co_await task;
-                co_return manapi::error::status_ok();
+                co_return manapi::status_ok();
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s due to %s", "parallel_run:Failed", e.what());
-                co_return manapi::error::status_internal("parallel_run:Failed");
+                co_return manapi::status_internal("parallel_run:Failed");
             }
         }
 
-        manapi::error::status get () { return manapi::error::status_ok(); }
+        manapi::status get () { return manapi::status_ok(); }
     };
 
     template<typename T>
-    manapi::error::status parallel_run<T>::run(manapi::future<T> task) {
+    manapi::status parallel_run<T>::run(manapi::future<T> task) {
         if (this->data->mx.try_to_lock()) {
             auto taskrun = this->data->value.run(std::move(task));
-            async::run<manapi::error::status>(std::move(taskrun),
-            [data = this->data] (std::exception_ptr err, manapi::error::status *status)
+            async::run<manapi::status>(std::move(taskrun),
+            [data = this->data] (std::exception_ptr err, manapi::status *status)
                 -> void {
                 data->mx.unlock();
             });
-            return manapi::error::status_ok();
+            return manapi::status_ok();
         }
         else {
-            return manapi::error::status_unavailable("parallel_run:busy");
+            return manapi::status_unavailable("parallel_run:busy");
         }
     }
 
     template<typename T>
-    manapi::future<manapi::error::status> parallel_run<T>::async_run(manapi::future<T> task) {
+    manapi::future<manapi::status> parallel_run<T>::async_run(manapi::future<T> task) {
         co_await this->data->mx.lock_guard();
         auto taskrun = this->data->value.run(std::move(task));
-        async::run<manapi::error::status>(std::move(taskrun),
-        [data = this->data] (std::exception_ptr err, manapi::error::status *status)
+        async::run<manapi::status>(std::move(taskrun),
+        [data = this->data] (std::exception_ptr err, manapi::status *status)
             -> void {
             data->mx.unlock();
         });
@@ -176,7 +176,7 @@ namespace manapi::async {
     template<typename T>
     template<typename T1>
     requires(!std::is_same_v<T1, void>)
-    manapi::future<manapi::error::status_or<T>> parallel_run<T>::get() const {
+    manapi::future<manapi::status_or<T>> parallel_run<T>::get() const {
         auto lk = co_await this->data->mx.lock_guard();
         co_return this->data->value.get();
     }

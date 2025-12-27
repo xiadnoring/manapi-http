@@ -6,11 +6,13 @@
 #include <cstring>
 
 #include "./AsyncPostgreValue.hpp"
-#include "../../ManapiUtils.hpp"
-
+#include "./../../ManapiUtils.hpp"
+#include "./../../crypto/ManapiAES.hpp"
 
 
 namespace manapi::ext::pq {
+    class uuid : public std::string {};
+
     inline void _reverse_seq (std::string_view ctx) {
         auto s = ctx.size() - 1;
         for (int i = 0; i < ctx.size() / 2; i++) {
@@ -165,7 +167,6 @@ namespace manapi::ext::pq {
         }
     };
 
-
     template<> MANAPIHTTP_NODISCARD inline unsigned int from_string (std::string_view text_) {
         return integral_traits<unsigned int>::from_string(text_);
     }
@@ -211,6 +212,11 @@ namespace manapi::ext::pq {
         return float_traits <float>::from_string(text_);
     }
 
+    template<> inline pq::uuid from_string (std::string_view text_) {
+        auto m_uuid = pq::uuid{manapi::crypto::strdec2strhex(text_).unwrap()};
+        return std::move(m_uuid);
+    }
+
     template<> MANAPIHTTP_NODISCARD inline size_t size_of (const unsigned int &v) {
         return integral_traits<unsigned int>::size(v);
     }
@@ -254,6 +260,9 @@ namespace manapi::ext::pq {
         return string_traits<pq::text>::size(v);
     }
 
+    template<> [[nodiscard]] inline size_t size_of (const pq::uuid &v) {
+        return 16;
+    }
 
     template<> MANAPIHTTP_NODISCARD inline size_t size_of (const bool &v) {
         return string_traits<bool>::size(v);
@@ -329,6 +338,12 @@ namespace manapi::ext::pq {
 
     template<> inline void to_string (std::string_view text_, const float &v) {
         return float_traits <float>::to_string(text_, v);
+    }
+
+    template<> inline void to_string (std::string_view text_, const pq::uuid &v) {
+        auto uuid_ = manapi::crypto::strhex2strdec(v).unwrap();
+        assert(text_.size() >= uuid_.size());
+        memcpy((void *)text_.data(), uuid_.data(), uuid_.size());
     }
 
 #ifdef LLONG_MAX

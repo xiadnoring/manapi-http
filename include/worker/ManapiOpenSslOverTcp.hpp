@@ -16,7 +16,7 @@ namespace manapi::net::worker {
 
         void stop(std::function<void()> cb) override;
 
-        manapi::future<manapi::error::status> init(std::size_t deep) override;
+        manapi::future<manapi::status> init(std::size_t deep) override;
 
         http::server_ctx::pool_t *openssl_pool_data_ () MANAPIHTTP_NOEXCEPT;
     protected:
@@ -52,9 +52,9 @@ namespace manapi::net::worker {
 
         int recv_setup_connection(const shared_conn &conn, tls_connection_t *storage) override;
 
-        manapi::error::status_or<void*> ssl_create_context (size_t version);
+        manapi::status_or<void*> ssl_create_context (size_t version);
 
-        manapi::error::status ssl_configure_context (void* ctx);
+        manapi::status ssl_configure_context (void* ctx);
     private:
         http::server_ctx::pool_t *pool_data_;
     };

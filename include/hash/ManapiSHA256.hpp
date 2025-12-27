@@ -41,7 +41,7 @@ namespace manapi::net::hash {
      * @param input the source string
      * @return a 32 byte sha256 string if completed successfuly, otherwise it returns OutOfRange, InternalError, ResourceExhausted
      */
-    manapi::error::status_or<std::string> sha256str(std::string_view input);
+    manapi::status_or<std::string> sha256str(std::string_view input);
 
     /**
      *
@@ -50,5 +50,5 @@ namespace manapi::net::hash {
      * @param size the output size
      * @return Ok if completed successfuly, otherwise it returns OutOfRange
      */
-    manapi::error::status sha256str(std::string_view input, char *output, std::size_t size);
+    manapi::status sha256str(std::string_view input, char *output, std::size_t size);
 }

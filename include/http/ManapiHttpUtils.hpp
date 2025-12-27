@@ -14,8 +14,8 @@ namespace manapi::net::http {
     struct http_handler_function;
 
     struct response_features_t {
-        typedef std::move_only_function<future<manapi::error::status>(std::string src, std::string dest)> compress_file_cb;
-        typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb;
+        typedef std::move_only_function<future<manapi::status>(std::string src, std::string dest)> compress_file_cb;
+        typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb;
 
         std::string compress;
         compress_file_cb *compressor_for_file = nullptr;
@@ -82,9 +82,9 @@ namespace manapi::net::http {
 
     void request_data_clear (request_data_t &data);
 
-    manapi::error::status_or<std::vector <header_value_t>> parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXCEPT;
+    manapi::status_or<std::vector <header_value_t>> parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXCEPT;
 
-    manapi::error::status_or<std::pair<std::string_view, std::string_view>> parse_header (std::string_view header);
+    manapi::status_or<std::pair<std::string_view, std::string_view>> parse_header (std::string_view header);
 
     std::string stringify_header (const std::pair<std::string_view, std::string_view> &header);
 
@@ -98,11 +98,11 @@ namespace manapi::net::http {
 
     bool header_has_more_fields (std::string_view name) MANAPIHTTP_NOEXCEPT;
 
-    error::status_or<std::pair<std::string, uint16_t>> strinfigy_ip (const sockaddr *addr);
+    status_or<std::pair<std::string, uint16_t>> strinfigy_ip (const sockaddr *addr);
 
-    error::status_or<uint16_t> port_by_addr (const sockaddr *addr);
+    status_or<uint16_t> port_by_addr (const sockaddr *addr);
 
-    error::status ip_by_addr (const sockaddr *addr, char *arr);
+    manapi::status ip_by_addr (const sockaddr *addr, char *arr);
 
     bool split_http_port (std::string_view name, std::string_view &host, std::string_view &port, bool& has_port);
 }

@@ -95,210 +95,275 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, char *ms
     }
 }
 
-manapi::exception::messages::~messages() {}
-
-manapi::exception::exception(manapi::err_num errnum, std::string message) : data_() {
-    this->errnum_ = errnum;
-    this->flags = 0;
-    new (&this->data_.storage) std::string(std::move(message));
+manapi::messages_storage::~messages_storage() {
 }
 
-manapi::exception::exception(manapi::err_num errnum, std::string_view message) {
-    this->flags = 1;
-    this->errnum_ = errnum;
-    new (&this->data_.view) std::string_view((message));
+manapi::messages::messages() {
+    this->m_errnum = 0;
 }
 
-manapi::exception::exception(manapi::err_num errnum, const char *message) : data_() {
-    this->flags = 1;
-    this->errnum_ = errnum;
-
-    if (!message)
-        message = "null";
-
-    new (&this->data_.view) std::string_view((message));
+manapi::messages::~messages() {
+    if (this->m_errnum & (1<<31)) {
+        this->m_data.m_str.~basic_string();
+    }
 }
 
-manapi::exception::exception(const exception &n) : data_() {
-    this->operator=(n);
-}
-
-manapi::exception & manapi::exception::operator=(const exception &n) {
-    this->flags = n.flags;
-    this->errnum_ = n.errnum_;
-
-    if (n.flags)
-        new (&this->data_.view) std::string_view(n.data_.view);
+manapi::messages::messages(messages &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_errnum = std::exchange(n.m_errnum, 0);
+    if (this->m_errnum & (1<<31)) {
+        new (&this->m_data.m_str) std::string (std::move(n.m_data.m_str));
+        n.m_data.m_str.~basic_string();
+    }
     else {
-        try {
-            auto s = n.data_.storage;
-            new (&this->data_.storage) std::string (std::move(s));
+        this->m_data.m_view = n.m_data.m_view;
+    }
+}
+
+manapi::messages & manapi::messages::operator=(messages &&n) MANAPIHTTP_NOEXCEPT {
+    if (this != &n) {
+        this->m_errnum = std::exchange(n.m_errnum, 0);
+        if (this->m_errnum & (1<<31)) {
+            new (&this->m_data.m_str) std::string (std::move(n.m_data.m_str));
+            n.m_data.m_str.~basic_string();
         }
-        catch (std::exception const &e) {
-            this->flags = 0;
-            new (&this->data_.view) std::string_view ("exception: failed to copy message");
-            manapi_log_trace("%s due to %s", "exception: failed to copy message", e.what());
+        else {
+            this->m_data.m_view = n.m_data.m_view;
         }
     }
-
     return *this;
 }
 
-manapi::exception::~exception() {
-    if (this->flags) {
-        this->data_.view.~basic_string_view();
+manapi::messages::messages(const messages &n) {
+    this->m_errnum = n.m_errnum;
+    if (this->m_errnum & (1<<31)) {
+        new (&this->m_data.m_str) std::string (n.m_data.m_str);
     }
     else {
-        this->data_.storage.~basic_string();
+        this->m_data.m_view = n.m_data.m_view;
     }
 }
+
+manapi::messages & manapi::messages::operator=(const messages &n) {
+    if (this != &n) {
+        this->m_errnum = n.m_errnum;
+        if (this->m_errnum & (1<<31)) {
+            new (&this->m_data.m_str) std::string (n.m_data.m_str);
+        }
+        else {
+            this->m_data.m_view = n.m_data.m_view;
+        }
+    }
+    return *this;
+}
+
+void manapi::messages::errnum(manapi::err_num code) MANAPIHTTP_NOEXCEPT {
+    this->m_errnum = static_cast<uint32_t> (code)|(this->m_errnum & (1<<31));
+}
+
+manapi::err_num manapi::messages::errnum() const MANAPIHTTP_NOEXCEPT {
+    if (this->m_errnum & (1<<31)) return static_cast<manapi::err_num>(this->m_errnum ^ (1<<31));
+    return static_cast<manapi::err_num>(this->m_errnum);
+}
+
+std::string_view manapi::messages::msg_view() const MANAPIHTTP_NOEXCEPT {
+    if (this->m_errnum & (1<<31)) return this->m_data.m_str;
+    return this->m_data.m_view;
+}
+
+std::string manapi::messages::msg() MANAPIHTTP_NOEXCEPT {
+    if (this->m_errnum & (1<<31)) return std::move(this->m_data.m_str);
+    return std::string{this->m_data.m_view};
+}
+
+void manapi::messages::msg_view(std::string_view msg) MANAPIHTTP_NOEXCEPT {
+    if (this->m_errnum & (1<<31)) {
+        this->m_data.m_str.~basic_string();
+        this->m_errnum ^= (1<<31);
+    }
+    this->m_data.m_view = msg;
+}
+
+void manapi::messages::msg(std::string msg) MANAPIHTTP_NOEXCEPT {
+    if (this->m_errnum & (1<<31)) {
+        this->m_data.m_str = std::move(msg);
+        return;
+    }
+    new (&this->m_data.m_str) std::string(std::move(msg));
+    this->m_errnum |= (1<<31);
+}
+
+manapi::exception::exception(manapi::err_num errnum, std::string message) {
+    this->m_data.errnum(errnum);
+    this->m_data.msg(std::move(message));
+}
+
+manapi::exception::exception(manapi::err_num errnum, std::string_view message) {
+    this->m_data.errnum(errnum);
+    this->m_data.msg_view(message);
+}
+
+manapi::exception::exception(manapi::err_num errnum, const char *message) {
+    this->m_data.errnum(errnum);
+    this->m_data.msg_view(message);
+}
+
+manapi::exception::exception(const exception &n) {
+    this->m_data = n.m_data;
+}
+
+manapi::exception & manapi::exception::operator=(const exception &n) {
+    if (this != &n) {
+        this->m_data = n.m_data;
+    }
+    return *this;
+}
+
+manapi::exception::~exception() = default;
 
 
 const char *manapi::exception::what() const MANAPIHTTP_NOEXCEPT {
-    if (this->flags)
-        return this->data_.view.data();
-    return this->data_.storage.data();
+    return this->m_data.msg_view().data();
 }
 
-int manapi::exception::err_num() const {
-    return this->errnum_;
+manapi::err_num manapi::exception::err_num() const {
+    return this->m_data.errnum();
 }
 
-manapi::error::status::status() {
-    this->code_ = manapi::ERR_OK;
+manapi::status::status() {
+    this->m_data.errnum(ERR_OK);
 }
 
-manapi::error::status::~status() = default;
+manapi::status::~status() = default;
 
-manapi::error::status::status(err_num code, std::string_view msg) {
-    this->code_ = code;
-    this->msg_ = msg;
+manapi::status::status(err_num code, std::string_view msg) {
+    this->m_data.errnum(code);
+    this->m_data.msg_view(msg);
 }
 
-manapi::error::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::error::status & manapi::error::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::status & manapi::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::error::status::status(const status &n) = default;
+manapi::status::status(const status &n) = default;
 
-manapi::error::status & manapi::error::status::operator=(const status &n) = default;
+manapi::status & manapi::status::operator=(const status &n) = default;
 
-std::string_view manapi::error::status::msg() const {
-    return this->msg_;
+std::string_view manapi::status::msg() const {
+    return this->m_data.msg_view();
 }
 
-manapi::err_num manapi::error::status::code() const {
-    return this->code_;
+manapi::err_num manapi::status::code() const {
+    return this->m_data.errnum();
 }
 
 
-bool manapi::error::status::ok() const {
-    return this->code_ == manapi::ERR_OK;
+bool manapi::status::ok() const {
+    return this->m_data.errnum() == manapi::ERR_OK;
 }
 
-void manapi::error::status::log() const {
+void manapi::status::log() const {
     print_stacktrace(2);
-    MANAPIHTTP_LOG ("{}: msg: {}", this->status_msg(), this->msg_);
+    MANAPIHTTP_LOG ("{}: msg: {}", this->status_msg(), this->m_data.msg_view());
 }
 
-std::string_view manapi::error::status::status_msg() const {
-    return get_msg_by_err_num(this->code_);
+std::string_view manapi::status::status_msg() const {
+    return get_msg_by_err_num(this->m_data.errnum());
 }
 
-void manapi::error::status::unwrap() const {
-    if (this->code_ != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION(this->code_, "{}: msg: {}", this->status_msg(), this->msg_);
+void manapi::status::unwrap() const {
+    if (this->m_data.errnum() != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION(this->m_data.errnum(), "{}: msg: {}", this->status_msg(), this->m_data.msg_view());
 }
 
-void manapi::error::status::stacktrace() const MANAPIHTTP_NOEXCEPT {
+void manapi::status::stacktrace() const MANAPIHTTP_NOEXCEPT {
     print_stacktrace();
 }
 
-manapi::error::status::operator bool() const MANAPIHTTP_NOEXCEPT {
-    return this->code_ == ERR_OK;
+manapi::status::operator bool() const MANAPIHTTP_NOEXCEPT {
+    return this->m_data.errnum() == ERR_OK;
 }
 
-manapi::error::status manapi::error::status_ok() {
+manapi::status manapi::status_ok() {
     return {};
 }
 
-manapi::error::status manapi::error::status_unknown(std::string_view msg) {
+manapi::status manapi::status_unknown(std::string_view msg) {
     return {ERR_UNKNOWN, msg};
 }
 
-manapi::error::status manapi::error::status_cancelled() {
+manapi::status manapi::status_cancelled() {
     return {ERR_CANCELLED, {"cancelled"}};
 }
 
-manapi::error::status manapi::error::status_cancelled(std::string_view msg) {
+manapi::status manapi::status_cancelled(std::string_view msg) {
     return {ERR_CANCELLED, msg};
 }
 
-manapi::error::status manapi::error::status_invalid_argument(std::string_view msg) {
+manapi::status manapi::status_invalid_argument(std::string_view msg) {
     return {ERR_INVALID_ARGUMENT, msg};
 }
 
-manapi::error::status manapi::error::status_deadline_exceeded(std::string_view msg) {
+manapi::status manapi::status_deadline_exceeded(std::string_view msg) {
     return {ERR_DEADLINE_EXCEEDED, msg};
 }
 
-manapi::error::status manapi::error::status_not_found(std::string_view msg) {
+manapi::status manapi::status_not_found(std::string_view msg) {
     return {ERR_NOT_FOUND, msg};
 }
 
-manapi::error::status manapi::error::status_already_exists(std::string_view msg) {
+manapi::status manapi::status_already_exists(std::string_view msg) {
     return {ERR_ALREADY_EXISTS, msg};
 }
 
-manapi::error::status manapi::error::status_already_exists() {
-    return error::status_already_exists("already exists");
+manapi::status manapi::status_already_exists() {
+    return status_already_exists("already exists");
 }
 
-manapi::error::status manapi::error::status_permission_denied(std::string_view msg) {
+manapi::status manapi::status_permission_denied(std::string_view msg) {
     return {ERR_PERMISSION_DENIED, msg};
 }
 
-manapi::error::status manapi::error::status_unauthenticated(std::string_view msg) {
+manapi::status manapi::status_unauthenticated(std::string_view msg) {
     return {ERR_UNAUTHENTICATED, msg};
 }
 
-manapi::error::status manapi::error::status_resource_exhausted() {
+manapi::status manapi::status_resource_exhausted() {
     return {ERR_RESOURCE_EXHAUSTED, "bad alloc"};
 }
 
-manapi::error::status manapi::error::status_resource_exhausted(std::string_view msg) {
+manapi::status manapi::status_resource_exhausted(std::string_view msg) {
     return {ERR_RESOURCE_EXHAUSTED, msg};
 }
 
-manapi::error::status manapi::error::status_failed_precondition(std::string_view msg) {
+manapi::status manapi::status_failed_precondition(std::string_view msg) {
     return {ERR_FAILED_PRECONDITION, msg};
 }
 
-manapi::error::status manapi::error::status_aborted(std::string_view msg) {
+manapi::status manapi::status_aborted(std::string_view msg) {
     return {ERR_ABORTED, msg};
 }
 
-manapi::error::status manapi::error::status_unavailable(std::string_view msg) {
+manapi::status manapi::status_unavailable(std::string_view msg) {
     return {ERR_UNAVAILABLE, msg};
 }
 
-manapi::error::status manapi::error::status_out_of_range(std::string_view msg) {
+manapi::status manapi::status_out_of_range(std::string_view msg) {
     return {ERR_OUT_OF_RANGE, msg};
 }
 
-manapi::error::status manapi::error::status_unimplemented(std::string_view msg) {
+manapi::status manapi::status_unimplemented(std::string_view msg) {
     return {ERR_UNIMPLEMENTED, msg};
 }
 
-manapi::error::status manapi::error::status_internal(std::string_view msg) {
+manapi::status manapi::status_internal(std::string_view msg) {
     return {ERR_INTERNAL, msg};
 }
 
-manapi::error::status manapi::error::status_internal() {
-    return error::status_internal("failed");
+manapi::status manapi::status_internal() {
+    return status_internal("failed");
 }
 
-manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
+manapi::status manapi::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
 }
 

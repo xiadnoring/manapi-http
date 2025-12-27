@@ -29,7 +29,7 @@ namespace manapi::filesystem {
 
         fstream ();
 
-        static manapi::error::status_or<fstream> create (std::string path, async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<fstream> create (std::string path, async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         fstream (fstream &&n) MANAPIHTTP_NOEXCEPT;
 
@@ -39,7 +39,7 @@ namespace manapi::filesystem {
 
         fstream &operator=(const fstream &n);
 
-        future<manapi::sys_error::status> open (int flags, int mode = 0644);
+        future<manapi::ev::status> open (int flags, int mode = 0644);
 
         MANAPIHTTP_NODISCARD bool is_open () const;
 

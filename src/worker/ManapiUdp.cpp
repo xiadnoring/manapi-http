@@ -18,7 +18,7 @@ manapi::net::worker::udp::~udp() {
     ev::getaddrinfo::free(this->local);
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::udp::init(std::size_t deep) {
     addrinfo hints = {
         .ai_family = PF_UNSPEC,
         .ai_socktype = SOCK_DGRAM,
@@ -31,7 +31,7 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
     int rhs = co_await dns::getaddrinfo(address.data(), port.data(), &hints, &this->local, async::timeout_cancellation(5000));
     if (rhs) {
         manapi_log_trace(debug::LOG_TRACE_HIGH, "%s failed due to %s", "dns::getaddrinfo()", ev::strerror(rhs));
-        co_return error::status_internal("failed to resolve host");
+        co_return status_internal("failed to resolve host");
     }
 
     this->config_->server_len=static_cast<decltype(this->config_->server_len)>(this->local->ai_addrlen);
@@ -63,14 +63,14 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
         rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin));
         if (rhs) {
             manapi_log_error("%s failed due to %s(%d)", "udp:ip4_addr failed", ev::strerror(rhs), rhs);
-            co_return error::status_internal("udp:ip4_addr failed");
+            co_return status_internal("udp:ip4_addr failed");
         }
     }
     else if (this->local->ai_family == ev::IPv6) {
         rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin));
         if (rhs) {
             manapi_log_error("%s failed due to %s(%d)", "udp:ip6_addr failed", ev::strerror(rhs), rhs);
-            co_return error::status_internal("udp:ip6_addr failed");
+            co_return status_internal("udp:ip6_addr failed");
         }
     }
 
@@ -82,12 +82,12 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
         rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags);
         if (rhs) {
             manapi_log_error("%s failed due to %s(%d)", "udp:couldn't bind socket", ev::strerror(rhs), rhs);
-            co_return error::status_internal("udp:s_bind failed");
+            co_return status_internal("udp:s_bind failed");
         }
     }
 
 
-    co_return error::status_ok();
+    co_return status_ok();
 }
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {

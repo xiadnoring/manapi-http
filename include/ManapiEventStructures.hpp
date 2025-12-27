@@ -1009,11 +1009,11 @@ namespace manapi::ev {
     std::size_t hrtime () MANAPIHTTP_NOEXCEPT;
 }
 
-namespace manapi::sys_error {
+namespace manapi::ev {
     /**
      * error status for the OS event
      */
-    class status final : public manapi::error::status {
+    class status final : public manapi::status {
     public:
         /**
          * initialize error status
@@ -1035,9 +1035,13 @@ namespace manapi::sys_error {
 
         status &operator=(status &&n) MANAPIHTTP_NOEXCEPT;
 
-        status (error::status &&n) MANAPIHTTP_NOEXCEPT;
+        status (manapi::status &&n) MANAPIHTTP_NOEXCEPT;
 
-        status &operator=(error::status &&n) MANAPIHTTP_NOEXCEPT;
+        status &operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT;
+
+        status (const status &n);
+
+        status &operator=(const status &n);
 
         /**
          * print log to the logger() if it exists,
@@ -1069,21 +1073,21 @@ namespace manapi::sys_error {
         MANAPIHTTP_NODISCARD std::string_view sysmsg () const;
     private:
         /* the system error code */
-        int syserr_;
+        int m_syserr;
     };
 
-    template<typename T, typename E = manapi::sys_error::status>
-    class status_or final : public manapi::error::status_or<T, E> {
+    template<typename T, typename E = manapi::ev::status>
+    class status_or final : public manapi::status_or<T, E> {
     public:
         /**
          * Initialize the status_or() instence
          * @param n the status error
          */
-        status_or (sys_error::status n) : error::status_or<T, E>(std::move(n)) {}
+        status_or (ev::status n) : manapi::status_or<T, E>(std::move(n)) {}
 
-        status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
+        status_or (T &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
-        status_or (const T &n) : error::status_or<T, E>(n) {}
+        status_or (const T &n) : manapi::status_or<T, E>(n) {}
 
         status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
@@ -1120,26 +1124,26 @@ namespace manapi::sys_error {
      * @param syserr the system error code
      * @return the generated error
      */
-    sys_error::status status_invalid_argument (std::string_view msg, int syserr);
+    ev::status status_invalid_argument (std::string_view msg, int syserr);
 
     /**
      * Generate an ResourceExhausted error
      * @return the generated error
      */
-    sys_error::status status_resource_exhausted ();
+    ev::status status_resource_exhausted ();
 
     /**
      * Generate an ResourceExhausted error
      * @return the generated error
      */
-    sys_error::status status_cancelled ();
+    ev::status status_cancelled ();
 
     /**
      * Generate an ResourceExhausted error
      * @param msg the error msg
      * @return the generated error
      */
-    sys_error::status status_cancelled (std::string_view msg);
+    ev::status status_cancelled (std::string_view msg);
 
     /**
      * Generate an InternalError error
@@ -1147,20 +1151,20 @@ namespace manapi::sys_error {
      * @param syserr the system error code
      * @return the generated error
      */
-    sys_error::status status_internal (std::string_view msg, int syserr);
+    ev::status status_internal (std::string_view msg, int syserr);
 
     /**
      * Generate an NotFound error
      * @param msg the error msg
      * @return the generated error
      */
-    sys_error::status status_not_found (std::string_view msg);
+    ev::status status_not_found (std::string_view msg);
 
     /**
      * Generate an Ok error
      * @return the generated Ok error
      */
-    sys_error::status status_ok ();
+    ev::status status_ok ();
 }
 
 #undef MANAPIHTTP_EV_CAST_HANDLE

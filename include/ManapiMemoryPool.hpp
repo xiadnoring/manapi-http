@@ -81,11 +81,11 @@ namespace manapi {
 
         //manapi::slice slice (std::size_t min, std::size_t max);
 
-        manapi::error::status_or<manapi::slice> slice (std::size_t suggested);
+        manapi::status_or<manapi::slice> slice (std::size_t suggested);
 
-        manapi::error::status_or<manapi::bytebuffer> buffer (uint32_t min, uint32_t max);
+        manapi::status_or<manapi::bytebuffer> buffer (uint32_t min, uint32_t max);
 
-        manapi::error::status_or<manapi::bytebuffer> buffer (uint32_t suggested);
+        manapi::status_or<manapi::bytebuffer> buffer (uint32_t suggested);
 
         manapi::bytebuffer buffer (void *pointer, uint32_t suggested);
 
@@ -100,7 +100,7 @@ namespace manapi {
         void clear ();
 
         template<typename T, typename ...Args>
-        std::enable_if<std::has_virtual_destructor_v<T>, manapi::error::status_or<object_item_pool<T>>> get (Args&&...args) {
+        std::enable_if<std::has_virtual_destructor_v<T>, manapi::status_or<object_item_pool<T>>> get (Args&&...args) {
             auto b = this->alloc (sizeof (T));
             try {
                 auto const data = new(b) T (std::forward<decltype(args)>(args)...);
@@ -109,7 +109,7 @@ namespace manapi {
             catch (std::exception const &e) {
                 this->free(b, sizeof (T));
                 manapi_log_error("%s due to %s", "object init failed", e.what());
-                return manapi::error::status_internal("object init failed");
+                return manapi::status_internal("object init failed");
             }
         }
 

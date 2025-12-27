@@ -387,24 +387,24 @@ namespace manapi::compress::hpack {
 		delete_node(this->m_root);
 	}
 
-	error::status_or<std::string> huffman_tree_t::decode(std::string_view src, uint32_t maxlen) {
+	status_or<std::string> huffman_tree_t::decode(std::string_view src, uint32_t maxlen) {
 		std::string			dst;
 		huffman_node_t*		current(this->m_root);
 
 		dst.reserve(src.size());
 
 		if ( src.length() > std::numeric_limits< unsigned int >::max() )
-			return error::status_invalid_argument("hpack:Overly long input string");
+			return status_invalid_argument("hpack:Overly long input string");
 
 		for ( unsigned int idx = 0; idx < src.length(); idx++ ) {
 			for ( int8_t j = 7; j >= 0; j-- ) {
 				if ( ( src[ idx ] & ( 1 << j ) ) > 0 ) {
 					if ( nullptr == current->right() )
-						return error::status_invalid_argument("hpack:Internal state error (right == nullptr)");
+						return status_invalid_argument("hpack:Internal state error (right == nullptr)");
 					current = current->right();
 				} else {
 					if ( nullptr == current->left() )
-						return error::status_invalid_argument("hpack:Internal state error (left == nullptr)");
+						return status_invalid_argument("hpack:Internal state error (left == nullptr)");
 
 					current = current->left();
 				}
@@ -432,7 +432,7 @@ namespace manapi::compress::hpack {
 
 		return dst;
 err_zero:
-		return error::status_resource_exhausted("hpack:Len is limited");
+		return status_resource_exhausted("hpack:Len is limited");
 	}
 
 	// 4096 is the default table size per the HTTPv2 RFC
@@ -564,14 +564,14 @@ err_zero:
 		return false;
 	}
 
-	manapi::error::status_or<const header_t *> ringtable_t::get_header(std::size_t index) const {
+	manapi::status_or<const header_t *> ringtable_t::get_header(std::size_t index) const {
 		if ( index < predefined_headers.size() ) {
 			return &predefined_headers.at(index);
 		}
 		if ( index < predefined_headers.size() + m_queue.size() )
 			return &m_queue.at(index - predefined_headers.size());
 
-		return manapi::error::status_out_of_range("HPACK::ringtable_t::get_header(): Invalid index/header not found");
+		return manapi::status_out_of_range("HPACK::ringtable_t::get_header(): Invalid index/header not found");
 	}
 
 	bool huffman_encoder_t::write_bit(uint8_t bit) {
@@ -667,7 +667,7 @@ err_zero:
 
 	}
 
-	error::status_or<std::string> decoder_t::parse_string(dec_vec_itr_t&itr, const dec_vec_itr_t &end) {
+	status_or<std::string> decoder_t::parse_string(dec_vec_itr_t&itr, const dec_vec_itr_t &end) {
 		std::string		dst;
 		bool			huff(( static_cast<unsigned char>(*itr) & 0x80 ) == 0x80 ? true : false);
 
@@ -730,9 +730,9 @@ err_zero:
 		m_dynamic.max(max);
 	}
 
-	manapi::error::status decoder_t::decode(const char *ptr) {
+	manapi::status decoder_t::decode(const char *ptr) {
 		if ( nullptr == ptr )
-			return manapi::error::status_invalid_argument("hpack:Invalid nullptr parameter");
+			return manapi::status_invalid_argument("hpack:Invalid nullptr parameter");
 		return decode(std::string_view(ptr));
 	}
 
@@ -742,7 +742,7 @@ err_zero:
 #define LITERAL_NEVER_INDEXED_BIT_PATTERN 0x10
 #define HUFFMAN_ENCODED 0x80
 
-	manapi::error::status decoder_t::decode(std::string_view data) {
+	manapi::status decoder_t::decode(std::string_view data) {
 		try {
 			auto const end = data.end();
 			for ( decltype(auto) itr = data.begin(); itr != end; /* itr++ */ ) {
@@ -785,7 +785,7 @@ err_zero:
 						const auto two_N = static_cast< uint16_t >( math::binpow(2, this->n1) - 1 );
 
 						if ( itr == data.end() )
-							return manapi::error::status_out_of_range("hpack:Attempted to decode integer when at end of input");
+							return manapi::status_out_of_range("hpack:Attempted to decode integer when at end of input");
 
 						this->n2 = ( (static_cast<unsigned char> (*itr)) & two_N );
 						itr++;
@@ -841,7 +841,7 @@ err_zero:
 							}
 
 							if (this->n1 >= 28)
-								return manapi::error::status_out_of_range("hpack:Int overflow");
+								return manapi::status_out_of_range("hpack:Int overflow");
 						}
 
 						break;
@@ -872,7 +872,7 @@ err_zero:
 
 						if (this->buff1.size() + copy > msize) {
 							this->state = HPACK_DECODE_RST;
-							return manapi::error::status_resource_exhausted("hpack:Len is limited");
+							return manapi::status_resource_exhausted("hpack:Len is limited");
 						}
 
 						std::copy(itr, itr + copy,
@@ -910,7 +910,7 @@ err_zero:
 
 						if ( 0 == this->n2 )
 							/* decoding error */
-								return error::status_out_of_range("invalid index");
+								return status_out_of_range("invalid index");
 
 
 
@@ -922,11 +922,11 @@ err_zero:
 						auto val = res.unwrap();
 
 						if (val->first.empty())
-							return error::status_aborted("header name is empty");
+							return status_aborted("header name is empty");
 
 						if (this->flags & HPACK_DECOMPRESS_REGULAR_HEADERS) {
 							if (val->first[0] == ':')
-								return error::status_aborted("invalid header");
+								return status_aborted("invalid header");
 						}
 						else {
 							if (val->first[0] != ':')
@@ -939,7 +939,7 @@ err_zero:
 						}
 						else {
 							if (val->first[0] == ':')
-								return manapi::error::status_aborted("duplicate pesudo-header");
+								return manapi::status_aborted("duplicate pesudo-header");
 							if (net::http::header_has_more_fields(val->first))
 								it->second += "," + val->second;
 						}
@@ -953,7 +953,7 @@ err_zero:
 						 */
 						if ( this->n2 > this->m_dynamic.max() ) {
 							// decoding error
-							return error::status_out_of_range("invalid size");
+							return status_out_of_range("invalid size");
 						}
 
 						this->m_dynamic.max(
@@ -1011,17 +1011,17 @@ err_zero:
 
 						if (this->headers_size < this->buff1.size() + this->buff2.size()) {
 							this->state = HPACK_DECODE_RST;
-							return manapi::error::status_resource_exhausted("size is limited");
+							return manapi::status_resource_exhausted("size is limited");
 						}
 
 						this->headers_size -= this->buff1.size() + this->buff2.size();
 
 						if (buff2.empty())
-							return error::status_aborted("header name is empty");
+							return status_aborted("header name is empty");
 
 						if (this->flags & HPACK_DECOMPRESS_REGULAR_HEADERS) {
 							if (this->buff2[0] == ':')
-								return error::status_aborted("invalid header");
+								return status_aborted("invalid header");
 						}
 						else {
 							if (this->buff2[0] != ':')
@@ -1045,7 +1045,7 @@ err_zero:
 							 */
 
 							if (this->buff2[0] == ':')
-								return manapi::error::status_aborted("duplicate pesudo-header");
+								return manapi::status_aborted("duplicate pesudo-header");
 							existing->second.push_back(',');
 							existing->second.append(this->buff1);
 						}
@@ -1071,21 +1071,21 @@ err_zero:
 						break;
 					}
 					default: {
-						return error::status_internal("hpack: unreachable section");
+						return status_internal("hpack: unreachable section");
 					}
 				}
 			}
 
-			return error::status_ok();
+			return status_ok();
 		}
 		catch (std::exception const &e) {
 			MANAPIHTTP_LOG ("unexpected hpack bug: {}", e.what());
 		}
 
-		return error::status_internal("hpack: due to exception");
+		return status_internal("hpack: due to exception");
 	}
 
-	manapi::error::status_or<std::map< std::string, std::string >> decoder_t::headers(uint32_t headers_size) {
+	manapi::status_or<std::map< std::string, std::string >> decoder_t::headers(uint32_t headers_size) {
 		this->headers_size = headers_size;
 
 		bool const flg = this->state == HPACK_DECODE_HBYTE;
@@ -1094,7 +1094,7 @@ err_zero:
 		if (flg)
 			return std::move(this->m_headers);
 
-		return manapi::error::status_aborted("hpack: unexpended end");
+		return manapi::status_aborted("hpack: unexpended end");
 	}
 
 	void encoder_t::huff_encode(const std::string &str) {

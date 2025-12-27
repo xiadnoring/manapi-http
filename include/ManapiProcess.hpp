@@ -19,7 +19,7 @@ namespace manapi::process {
      * @param value value of the environment
      * @return
      */
-    manapi::sys_error::status set_env (std::string_view name, std::string_view value);
+    manapi::ev::status set_env (std::string_view name, std::string_view value);
 
     /**
      * Get a process environment
@@ -27,5 +27,5 @@ namespace manapi::process {
      * @param name name of the environment
      * @return value of the environment
      */
-    manapi::sys_error::status_or<std::string> get_env (std::string_view name);
+    manapi::ev::status_or<std::string> get_env (std::string_view name);
 }

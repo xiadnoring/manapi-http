@@ -9,7 +9,7 @@ manapi::filesystem::fstream::fstream() : data() {
 
 }
 
-manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
     try {
         fstream f;
         f.data = std::make_shared<fstream_data_t_>(
@@ -22,7 +22,7 @@ manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstrea
         return std::move(f);
     }
     catch (std::exception const &e) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
 }
 
@@ -44,7 +44,7 @@ manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstre
     return *this;
 }
 
-manapi::future<manapi::sys_error::status> manapi::filesystem::fstream::open(int flags, int mode) {
+manapi::future<manapi::ev::status> manapi::filesystem::fstream::open(int flags, int mode) {
     if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY|ev::FS_O_RDWR))) {
         this->data->off_ = -1;
     }
@@ -62,20 +62,20 @@ manapi::future<manapi::sys_error::status> manapi::filesystem::fstream::open(int 
     }
     catch (std::bad_alloc const  &) {
         this->data->file = -1;
-        co_return manapi::sys_error::status_resource_exhausted();
+        co_return manapi::ev::status_resource_exhausted();
     }
     catch (manapi::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::sys_error::status_internal("file open failed", ev::ERR_UNKNOWN);
+        co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::sys_error::status_internal("file open failed", ev::ERR_UNKNOWN);
+        co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
 
-    co_return manapi::sys_error::status_ok();
+    co_return manapi::ev::status_ok();
 }
 
 bool manapi::filesystem::fstream::is_open() const {

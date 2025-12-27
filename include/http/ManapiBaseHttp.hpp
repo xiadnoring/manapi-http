@@ -58,5 +58,5 @@ namespace manapi::net::http::internal {
      * - filesystem - fs failed
      */
 
-    future<manapi::error::status_or<std::string>> compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress = false);
+    future<manapi::status_or<std::string>> compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress = false);
 }

@@ -791,7 +791,7 @@ static manapi::future<int> ng_wrk_http2_send_response (const manapi::net::worker
     co_return ng_wrk_http2_send_response_sync(conn, global, w, res, finish);
 }
 
-manapi::error::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT {
     try {
         assert(!global->data);
 
@@ -813,14 +813,14 @@ manapi::error::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net:
         global->custom_read_cb = nullptr;
         global->send_response = ng_wrk_http2_send_response;
 
-        return error::status_ok();
+        return status_ok();
     }
     catch (std::bad_alloc const &e) {
-        return manapi::error::status_resource_exhausted();
+        return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "nghttp2: init", e.what());
-        return manapi::error::status_unknown("nghttp2: init");
+        return manapi::status_unknown("nghttp2: init");
     }
 }
 

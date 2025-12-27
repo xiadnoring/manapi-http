@@ -104,16 +104,16 @@ bool manapi::net::http::handler_template_t::is_sync_cb() const MANAPIHTTP_NOEXCE
     return this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE;
 }
 
-manapi::error::status_or<manapi::net::http::async_handler_t *> manapi::net::http::handler_template_t::async_cb() MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::http::async_handler_t *> manapi::net::http::handler_template_t::async_cb() MANAPIHTTP_NOEXCEPT {
     if (this->type == HANDLER_TEMPLATE_ASYNC_CB_TYPE)
         return static_cast<async_handler_t *>(this->data);
-    return error::status_not_found("async cb not found");
+    return status_not_found("async cb not found");
 }
 
-manapi::error::status_or<manapi::net::http::sync_handler_t *> manapi::net::http::handler_template_t::sync_cb() MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::http::sync_handler_t *> manapi::net::http::handler_template_t::sync_cb() MANAPIHTTP_NOEXCEPT {
     if (this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE)
         return static_cast<sync_handler_t *>(this->data);
-    return error::status_not_found("sync cb not found");
+    return status_not_found("sync cb not found");
 }
 
 manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXCEPT {
@@ -213,7 +213,7 @@ void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, con
     }
 }
 
-manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
+manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
     auto p = std::make_unique<manapi::net::worker::wrk_interface_global_t>();
     auto res = init_global_cb (p.get(), (w));
     if (!res.ok())
@@ -224,28 +224,28 @@ manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_glob
 void manapi::net::http::site::setup() {
 #if MANAPIHTTP_ZLIB_DEPENDENCY
     this->compressor_for_file("deflate", +[] (std::string src, std::string dest)
-        -> future<error::status> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
+        -> future<manapi::status> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
     this->compressor_for_file("gzip", +[] (std::string src, std::string dest)
-        -> future<error::status> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
+        -> future<manapi::status> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
 
     this->compressor_for_string("deflate", +[] (std::string_view data)
-        -> error::status_or<std::string> { return compress::deflate_compress_string(data); });
+        -> status_or<std::string> { return compress::deflate_compress_string(data); });
     this->compressor_for_string("gzip", +[] (std::string_view data)
-        -> error::status_or<std::string> { return compress::gzip_compress_string(data); });
+        -> status_or<std::string> { return compress::gzip_compress_string(data); });
 #endif
 
 #if MANAPIHTTP_BROTLI_DEPENDENCY
     this->compressor_for_file("br", +[] (std::string src, std::string dest)
-        -> future<error::status> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
+        -> future<manapi::status> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
     this->compressor_for_string("br", +[] (std::string_view data)
-        -> error::status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
+        -> status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
 #endif
 
 #if MANAPIHTTP_ZSTD_DEPENDENCY
     this->compressor_for_file("zstd", +[] (std::string src, std::string dest)
-        -> future<error::status> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
+        -> future<manapi::status> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
     this->compressor_for_string("zstd", +[] (std::string_view data)
-        -> error::status_or<std::string> { return compress::zstd_compress_string(data, 1); });
+        -> status_or<std::string> { return compress::zstd_compress_string(data, 1); });
 #endif
 
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
@@ -282,7 +282,7 @@ void manapi::net::http::site::setup() {
 
 }
 
-manapi::future<manapi::error::status> manapi::net::http::site::config(std::string path) {
+manapi::future<manapi::status> manapi::net::http::site::config(std::string path) {
     try {
         this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
             -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
@@ -327,15 +327,15 @@ manapi::future<manapi::error::status> manapi::net::http::site::config(std::strin
                 co_return false;
         });
         res.unwrap();
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "config() failed", e.what());
     }
-    co_return error::status_internal("config() failed");
+    co_return status_internal("config() failed");
 }
 
-manapi::future<manapi::error::status> manapi::net::http::site::config_object(json config) {
+manapi::future<manapi::status> manapi::net::http::site::config_object(json config) {
     try {
         this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
             -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
@@ -366,12 +366,12 @@ manapi::future<manapi::error::status> manapi::net::http::site::config_object(jso
                 co_return true;
         });
         res.unwrap();
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "config() failed", e.what());
     }
-    co_return error::status_internal("config() failed");
+    co_return status_internal("config() failed");
 }
 
 manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
@@ -422,7 +422,7 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
     n["cache_path"] = std::move(cache_path);
 }
 
-manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
+manapi::future<manapi::status_or<std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
     try {
         while (true) {
 
@@ -442,7 +442,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::g
 
             if (!file_info->is_object()) {
                 if (*file_info == false)
-                    co_return manapi::error::status_unavailable("compress:Busy");
+                    co_return manapi::status_unavailable("compress:Busy");
 
                 break;
             }
@@ -458,15 +458,15 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::g
             break;
         }
 
-        co_return error::status_not_found("compress:Cache file not found");
+        co_return status_not_found("compress:Cache file not found");
     }
     catch (std::exception const &e) {
         manapi_log_error("compress:Get compressed file failed due to %s", e.what());
     }
-    co_return error::status_internal("compress:Get compressed failed");
+    co_return status_internal("compress:Get compressed failed");
 }
 
-manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_cache_file(std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime) {
+manapi::future<manapi::status> manapi::net::http::site::set_compressed_cache_file(std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime) {
     try {
         auto res = co_await this->data->sctx.storage().edit (this->data->server_config,
             [&] (manapi::json &n) -> bool {
@@ -506,8 +506,8 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
                 }
 
                 if (!del.empty()) {
-                    manapi::async::run<manapi::sys_error::status>(manapi::filesystem::async_unlink(std::move(del),
-                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::sys_error::status *s) -> void {
+                    manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(std::move(del),
+                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                             if (err) {
                                 /* ignore :) */
                                 return;
@@ -523,16 +523,16 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
 
         res.unwrap();
 
-        co_return manapi::error::status_ok();
+        co_return manapi::status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("set compressed failed due to %s", e.what());
     }
 
-    co_return manapi::error::status_internal("compress:Set cache file failed");
+    co_return manapi::status_internal("compress:Set cache file failed");
 }
 
-manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_file(std::string file, bool lock, std::string algorithm) {
+manapi::future<manapi::status> manapi::net::http::site::set_locked_cache_file(std::string file, bool lock, std::string algorithm) {
     try {
         bool busy = false;
         if (this->data->config_ && this->data->config_->is_object()) {
@@ -543,17 +543,17 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
                     auto it = algoit->second.find(file);
                     if (it == algoit->second.end<manapi::json::OBJECT>()) {
                         if (!lock)
-                            co_return error::status_ok();
+                            co_return status_ok();
                     }
                     else {
                         if (lock) {
                             if (it->second.is_bool()
                                 && it->second == false)
-                                co_return error::status_unavailable("compress:Busy");
+                                co_return status_unavailable("compress:Busy");
                         }
                         else {
                             if (it->second.is_object())
-                                co_return error::status_ok();
+                                co_return status_ok();
                         }
                     }
                 }
@@ -577,8 +577,8 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
                     if (fit->second.is_object()) {
                         auto compressit = fit->second.find("compressed");
                         if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
-                            manapi::async::run<manapi::sys_error::status>(manapi::filesystem::async_unlink(compressit->second.as_string(),
-                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::sys_error::status *s) -> void {
+                            manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(compressit->second.as_string(),
+                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                                     if (err) {
                                         /* ignore :) */
                                         return;
@@ -610,15 +610,15 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
         edit_res.unwrap();
 
         if (busy)
-            co_return error::status_unavailable("compress:Busy");
+            co_return status_unavailable("compress:Busy");
 
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("set locked compressed failed due to %s", e.what());
     }
 
-    co_return error::status_internal("compress:Set cache file failed");
+    co_return status_internal("compress:Set cache file failed");
 }
 
 manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> data) {
@@ -811,8 +811,8 @@ manapi::net::http::site::site(const site &n) {
 manapi::net::http::site & manapi::net::http::site::operator=(const site &n) = default;
 
 
-manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
-    manapi::error::status status;
+manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    manapi::status status;
     try {
         size_t type = URI_PAGE_DEFAULT;
 
@@ -849,7 +849,7 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
 
                 auto res = cur->handlers->insert({std::move(method), std::move(functions)});
                 if (!res.second) {
-                    status = manapi::error::status_already_exists("http:handler exists");
+                    status = manapi::status_already_exists("http:handler exists");
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
                         status.msg().size(), status.msg().data(), uri.size(), uri.data(),
                         res.first->first.size(), res.first->first.data());
@@ -863,7 +863,7 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                 }
                 auto res = cur->errors->insert({std::move(method), std::move(functions)});
                 if (!res.second) {
-                    status = manapi::error::status_already_exists("http:error handler exists");
+                    status = manapi::status_already_exists("http:error handler exists");
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
                         status.msg().size(), status.msg().data(), uri.size(), uri.data(),
                         res.first->first.size(), res.first->first.data());
@@ -879,7 +879,7 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
 
                 auto res = cur->layers->insert({std::move(method), std::move(functions)});
                 if (!res.second) {
-                    status = manapi::error::status_already_exists("http:layer handler exists");
+                    status = manapi::status_already_exists("http:layer handler exists");
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
                         status.msg().size(), status.msg().data(), uri.size(), uri.data(),
                         res.first->first.size(), res.first->first.data());
@@ -896,7 +896,7 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                 auto res = cur->handlers->insert({std::move(method), std::move(functions)});
 
                 if (!res.second) {
-                    status = manapi::error::status_already_exists("http:handler exists");
+                    status = manapi::status_already_exists("http:handler exists");
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
                         status.msg().size(), status.msg().data(), uri.size(), uri.data(),
                         res.first->first.size(), res.first->first.data());
@@ -913,18 +913,18 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
         return cur;
     }
     catch (std::bad_alloc const &) {
-        status = error::status_resource_exhausted();
+        status = status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_trace("%s due to %s", "http:handler failed", e.what());
-        status = error::status_internal("http:handler failed");
+        status = status_internal("http:handler failed");
     }
 err:
     return std::move(status);
 }
 
-manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    manapi::error::status status;
+manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
+    manapi::status status;
     try {
         size_t type = URI_PAGE_DEFAULT;
 
@@ -950,7 +950,7 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                     }
                 }
                 else {
-                    status = manapi::error::status_already_exists("http:static handler exists");
+                    status = manapi::status_already_exists("http:static handler exists");
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
                         status.msg().size(), status.msg().data(), uri.size(), uri.data(),
                         res.first->first.size(), res.first->first.data());
@@ -961,18 +961,18 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                 break;
             }
             default:
-                status = manapi::error::status_invalid_argument("http:can not use the special pages with the static files");
+                status = manapi::status_invalid_argument("http:can not use the special pages with the static files");
             goto err;
         }
 
         return cur;
     }
     catch (std::bad_alloc const &) {
-        status = manapi::error::status_resource_exhausted();
+        status = manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "http:handler failed", e.what());
-        status = manapi::error::status_internal("http:handler failed");
+        status = manapi::status_internal("http:handler failed");
     }
 err:
     return std::move(status);

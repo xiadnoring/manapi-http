@@ -9,6 +9,8 @@
 #include "../../ManapiUtils.hpp"
 #include "../../ManapiDebug.hpp"
 
+#include "./AsyncPostgreError.hpp"
+
 namespace manapi::ext::pq {
     enum value_types {
         BOOLOID = 16,
@@ -265,7 +267,6 @@ namespace manapi::ext::pq {
         exit(1);
     }
 
-
     template<typename T>
     inline uint32_t oid_of (const T *v) {
         fprintf(stderr, "Unresolved function: oid_of(...)");
@@ -344,6 +345,10 @@ namespace manapi::ext::pq {
         return FLOAT8OID;
     }
 
+    template<> inline uint32_t oid_of (const pq::uuid &v) {
+        return UUIDOID;
+    }
+
     template<typename T>
     MANAPIHTTP_NODISCARD inline const char *serialize_param (const T v, int len, std::string_view &buffer) {
         pq::to_string<T>(buffer, v);
@@ -353,36 +358,43 @@ namespace manapi::ext::pq {
     }
 
     template<typename ...Args>
-    auto serialize (std::string &buffer, const std::tuple<Args...>& params) {
-        struct result_type {
-            std::array<uint32_t, sizeof...(Args)> types;
-            std::array<const char *, sizeof...(Args)> values;
-            std::array<int, sizeof...(Args)> lengths;
-            std::array<int, sizeof...(Args)> formats;
-        };
+    struct serialize_result_type {
+        std::array<uint32_t, sizeof...(Args)> types;
+        std::array<const char *, sizeof...(Args)> values;
+        std::array<int, sizeof...(Args)> lengths;
+        std::array<int, sizeof...(Args)> formats;
+    };
 
-        return std::apply(
-            [&] (const auto &...args) -> result_type {
-                std::array<int, sizeof...(args)> lengths = { static_cast<int>(size_of(args))... };
-                size_t size = 0;
+    template<typename ...Args>
+    status_or<serialize_result_type<Args...>> serialize (std::string &buffer, const std::tuple<Args...>& params) {
+        try {
+            return std::apply(
+                [&] (const auto &...args) -> serialize_result_type<Args...> {
+                    std::array<int, sizeof...(args)> lengths = { static_cast<int>(size_of(args))... };
+                    size_t size = 0;
 
-                for (auto &len: lengths)
-                {
-                    size += len;
-                }
+                    for (auto &len: lengths)
+                    {
+                        size += len;
+                    }
 
-                buffer.clear();
-                buffer.resize(size);
+                    buffer.clear();
+                    buffer.resize(size);
 
-                std::string_view window {buffer.begin(), buffer.end()};
-                int index = 0;
+                    std::string_view window {buffer.begin(), buffer.end()};
+                    int index = 0;
 
-                return result_type {
-                    .types = { (oid_of(args))... },
-                    .values = { (serialize_param(args, lengths[index++], window))... },
-                    .lengths = std::move(lengths),
-                    .formats = { ((void)args, true)... },
-                };
-            }, params);
+                    return serialize_result_type<Args...> {
+                        .types = { (oid_of(args))... },
+                        .values = { (serialize_param(args, lengths[index++], window))... },
+                        .lengths = std::move(lengths),
+                        .formats = { ((void)args, true)... },
+                    };
+                }, params);
+        }
+        catch (std::exception const &e) {
+            manapi_log_ferror(e.what());
+            return pq::status(status_invalid_argument("pq:prepare failed"));
+        }
     }
 }

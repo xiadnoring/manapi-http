@@ -181,7 +181,7 @@ namespace manapi::net::hash {
         }
     }
 
-    manapi::error::status_or<std::string> sha256str (std::string_view input) {
+    manapi::status_or<std::string> sha256str (std::string_view input) {
         try {
             std::string output;
             output.resize(sha256::DIGEST_SIZE);
@@ -191,17 +191,17 @@ namespace manapi::net::hash {
             return std::move(output);
         }
         catch (std::bad_alloc const &e) {
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
         catch (std::exception const &e) {
             manapi_log_error("%s due to %s", "sha256str:Failed", e.what());
         }
-        return error::status_internal("sha256str:Failed");
+        return status_internal("sha256str:Failed");
     }
 
-    manapi::error::status sha256str(std::string_view input, char *output, std::size_t size) {
+    manapi::status sha256str(std::string_view input, char *output, std::size_t size) {
         if (size < sha256::DIGEST_SIZE)
-            return error::status_out_of_range("sha256str:Output string is too small");
+            return status_out_of_range("sha256str:Output string is too small");
         auto digest = reinterpret_cast<uint8_t *> (output);
 
         memset(digest,0,sha256::DIGEST_SIZE);
@@ -214,6 +214,6 @@ namespace manapi::net::hash {
         for (int i = 0; i < sha256::DIGEST_SIZE; i++)
             sprintf(buf+i*2, "%02x", digest[i]);
 
-        return error::status_ok();
+        return status_ok();
     }
 }

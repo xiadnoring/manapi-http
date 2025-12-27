@@ -110,8 +110,8 @@ manapi::net::worker::worker_watcher_cb manapi::net::worker::http_v3::event_on(co
     return prepared::event_on(conn, MANAPI_AS_STREAM(conn->wrk.data), std::move(callback));
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::http_v3::init(std::size_t deep) {
-    co_return error::status_ok();
+manapi::future<manapi::status> manapi::net::worker::http_v3::init(std::size_t deep) {
+    co_return status_ok();
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v3::ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT {

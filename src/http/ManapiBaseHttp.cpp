@@ -44,7 +44,7 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
     try {
         std::string response;
         std::string compressed;
-        manapi::error::status err;
+        manapi::status err;
 
         response_features_t features = {
             .compress = res->compress(),
@@ -131,7 +131,7 @@ finish:
 manapi::future<void> manapi::net::http::internal::send_response_file(std::unique_ptr<response> res, response_features_t features) {
     std::string filepath;
     auto reserr = res->file();
-    manapi::error::status err;
+    manapi::status err;
     if (!reserr)
         co_return;
 
@@ -480,8 +480,8 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         }).unwrap();
 
         auto task = proxy_data->fetch.async_doit();
-        manapi::async::run<error::status> (std::move(task), [proxy_data = std::move(proxy_data)]
-                (std::exception_ptr err, manapi::error::status *status) mutable -> void {
+        manapi::async::run<manapi::status> (std::move(task), [proxy_data = std::move(proxy_data)]
+                (std::exception_ptr err, manapi::status *status) mutable -> void {
                 if (status && !status->ok()) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_proxy()",
                         status->msg().size(), status->msg().data());
@@ -559,18 +559,18 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
                     auto task = formdata->data2multipart(std::move(boundary),
                         res->config()->buffer_size,
                         [res = res.get()] (manapi::slice_view slice, bool fin)
-                        -> future<manapi::error::status> {
+                        -> future<manapi::status> {
                             auto const cdata = res->connection_data();
 
                             if (co_await cdata->worker->fwrite(cdata->conn, slice, fin) < 0) {
-                                co_return error::status_aborted("worker:Failed to write");
+                                co_return status_aborted("worker:Failed to write");
                             }
 
-                            co_return error::status_ok();
+                            co_return status_ok();
                         });
 
-                    manapi::async::run<manapi::error::status>(std::move(task),
-                        [res = std::move(res)] (std::exception_ptr err, manapi::error::status *status) mutable
+                    manapi::async::run<manapi::status>(std::move(task),
+                        [res = std::move(res)] (std::exception_ptr err, manapi::status *status) mutable
                         -> void {
                             if (err) {
                                 return;
@@ -603,7 +603,7 @@ bool http_v1_1_is_chunked_data (manapi::net::http::response *resp) {
     return false;
 }
 
-manapi::future<manapi::error::status> send_http_v1_1_chunked_data (manapi::net::http::internal::handle_data_t *cdata, manapi::slice_view buffs, bool &finish) {
+manapi::future<manapi::status> send_http_v1_1_chunked_data (manapi::net::http::internal::handle_data_t *cdata, manapi::slice_view buffs, bool &finish) {
     try {
         auto const rhs = buffs.size();
         std::string_view const msg = {"0\r\n\r\n"};
@@ -616,7 +616,7 @@ manapi::future<manapi::error::status> send_http_v1_1_chunked_data (manapi::net::
             if (res.ec != std::errc()) {
                 auto errmsg = std::make_error_code(res.ec).message();
                 manapi_log_trace("%s due to %.*s", "send_http_v1_1_chunked_data:to_chars failed", errmsg.size(), errmsg.data());
-                co_return manapi::error::status_internal("send_http_v1_1_chunked_data:to_chars failed");
+                co_return manapi::status_internal("send_http_v1_1_chunked_data:to_chars failed");
             }
 
             auto len = static_cast<ssize_t>(res.ptr - header);
@@ -643,16 +643,16 @@ manapi::future<manapi::error::status> send_http_v1_1_chunked_data (manapi::net::
                     static_cast<ssize_t>(msg.size()), true) <= 0)
                 goto err;
         }
-        co_return manapi::error::status_ok();
+        co_return manapi::status_ok();
 err:
-        co_return manapi::error::status_internal("send_http_v1_1_chunked_data:Write failed");
+        co_return manapi::status_internal("send_http_v1_1_chunked_data:Write failed");
     }
     catch (std::bad_alloc const &) {
-        co_return manapi::error::status_resource_exhausted();
+        co_return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "send_http_v1_1_chunked_data:Failed", e.what());
-        co_return manapi::error::status_internal("send_http_v1_1_chunked_data:Failed");
+        co_return manapi::status_internal("send_http_v1_1_chunked_data:Failed");
     }
 }
 
@@ -948,7 +948,7 @@ static int handle_request_stringify_ip (manapi::net::http::manapi_socket_informa
     return manapi::ERR_OK;
 }
 
-static manapi::error::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
+static manapi::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
     manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
     try {
         if (handle.is_async_cb()) {
@@ -965,7 +965,7 @@ static manapi::error::status execute_user_callback (manapi::net::http::handler_t
 
             std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
             if (!after_work_uq)
-                return manapi::error::status_resource_exhausted();
+                return manapi::status_resource_exhausted();
 
             manapi::net::http::uresponse uresp (resp, std::move(after_work_uq));
 
@@ -977,11 +977,11 @@ static manapi::error::status execute_user_callback (manapi::net::http::handler_t
             }
         }
 
-        return manapi::error::status_ok();
+        return manapi::status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
-        return manapi::error::status_internal("http:User cb failed");
+        return manapi::status_internal("http:User cb failed");
     }
 }
 
@@ -1337,7 +1337,7 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<manapi::error::status_or<std::string>> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
+manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
     std::string filepath;
     std::string cached;
 
@@ -1359,7 +1359,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                 if (res.code() == ERR_NOT_FOUND)
                     cached.clear();
                 else
-                    co_return manapi::error::status_unavailable("busy");
+                    co_return manapi::status_unavailable("busy");
             }
         }
 
@@ -1367,7 +1367,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
             auto res = co_await site.set_locked_cache_file(file, true, compress);
             try {
                 if (!res.ok()) {
-                    res = manapi::error::status_unavailable("busy");
+                    res = manapi::status_unavailable("busy");
                     goto err;
                 }
 
@@ -1378,7 +1378,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                 }
                 catch (std::exception const &e) {
                     manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());
-                    res =  error::status_internal("mkdir cache directory failed");
+                    res =  status_internal("mkdir cache directory failed");
                     goto err;
                 }
 
@@ -1392,7 +1392,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
 
                 res = co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
                 if (!res.ok()) {
-                    res = manapi::error::status_unavailable("busy");
+                    res = manapi::status_unavailable("busy");
                     goto err;
                 }
 
@@ -1400,7 +1400,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s failed due to %s", "file compress", e.what());
-                res = manapi::error::status_internal("file compress");
+                res = manapi::status_internal("file compress");
             }
 
 err:
@@ -1414,7 +1414,7 @@ err:
             if (!res.ok())
                 manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());
 
-            co_return manapi::error::status_unavailable("busy");
+            co_return manapi::status_unavailable("busy");
         }
         else {
             filepath = std::move(cached);
@@ -1426,5 +1426,5 @@ err:
         manapi_log_error("compress:Compress file filed due to %s", e.what());
     }
 
-    co_return error::status_internal("compress:Something gets wrong");
+    co_return status_internal("compress:Something gets wrong");
 }

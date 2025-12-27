@@ -39,7 +39,7 @@ namespace manapi::net::wgrpc {
 
         static void shutdown (net_listener *id, manapi::ev::shared_tcp conn, absl::AnyInvocable<void(absl::Status)> on_shutdown_cb, async::shared_cthread ev) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status set (ev::shared_tcp connection);
+        manapi::status set (ev::shared_tcp connection);
 
         const ev::shared_tcp &conn () const;
     private:

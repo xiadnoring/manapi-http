@@ -905,81 +905,96 @@ std::size_t manapi::ev::hrtime() MANAPIHTTP_NOEXCEPT {
     return ::uv_hrtime();
 }
 
-manapi::sys_error::status::status() {
-    this->syserr_ = 0;
+manapi::ev::status::status() {
+    this->m_syserr = 0;
 }
 
-manapi::sys_error::status::~status() = default;
+manapi::ev::status::~status() = default;
 
-manapi::sys_error::status::status(manapi::err_num code, std::string_view msg, int syserr) : manapi::error::status(code, msg) {
-    this->syserr_ = syserr;
+manapi::ev::status::status(manapi::err_num code, std::string_view msg, int syserr) : manapi::status(code, msg) {
+    this->m_syserr = syserr;
 }
 
-manapi::sys_error::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
-
-manapi::sys_error::status & manapi::sys_error::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
-
-manapi::sys_error::status::status(error::status &&n) MANAPIHTTP_NOEXCEPT {
-    this->syserr_ = ev::ERR_UNKNOWN;
-    this->code_ = n.code();
-    this->msg_ = n.msg();
+manapi::ev::status::status(status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_syserr = std::exchange(n.m_syserr, 0);
+    manapi::status::operator=(std::forward<decltype(n)>(n));
 }
 
-manapi::sys_error::status & manapi::sys_error::status::operator=(error::status &&n) MANAPIHTTP_NOEXCEPT {
-    this->syserr_ = ev::ERR_UNKNOWN;
-    this->code_ = n.code();
-    this->msg_ = n.msg();
+manapi::ev::status & manapi::ev::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_syserr = std::exchange(n.m_syserr, 0);
+    manapi::status::operator=(std::forward<decltype(n)>(n));
     return *this;
 }
 
-void manapi::sys_error::status::log() const {
-    if (this->syserr_)
-        MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
-    error::status::log();
+manapi::ev::status::status(manapi::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_syserr = 0;
+    manapi::status::operator=(std::forward<decltype(n)>(n));
 }
 
-void manapi::sys_error::status::unwrap() const {
-    if (this->code_ != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION (this->code_, "{}: msg: {} syserr: {} sysname: {} sysmsg: {}",
-            this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
+manapi::ev::status & manapi::ev::status::operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_syserr = 0;
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+    return *this;
 }
 
-int manapi::sys_error::status::syserr() const {
-    return this->syserr_;
+manapi::ev::status::status(const status &n) : manapi::status(n) {
+    this->m_syserr = n.m_syserr;
 }
 
-std::string_view manapi::sys_error::status::sysname() const {
-    return ev::namerror(this->syserr_);
+manapi::ev::status & manapi::ev::status::operator=(const status &n) {
+    this->m_syserr = n.m_syserr;
+    manapi::status::operator=(std::forward<decltype(n)>(n));
+    return *this;
 }
 
-std::string_view manapi::sys_error::status::sysmsg() const {
-    return ev::strerror(this->syserr_);
+void manapi::ev::status::log() const {
+    if (this->m_syserr)
+        MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg(), this->m_syserr, this->sysname(), this->sysmsg());
+    status::log();
 }
 
-manapi::sys_error::status manapi::sys_error::status_invalid_argument(std::string_view msg, int syserr) {
-    return sys_error::status{ERR_INVALID_ARGUMENT, msg, syserr};
+void manapi::ev::status::unwrap() const {
+    if (this->code() != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION (this->code(), "{}: msg: {} syserr: {} sysname: {} sysmsg: {}",
+            this->status_msg(), this->msg(), this->m_syserr, this->sysname(), this->sysmsg());
 }
 
-manapi::sys_error::status manapi::sys_error::status_resource_exhausted() {
-    return sys_error::status{ERR_RESOURCE_EXHAUSTED, "bad alloc", ev::ERR_NOMEM};
+int manapi::ev::status::syserr() const {
+    return this->m_syserr;
 }
 
-manapi::sys_error::status manapi::sys_error::status_cancelled() {
-    return sys_error::status_cancelled("cancelled");
+std::string_view manapi::ev::status::sysname() const {
+    return ev::namerror(this->m_syserr);
 }
 
-manapi::sys_error::status manapi::sys_error::status_cancelled(std::string_view msg) {
-    return sys_error::status{ERR_CANCELLED, msg, ev::ERR_CANCELED};
+std::string_view manapi::ev::status::sysmsg() const {
+    return ev::strerror(this->m_syserr);
 }
 
-manapi::sys_error::status manapi::sys_error::status_internal(std::string_view msg, int syserr) {
-    return sys_error::status{ERR_INTERNAL, msg, syserr};
+manapi::ev::status manapi::ev::status_invalid_argument(std::string_view msg, int syserr) {
+    return ev::status{ERR_INVALID_ARGUMENT, msg, syserr};
 }
 
-manapi::sys_error::status manapi::sys_error::status_not_found(std::string_view msg) {
-    return sys_error::status{ERR_NOT_FOUND, msg, ev::ERR_NOENT};
+manapi::ev::status manapi::ev::status_resource_exhausted() {
+    return ev::status{ERR_RESOURCE_EXHAUSTED, "bad alloc", ev::ERR_NOMEM};
 }
 
-manapi::sys_error::status manapi::sys_error::status_ok() {
-    return sys_error::status{ERR_OK, "OK", 0};
+manapi::ev::status manapi::ev::status_cancelled() {
+    return ev::status_cancelled("cancelled");
+}
+
+manapi::ev::status manapi::ev::status_cancelled(std::string_view msg) {
+    return ev::status{ERR_CANCELLED, msg, ev::ERR_CANCELED};
+}
+
+manapi::ev::status manapi::ev::status_internal(std::string_view msg, int syserr) {
+    return ev::status{ERR_INTERNAL, msg, syserr};
+}
+
+manapi::ev::status manapi::ev::status_not_found(std::string_view msg) {
+    return ev::status{ERR_NOT_FOUND, msg, ev::ERR_NOENT};
+}
+
+manapi::ev::status manapi::ev::status_ok() {
+    return ev::status{ERR_OK, "OK", 0};
 }

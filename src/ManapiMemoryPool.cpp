@@ -177,7 +177,7 @@ int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, 
     return manapi::ERR_OK;
 }
 
-manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggested) {
+manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggested) {
     std::size_t cnt = suggested / area_size;
     std::size_t const left = suggested - cnt * area_size;
 
@@ -189,13 +189,13 @@ manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t s
         if (cur) {
             cur->next = new (std::nothrow) slice_part_t ({}, nullptr);
             if (!cur->next)
-                return error::status_resource_exhausted();
+                return status_resource_exhausted();
             cur = cur->next;
         }
         else {
             buffs.reset(new (std::nothrow) slice_part_t ({}, nullptr));
             if (!buffs)
-                return error::status_resource_exhausted();
+                return status_resource_exhausted();
 
             buffs->buff.len = 0;
             cur = buffs.get();
@@ -206,7 +206,7 @@ manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t s
 
         if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size)) {
             delete []static_cast<char*>(buffptr);
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
 
         assert((buffsize >= area_size));
@@ -232,7 +232,7 @@ manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t s
 
         if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, left)) {
             delete []static_cast<char*>(buffptr);
-            return error::status_resource_exhausted();
+            return status_resource_exhausted();
         }
 
         cur->buff.base = static_cast<char *>(buffptr);
@@ -248,16 +248,16 @@ manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t s
     return std::move(b);
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t min, uint32_t max) {
+manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t min, uint32_t max) {
     return this->buffer(max);
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t suggested) {
+manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t suggested) {
     void *buffer{nullptr};
     std::size_t size;
     if (object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
         delete []static_cast<char*>(buffer);
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     return this->buffer(buffer, static_cast<uint32_t>(size));
 }

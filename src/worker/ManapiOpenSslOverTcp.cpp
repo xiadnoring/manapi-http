@@ -226,7 +226,7 @@ void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
     }
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
+manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
     auto res = co_await TLS::init(deep + 1);
     if (!res.ok())
         co_return std::move(res);
@@ -269,12 +269,12 @@ manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std
                 co_return std::move(res);
         }
         this->ctx = ctx_data->ctx;
-        co_return error::status_ok();
+        co_return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "openssl_tls:Failed", e.what());
     }
-    co_return error::status_internal("openssl_tls:Failed");
+    co_return status_internal("openssl_tls:Failed");
 }
 
 manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXCEPT {
@@ -491,7 +491,7 @@ err:
 }
 
 
-manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
+manapi::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     if (this->ctx)
         return this->ctx;
 
@@ -531,7 +531,7 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
 
     SSL_CTX_set_app_data(ctx, this);
 
@@ -671,10 +671,10 @@ err:
     size_t len = BIO_get_mem_data(bio.get(), &buf);
 
     manapi_log_error("%s due to %.*s", "openssl_tls:create context failed", len, buf);
-    return error::status_internal("openssl_tls:create context failed");
+    return status_internal("openssl_tls:create context failed");
 }
 
-manapi::error::status manapi::net::worker::OpenSSL_TLS::ssl_configure_context(void*ctx) {
+manapi::status manapi::net::worker::OpenSSL_TLS::ssl_configure_context(void*ctx) {
     ERR_clear_error();
 
     auto verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
@@ -682,19 +682,19 @@ manapi::error::status manapi::net::worker::OpenSSL_TLS::ssl_configure_context(vo
     auto key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
 
     if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(ctx), cert.data(), SSL_FILETYPE_PEM) <= 0)
-        return error::status_failed_precondition("openssl_tls:Cannot use cert file");
+        return status_failed_precondition("openssl_tls:Cannot use cert file");
 
 
     if (SSL_CTX_use_PrivateKey_file(static_cast<SSL_CTX*>(ctx), key.data(), SSL_FILETYPE_PEM) <= 0)
-        return error::status_failed_precondition("openssl_tls:Cannot use private key file");
+        return status_failed_precondition("openssl_tls:Cannot use private key file");
 
 
     if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(ctx)))
-        return error::status_failed_precondition("openssl_tls:Private key does not match the certificate public key");
+        return status_failed_precondition("openssl_tls:Private key does not match the certificate public key");
 
     SSL_CTX_set_verify(static_cast<SSL_CTX*>(ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(ctx), 1);
-    return error::status_ok();
+    return status_ok();
 }
 
 

@@ -35,7 +35,7 @@ manapi::async::cthread::~cthread() = default;
 //     co_await this->eventloop_->start(this->eventloop_);
 // }
 
-manapi::sys_error::status manapi::async::cthread::start() {
+manapi::ev::status manapi::async::cthread::start() {
     this->taskpool_->start();
     auto res = timerpool()->start();
     if (!res)
@@ -44,7 +44,7 @@ manapi::sys_error::status manapi::async::cthread::start() {
     if (sys_res.code() != ERR_ABORTED) {
         return std::move(sys_res);
     }
-    return sys_error::status_ok();
+    return ev::status_ok();
 }
 
 manapi::future<void> manapi::async::cthread::stop() {
@@ -102,7 +102,7 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 //     }
 // }
 
-manapi::error::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsigned int threadnum) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsigned int threadnum) MANAPIHTTP_NOEXCEPT {
     try {
         auto logger_ = std::make_shared<manapi::logger>();
         auto taskpool_ = std::make_shared<manapi::mthreadpool>(logger_, threadnum);
@@ -119,16 +119,16 @@ manapi::error::status_or<manapi::async::shared_ctx> manapi::async::context::crea
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "ctx:create failed", e.what());
-        return error::status_internal("ctx:create failed");
+        return status_internal("ctx:create failed");
     }
 }
 
-manapi::error::status manapi::async::context::run(uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::async::context::run(uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
     try {
         auto ctx = this->shared_from_this();
 
         if (!ctx) {
-            return manapi::error::status_not_found("context:not found");
+            return manapi::status_not_found("context:not found");
         }
 
         ctx->eventloop()->setup_handle_interrupt();
@@ -230,14 +230,14 @@ manapi::error::status manapi::async::context::run(uint32_t loops, std::function<
 
         manapi::async::context::current(nullptr);
 
-        return error::status_ok();
+        return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "ctx:run failed", e.what());
     }
 
     manapi::async::context::current(nullptr);
-    return error::status_internal("ctx:run failed");
+    return status_internal("ctx:run failed");
 }
 
 void manapi::async::context::run(std::function<void(std::function<void()> bind)> callback) {
@@ -312,7 +312,7 @@ bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
 
 manapi::async::context::~context() = default;
 
-manapi::error::status_or<std::shared_ptr<manapi::async::context>> manapi::async::context::create() MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::async::context>> manapi::async::context::create() MANAPIHTTP_NOEXCEPT {
     return async::context::create(std::thread::hardware_concurrency());
 }
 

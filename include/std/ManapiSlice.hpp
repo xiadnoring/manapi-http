@@ -128,15 +128,15 @@ namespace manapi {
          * @param shift left shift to add
          * @return Ok if success; otherwise it returns OutOfRange
          */
-        manapi::error::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT;
+        manapi::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status copy_from (const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status copy_from (const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status copy_to (void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status copy_to (void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status copy_from (slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status copy_from (slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD manapi::error::status_or<manapi::slice_base> subslice (std::size_t pos, std::size_t size = 0) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<manapi::slice_base> subslice (std::size_t pos, std::size_t size = 0) const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::size_t shift () const;
 
@@ -168,7 +168,7 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD std::size_t size () const;
     protected:
-        manapi::error::status rshift_add_ (std::size_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status rshift_add_ (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
         std::size_t size_;
 
@@ -190,7 +190,7 @@ namespace manapi {
     public:
         slice ();
 
-        static manapi::error::status_or<slice> create (std::size_t n) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<slice> create (std::size_t n) MANAPIHTTP_NOEXCEPT;
 
         slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
 
@@ -211,21 +211,21 @@ namespace manapi {
          * @param size capacity
          * @return Ok if success; otherwise, ResourceExhausted
          */
-        manapi::error::status resize (std::size_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status resize (std::size_t size) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Adds |buffer| to the slices chain
          * @param buffer bytebuffer
          * @return Ok if success; otherwise, ResourceExhausted
          */
-        manapi::error::status push_back (bytebuffer buffer) MANAPIHTTP_NOEXCEPT;
+        manapi::status push_back (bytebuffer buffer) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Adds |s| to the slices chain
          * @param s slices
          * @return Ok if success; otherwise, InternalError
          */
-        manapi::error::status push_back (slice s) MANAPIHTTP_NOEXCEPT;
+        manapi::status push_back (slice s) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Adds |buffer| to the slices chain
@@ -233,7 +233,7 @@ namespace manapi {
          * @param size buffer size
          * @return Ok if success, otherwise, ResourceExhausted
          */
-        manapi::error::status push_back (const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status push_back (const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT;
 
         void clear () MANAPIHTTP_NOEXCEPT;
 
@@ -274,7 +274,7 @@ namespace manapi {
 
         ~slice_ref() override;
 
-        manapi::error::status push_back (const void *buffer, std::size_t size);
+        manapi::status push_back (const void *buffer, std::size_t size);
 
         void clear () MANAPIHTTP_NOEXCEPT;
     private:

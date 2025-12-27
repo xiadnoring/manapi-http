@@ -225,5 +225,5 @@ namespace manapi::net::http {
      * @param status Http Status
      * @return if the http status exists it returns the http status as a string, but otherwise, it returns the NotFound status
      */
-    manapi::error::status_or<std::string_view> status_to_string (uint16_t status);
+    manapi::status_or<std::string_view> status_to_string (uint16_t status);
 }

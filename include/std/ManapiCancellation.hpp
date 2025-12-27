@@ -78,7 +78,7 @@ namespace manapi::async {
          * @param timeout Timeout in milliseconds
          * @return Ok on succes, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status timeout (size_t timeout) MANAPIHTTP_NOEXCEPT;
+        manapi::status timeout (size_t timeout) MANAPIHTTP_NOEXCEPT;
 
         /**
          * It will return a message stating that it asks

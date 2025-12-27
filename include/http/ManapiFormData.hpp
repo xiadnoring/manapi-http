@@ -36,7 +36,7 @@ namespace manapi::net {
 
         typedef std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> req_data_cb_t;
 
-        typedef manapi::future<manapi::error::status> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
+        typedef manapi::future<manapi::status> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
 
         formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
 
@@ -46,7 +46,7 @@ namespace manapi::net {
 
         formdata_recv &operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT;
 
-        manapi::future<manapi::error::status> get (onparam_cb_t cb);
+        manapi::future<manapi::status> get (onparam_cb_t cb);
 
         static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::async::cancellation_action cancellation = nullptr);
 
@@ -76,23 +76,23 @@ namespace manapi::net {
 
         formdata_send& operator= (formdata_send &&n) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status set_file (const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT;
+        manapi::status set_file (const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status set_file (const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT;
+        manapi::status set_file (const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status set_text (const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT;
+        manapi::status set_text (const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT;
 
         void erase (std::string_view name) MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool contains (std::string_view name) const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD manapi::future<manapi::error::status_or<ssize_t>> payload_size () const;
+        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<ssize_t>> payload_size () const;
 
-        MANAPIHTTP_NODISCARD manapi::error::status_or<ssize_t> multipart_size (ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<ssize_t> multipart_size (ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::string generate_boundary () const;
 
-        manapi::future<manapi::error::status> data2multipart (std::string boundary, ssize_t buffer_size, std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view, bool fin)> write);
+        manapi::future<manapi::status> data2multipart (std::string boundary, ssize_t buffer_size, std::move_only_function<manapi::future<manapi::status>(manapi::slice_view, bool fin)> write);
     private:
         struct data_file_storage {
             std::string filename;

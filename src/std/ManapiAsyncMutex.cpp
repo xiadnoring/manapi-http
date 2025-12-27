@@ -111,6 +111,10 @@ manapi::future<manapi::async::mutex_locker> manapi::async::mutex::lock_guard()  
     co_return async::mutex_locker{this};
 }
 
+std::size_t manapi::async::mutex::waiting() const MANAPIHTTP_NOEXCEPT {
+    return this->own + this->stack.size();
+}
+
 manapi::async::mutex::~mutex() {
     /* unlock everything ! */
     if (!this->stack.empty())

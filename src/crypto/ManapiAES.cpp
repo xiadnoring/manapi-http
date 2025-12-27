@@ -10,7 +10,7 @@
 #endif
 
 
-manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+manapi::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;
@@ -34,20 +34,20 @@ manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_vi
                 algorithm_cb = EVP_aes_256_ecb();
             break;
             default:
-                return manapi::error::status_invalid_argument("Algorithm invalid");
+                return manapi::status_invalid_argument("Algorithm invalid");
         }
         std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> ctx (EVP_CIPHER_CTX_new());
         auto n = ctx.get();
 
         if (!EVP_EncryptInit_ex(n, algorithm_cb, nullptr, nullptr, nullptr))
-            return error::status_invalid_argument("EVP_EncryptInit_ex() failed");
+            return status_invalid_argument("EVP_EncryptInit_ex() failed");
 
         if (!EVP_CIPHER_CTX_ctrl(n, EVP_CTRL_SET_KEY_LENGTH, static_cast<int>(key.size()), nullptr))
-            return error::status_invalid_argument("EVP_CIPHER_CTX_set_key_length() failed");
+            return status_invalid_argument("EVP_CIPHER_CTX_set_key_length() failed");
 
         if (!EVP_EncryptInit_ex(n, nullptr, nullptr,
                            reinterpret_cast <const unsigned char*>(key.data()), reinterpret_cast<const unsigned char*>(iv.data())))
-            return error::status_invalid_argument("EVP_EncryptInit_ex() failed");
+            return status_invalid_argument("EVP_EncryptInit_ex() failed");
 
         EVP_CIPHER_CTX_set_padding(n, 1);
 
@@ -63,7 +63,7 @@ manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_vi
         std::string last;
         last.resize(EVP_CIPHER_CTX_block_size(n));
         if (!EVP_EncryptFinal_ex(n, reinterpret_cast<unsigned char*>(last.data()), &len))
-            return error::status_invalid_argument("EVP_EncryptFinal_ex() failed");
+            return status_invalid_argument("EVP_EncryptFinal_ex() failed");
 
         last.resize(len);
         out.resize(out_len);
@@ -71,18 +71,18 @@ manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_vi
 
         return std::move(out);
 #endif
-        return manapi::error::status_unimplemented("openssl or wolfssl is required");
+        return manapi::status_unimplemented("openssl or wolfssl is required");
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "aes:Failed", e.what());
     }
-    return manapi::error::status_internal("aes:Failed");
+    return manapi::status_internal("aes:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+manapi::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;
@@ -106,21 +106,21 @@ manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_vi
                 algorithm_cb = EVP_aes_256_ecb();
             break;
             default:
-                return error::status_invalid_argument("Algorithm invalid");
+                return status_invalid_argument("Algorithm invalid");
         }
 
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> ctx_cleanup (ctx);
 
         if (!EVP_DecryptInit_ex(ctx, algorithm_cb, nullptr, nullptr, nullptr))
-            return error::status_invalid_argument("EVP_DecryptInit_ex() failed");
+            return status_invalid_argument("EVP_DecryptInit_ex() failed");
 
         if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_SET_KEY_LENGTH, static_cast<int>(key.size()), nullptr))
-            return error::status_invalid_argument("EVP_CIPHER_CTX_ctrl() failed");
+            return status_invalid_argument("EVP_CIPHER_CTX_ctrl() failed");
 
         if (!EVP_DecryptInit_ex(ctx, nullptr, nullptr,
                            reinterpret_cast <const unsigned char*>(key.data()), reinterpret_cast<const unsigned char*>(iv.data())))
-            return error::status_invalid_argument("EVP_DecryptInit_ex() failed");
+            return status_invalid_argument("EVP_DecryptInit_ex() failed");
 
         EVP_CIPHER_CTX_set_padding(ctx, 1);
 
@@ -136,7 +136,7 @@ manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_vi
         std::string last;
         last.resize(EVP_CIPHER_CTX_block_size(ctx));
         if (!EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char*>(last.data()), &len))
-            return error::status_invalid_argument("EVP_DecryptFinal_ex() failed");
+            return status_invalid_argument("EVP_DecryptFinal_ex() failed");
 
         last.resize(len);
         out.resize(out_len);
@@ -145,15 +145,15 @@ manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_vi
 
         return std::move(out);
 #endif
-        return manapi::error::status_unimplemented("openssl or wolfssl is required");
+        return manapi::status_unimplemented("openssl or wolfssl is required");
     }
     catch (std::bad_alloc const &) {
-        return error::status_resource_exhausted();
+        return status_resource_exhausted();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "aes:Failed", e.what());
     }
-    return manapi::error::status_internal("aes:Failed");
+    return manapi::status_internal("aes:Failed");
 }
 
 

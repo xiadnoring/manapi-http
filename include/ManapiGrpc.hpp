@@ -15,7 +15,7 @@
 namespace manapi::net::wgrpc {
     class event_engine_wrapper;
 
-    manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
+    manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
 
     class server_ctx {
         struct data_t;
@@ -27,11 +27,11 @@ namespace manapi::net::wgrpc {
 
         server_ctx ();
 
-        static manapi::error::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
 
         multithread_storage &storage ();
 
-        manapi::error::status enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
+        manapi::status enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
 
         static void clean () MANAPIHTTP_NOEXCEPT;
     private:
@@ -44,25 +44,25 @@ namespace manapi::net::wgrpc {
     public:
         server (wgrpc::server_ctx ctx);
 
-        static manapi::error::status_or<server> create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<server> create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT;
 
         ~server();
 
-        manapi::future<manapi::error::status> config (std::string path);
+        manapi::future<manapi::status> config (std::string path);
 
-        manapi::future<manapi::error::status> config_object (manapi::json config);
+        manapi::future<manapi::status> config_object (manapi::json config);
 
-        manapi::future<manapi::error::status> start (std::move_only_function<manapi::error::status(::grpc::ServerBuilder &b)> cb);
+        manapi::future<manapi::status> start (std::move_only_function<manapi::status(::grpc::ServerBuilder &b)> cb);
 
-        manapi::error::status stop ();
+        manapi::status stop ();
     private:
         static manapi::future<> stop_ (std::shared_ptr<data_t> data);
 
-        manapi::future<manapi::error::status> subscribe_ ();
+        manapi::future<manapi::status> subscribe_ ();
 
-        manapi::error::status setup_user_config_ ();
+        manapi::status setup_user_config_ ();
 
-        error::status setup_config_ (manapi::json data, manapi::json &n);
+        status setup_config_ (manapi::json data, manapi::json &n);
 
         std::shared_ptr<data_t> data_;
     };

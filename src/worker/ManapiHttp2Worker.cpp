@@ -109,8 +109,8 @@ manapi::net::worker::worker_watcher_cb manapi::net::worker::http_v2::event_on(co
     return std::exchange(conn_data->ev_callback, std::move(callback));
 }
 
-manapi::future<manapi::error::status> manapi::net::worker::http_v2::init(std::size_t deep) {
-    co_return error::status_ok();
+manapi::future<manapi::status> manapi::net::worker::http_v2::init(std::size_t deep) {
+    co_return status_ok();
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT {
