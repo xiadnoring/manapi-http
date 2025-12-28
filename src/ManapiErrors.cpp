@@ -192,6 +192,10 @@ void manapi::messages::msg(std::string msg) MANAPIHTTP_NOEXCEPT {
     this->m_errnum |= (1<<31);
 }
 
+manapi::exception::exception(messages msg) {
+    this->m_data = std::move(msg);
+}
+
 manapi::exception::exception(manapi::err_num errnum, std::string message) {
     this->m_data.errnum(errnum);
     this->m_data.msg(std::move(message));
@@ -235,9 +239,23 @@ manapi::status::status() {
 
 manapi::status::~status() = default;
 
+manapi::status::status(messages msg) {
+    this->m_data = std::move(msg);
+}
+
+manapi::status::status(err_num code, const char *msg) {
+    this->m_data.errnum(code);
+    this->m_data.msg_view(msg);
+}
+
 manapi::status::status(err_num code, std::string_view msg) {
     this->m_data.errnum(code);
     this->m_data.msg_view(msg);
+}
+
+manapi::status::status(err_num code, std::string msg) {
+    this->m_data.errnum(code);
+    this->m_data.msg(std::move(msg));
 }
 
 manapi::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
@@ -262,8 +280,9 @@ bool manapi::status::ok() const {
 }
 
 void manapi::status::log() const {
+    auto s = this->fullmsg();
     print_stacktrace(2);
-    MANAPIHTTP_LOG ("{}: msg: {}", this->status_msg(), this->m_data.msg_view());
+    manapi_log_debug(s.data());
 }
 
 std::string_view manapi::status::status_msg() const {
@@ -272,7 +291,11 @@ std::string_view manapi::status::status_msg() const {
 
 void manapi::status::unwrap() const {
     if (this->m_data.errnum() != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION(this->m_data.errnum(), "{}: msg: {}", this->status_msg(), this->m_data.msg_view());
+        THROW_MANAPIHTTP_EXCEPTION(this->m_data.errnum(), this->fullmsg());
+}
+
+std::string manapi::status::fullmsg() const {
+    return std::format("{}: msg={}", this->status_msg(), this->m_data.msg_view());
 }
 
 void manapi::status::stacktrace() const MANAPIHTTP_NOEXCEPT {
@@ -283,12 +306,28 @@ manapi::status::operator bool() const MANAPIHTTP_NOEXCEPT {
     return this->m_data.errnum() == ERR_OK;
 }
 
+void manapi::status::data(messages data) {
+    this->m_data = std::move(data);
+}
+
+manapi::messages manapi::status::data() {
+    return std::move(this->m_data);
+}
+
+manapi::messages manapi::status::copy_data() {
+    return this->m_data;
+}
+
 manapi::status manapi::status_ok() {
     return {};
 }
 
 manapi::status manapi::status_unknown(std::string_view msg) {
     return {ERR_UNKNOWN, msg};
+}
+
+manapi::status manapi::status_unknown() {
+    return status_unknown("unknown");
 }
 
 manapi::status manapi::status_cancelled() {
@@ -303,12 +342,24 @@ manapi::status manapi::status_invalid_argument(std::string_view msg) {
     return {ERR_INVALID_ARGUMENT, msg};
 }
 
+manapi::status manapi::status_invalid_argument() {
+    return status_invalid_argument("invalid argument");
+}
+
 manapi::status manapi::status_deadline_exceeded(std::string_view msg) {
     return {ERR_DEADLINE_EXCEEDED, msg};
 }
 
+manapi::status manapi::status_deadline_exceeded() {
+    return status_deadline_exceeded("deadline exceeded");
+}
+
 manapi::status manapi::status_not_found(std::string_view msg) {
     return {ERR_NOT_FOUND, msg};
+}
+
+manapi::status manapi::status_not_found() {
+    return status_not_found("not found");
 }
 
 manapi::status manapi::status_already_exists(std::string_view msg) {
@@ -321,6 +372,10 @@ manapi::status manapi::status_already_exists() {
 
 manapi::status manapi::status_permission_denied(std::string_view msg) {
     return {ERR_PERMISSION_DENIED, msg};
+}
+
+manapi::status manapi::status_permission_denied() {
+    return status_permission_denied("permission denied");
 }
 
 manapi::status manapi::status_unauthenticated(std::string_view msg) {
@@ -343,16 +398,36 @@ manapi::status manapi::status_aborted(std::string_view msg) {
     return {ERR_ABORTED, msg};
 }
 
+manapi::status manapi::status_failed_precondition() {
+    return status_failed_precondition("failed precondition");
+}
+
+manapi::status manapi::status_aborted() {
+    return status_aborted("aborted");
+}
+
 manapi::status manapi::status_unavailable(std::string_view msg) {
     return {ERR_UNAVAILABLE, msg};
+}
+
+manapi::status manapi::status_unavailable() {
+    return status_unavailable("unavailable");
 }
 
 manapi::status manapi::status_out_of_range(std::string_view msg) {
     return {ERR_OUT_OF_RANGE, msg};
 }
 
+manapi::status manapi::status_out_of_range() {
+    return status_out_of_range("out of range");
+}
+
 manapi::status manapi::status_unimplemented(std::string_view msg) {
     return {ERR_UNIMPLEMENTED, msg};
+}
+
+manapi::status manapi::status_unimplemented() {
+    return status_unimplemented("unimplemented");
 }
 
 manapi::status manapi::status_internal(std::string_view msg) {
@@ -365,6 +440,138 @@ manapi::status manapi::status_internal() {
 
 manapi::status manapi::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
+}
+
+manapi::status manapi::status_data_loss() {
+    return status_data_loss("data loss");
+}
+
+manapi::status manapi::status_data_loss(std::string msg) {
+    return {ERR_DATA_LOSS, std::move(msg)};
+}
+
+manapi::status manapi::status_unknown(std::string msg) {
+    return {ERR_UNKNOWN, std::move(msg)};
+}
+
+manapi::status manapi::status_cancelled(std::string msg) {
+    return {ERR_CANCELLED, std::move(msg)};
+}
+
+manapi::status manapi::status_invalid_argument(std::string msg) {
+    return {ERR_INVALID_ARGUMENT, std::move(msg)};
+}
+
+manapi::status manapi::status_deadline_exceeded(std::string msg) {
+    return {ERR_DEADLINE_EXCEEDED, std::move(msg)};
+}
+
+manapi::status manapi::status_not_found(std::string msg) {
+    return {ERR_NOT_FOUND, std::move(msg)};
+}
+
+manapi::status manapi::status_already_exists(std::string msg) {
+    return {ERR_ALREADY_EXISTS, std::move(msg)};
+}
+
+manapi::status manapi::status_permission_denied(std::string msg) {
+    return {ERR_PERMISSION_DENIED, std::move(msg)};
+}
+
+manapi::status manapi::status_unauthenticated(std::string msg) {
+    return {ERR_UNAUTHENTICATED, std::move(msg)};
+}
+
+manapi::status manapi::status_resource_exhausted(std::string msg) {
+    return {ERR_RESOURCE_EXHAUSTED, std::move(msg)};
+}
+
+manapi::status manapi::status_failed_precondition(std::string msg) {
+    return {ERR_FAILED_PRECONDITION, std::move(msg)};
+}
+
+manapi::status manapi::status_aborted(std::string msg) {
+    return {ERR_ABORTED, std::move(msg)};
+}
+
+manapi::status manapi::status_unavailable(std::string msg) {
+    return {ERR_UNAVAILABLE, std::move(msg)};
+}
+
+manapi::status manapi::status_out_of_range(std::string msg) {
+    return {ERR_OUT_OF_RANGE, std::move(msg)};
+}
+
+manapi::status manapi::status_unimplemented(std::string msg) {
+    return {ERR_UNIMPLEMENTED, std::move(msg)};
+}
+
+manapi::status manapi::status_internal(std::string msg) {
+    return {ERR_INTERNAL, std::move(msg)};
+}
+
+manapi::status manapi::status_data_loss(const char *msg) {
+    return status_data_loss(std::string_view(msg));
+}
+
+manapi::status manapi::status_unknown(const char *msg) {
+    return status_unknown(std::string_view(msg));
+}
+
+manapi::status manapi::status_cancelled(const char *msg) {
+    return status_cancelled(std::string_view(msg));
+}
+
+manapi::status manapi::status_invalid_argument(const char *msg) {
+    return status_invalid_argument(std::string_view(msg));
+}
+
+manapi::status manapi::status_deadline_exceeded(const char *msg) {
+    return status_deadline_exceeded(std::string_view(msg));
+}
+
+manapi::status manapi::status_not_found(const char *msg) {
+    return status_not_found(std::string_view(msg));
+}
+
+manapi::status manapi::status_already_exists(const char *msg) {
+    return status_already_exists(std::string_view(msg));
+}
+
+manapi::status manapi::status_permission_denied(const char *msg) {
+    return status_permission_denied(std::string_view(msg));
+}
+
+manapi::status manapi::status_unauthenticated(const char *msg) {
+    return status_unauthenticated(std::string_view(msg));
+}
+
+manapi::status manapi::status_resource_exhausted(const char *msg) {
+    return status_resource_exhausted(std::string_view(msg));
+}
+
+manapi::status manapi::status_failed_precondition(const char *msg) {
+    return status_failed_precondition(std::string_view(msg));
+}
+
+manapi::status manapi::status_aborted(const char *msg) {
+    return status_aborted(std::string_view(msg));
+}
+
+manapi::status manapi::status_unavailable(const char *msg) {
+    return status_unavailable(std::string_view(msg));
+}
+
+manapi::status manapi::status_out_of_range(const char *msg) {
+    return status_out_of_range(std::string_view(msg));
+}
+
+manapi::status manapi::status_unimplemented(const char *msg) {
+    return status_unimplemented(std::string_view(msg));
+}
+
+manapi::status manapi::status_internal(const char *msg) {
+    return status_internal(std::string_view(msg));
 }
 
 void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *fmt, va_list args) {

@@ -64,7 +64,7 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
             }
 
             if (features.compressor_for_file || features.compressor_for_string) {
-                err = res->header(std::string{header::CONTENT_ENCODING}, features.compress);
+                err = res->header(std::string{H_CONTENT_ENCODING}, features.compress);
                 if (!err)
                     goto finish;
             }
@@ -72,14 +72,14 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
 
 
         // set time
-        res->header(std::string{header::DATE}, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
+        res->header(std::string{H_DATE}, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
         if (res->request_data()->http < versions::HTTP_v2) {
             auto const keepalive = cdata->worker->config()->keep_alive;
             if (keepalive) {
-                err = res->header(std::string{header::CONNECTION}, std::string{header::KEEP_ALIVE});
+                err = res->header(std::string{H_CONNECTION}, std::string{H_KEEP_ALIVE});
             }
             else {
-                err = res->header(std::string{header::CONNECTION}, "close");
+                err = res->header(std::string{H_CONNECTION}, "close");
             }
             if (!err)
                 goto finish;
@@ -170,7 +170,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
                 if (rst_compress) {
                     /* badness */
-                    res->remove_header(http::header::CONTENT_ENCODING);
+                    res->remove_header(http::H_CONTENT_ENCODING);
                     features.compressor_for_string = nullptr;
                     features.compressor_for_file = nullptr;
                     filepath = std::move(resfile);
@@ -214,10 +214,10 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
             if (mimetype.starts_with("text/")) {
                 auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-                err = res->header(std::string{header::CONTENT_TYPE}, std::move(mimegen));
+                err = res->header(std::string{H_CONTENT_TYPE}, std::move(mimegen));
             }
             else {
-                err = res->header(std::string{header::CONTENT_TYPE}, std::string{mimetype});
+                err = res->header(std::string{H_CONTENT_TYPE}, std::string{mimetype});
             }
             if (!err) {
                 co_return;
@@ -252,7 +252,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
-                res->header(std::string{header::ACCEPT_RANGES}, "bytes");
+                res->header(std::string{H_ACCEPT_RANGES}, "bytes");
 
                 ssize_t start = 0,
                         back = fileSize - 1,
@@ -285,8 +285,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
                 size = back - start + 1;
 
-                res->header(std::string{header::CONTENT_LENGTH}, std::to_string(size));
-                res->header(std::string{header::CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize));
+                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size));
+                res->header(std::string{H_CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize));
 
                 auto task = mask_response(res.get(), size == 0);
                 manapi::async::run<int>(std::move(task),
@@ -307,7 +307,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 });
             }
             else {
-                res->header(std::string{header::CONTENT_LENGTH}, std::to_string(dynamicFileSize));
+                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(dynamicFileSize));
 
                 if (fileSize) {
                     auto task = mask_response(res.get(), false);
@@ -371,14 +371,14 @@ manapi::future<void> manapi::net::http::internal::send_response_text(std::unique
                 plaintext = r.unwrap();
             else {
                 features.compressor_for_string = nullptr;
-                res->remove_header(header::CONTENT_ENCODING);
+                res->remove_header(H_CONTENT_ENCODING);
             }
         }
 
-        res->header(std::string{header::CONTENT_LENGTH}, std::to_string(plaintext.size()));
+        res->header(std::string{H_CONTENT_LENGTH}, std::to_string(plaintext.size()));
 
-        if (!res->headers().contains(header::CONTENT_TYPE)) {
-            res->header(std::string{header::CONTENT_TYPE}, "text/html; charset=UTF-8");
+        if (!res->headers().contains(H_CONTENT_TYPE)) {
+            res->header(std::string{H_CONTENT_TYPE}, "text/html; charset=UTF-8");
         }
 
         auto task = mask_response(res.get(), plaintext.empty());
@@ -440,11 +440,11 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 try {
                     p->resp->status_code(p->fetch.status_code());
 
-                    auto it = headers.find(header::CONTENT_LENGTH);
+                    auto it = headers.find(H_CONTENT_LENGTH);
                     if (it != headers.end()) {
                         char *strend = nullptr;
                         p->content_length = std::strtoll(it->second.data(), &strend, 10);
-                        if (!p->resp->header(std::string{header::CONTENT_LENGTH}, it->second))
+                        if (!p->resp->header(std::string{H_CONTENT_LENGTH}, it->second))
                             co_return false;
                     }
 
@@ -553,8 +553,8 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
                     auto boundary = formdata->generate_boundary();
                     size += formdata->multipart_size(static_cast<ssize_t>(boundary.size())).unwrap();
 
-                    res->header(std::string{header::CONTENT_LENGTH}, std::to_string(size));
-                    res->header(std::string{header::CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
+                    res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size));
+                    res->header(std::string{H_CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
 
                     auto task = formdata->data2multipart(std::move(boundary),
                         res->config()->buffer_size,
@@ -597,7 +597,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
 
 bool http_v1_1_is_chunked_data (manapi::net::http::response *resp) {
     if (resp->connection_data()->conn->version == manapi::net::http::versions::HTTP_v1_1
-        && !resp->headers().contains(manapi::net::http::header::CONTENT_LENGTH)) {
+        && !resp->headers().contains(manapi::net::http::H_CONTENT_LENGTH)) {
         return true;
     }
     return false;
@@ -669,7 +669,7 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
 
 
     if (http_v1_1_is_chunked_data(res.get())) {
-        auto err = res->header(std::string{http::header::TRANSFER_ENCODING}, "chunked");
+        auto err = res->header(std::string{http::H_TRANSFER_ENCODING}, "chunked");
         if (!err)
             return;
     }
@@ -775,7 +775,7 @@ void manapi::net::http::internal::send_response_stream_cb(std::unique_ptr<respon
         }
 
         if (http_v1_1_is_chunked_data(res.get())) {
-            auto err = res->header(std::string{http::header::TRANSFER_ENCODING}, "chunked");
+            auto err = res->header(std::string{http::H_TRANSFER_ENCODING}, "chunked");
             if (!err)
                 return;
         }
@@ -849,7 +849,7 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
     auto const cdata = res->connection_data();
 
     if (http_v1_1_is_chunked_data(res.get()))
-        res->header(std::string{http::header::TRANSFER_ENCODING}, "chunked");
+        res->header(std::string{http::H_TRANSFER_ENCODING}, "chunked");
 
     auto task = mask_response(res.get(), false);
     manapi::async::run<int> (std::move(task),
@@ -1315,7 +1315,7 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
 }
 
 void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
-    const auto expect = cdata->req_data->headers.find(header::EXPECT);
+    const auto expect = cdata->req_data->headers.find(H_EXPECT);
     if (expect != cdata->req_data->headers.end()) {
         if (expect->second == "100-continue") {
             auto resp = std::make_unique<http::response>(cdata.release(), http::CONTINUE_100, cdata->worker->config(), nullptr);

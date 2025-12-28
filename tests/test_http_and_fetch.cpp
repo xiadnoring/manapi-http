@@ -120,7 +120,7 @@ UTEST(http_and_fetch, callback_sync_get_request) {
     });
 
     router.GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
-         resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, "100000").unwrap();
+         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "100000").unwrap();
          co_return resp.callback_sync([left = ssize_t(100000)] (char *buffer, ssize_t size, bool &fin) mutable -> ssize_t {
              auto const copy = std::min<ssize_t>(left, size);
              memset(buffer, '2', copy);
@@ -194,7 +194,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
     });
 
     router.GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
-         resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, "300000").unwrap();
+         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "300000").unwrap();
          co_return resp.callback_async([left = ssize_t(300000), f = bool(false)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
              size_t res = 0;
              for (auto it = buffs.begin(); it != buffs.end(); it++) {
@@ -367,7 +367,7 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
     });
 
     router.GET ("/bad", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
-        resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, "100000");
+        resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "100000");
         co_return resp.callback_stream([] (auto cb) -> manapi::future<> {
             char tt[99999];
             memset(tt, '1', sizeof (tt));

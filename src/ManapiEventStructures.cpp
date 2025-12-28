@@ -915,6 +915,14 @@ manapi::ev::status::status(manapi::err_num code, std::string_view msg, int syser
     this->m_syserr = syserr;
 }
 
+manapi::ev::status::status(manapi::err_num code, std::string msg, int syserr) : manapi::status(code, std::move(msg)) {
+    this->m_syserr = syserr;
+}
+
+manapi::ev::status::status(manapi::err_num code, const char *msg, int syserr) : manapi::status(code, msg) {
+    this->m_syserr = syserr;
+}
+
 manapi::ev::status::status(status &&n) MANAPIHTTP_NOEXCEPT {
     this->m_syserr = std::exchange(n.m_syserr, 0);
     manapi::status::operator=(std::forward<decltype(n)>(n));
@@ -947,16 +955,8 @@ manapi::ev::status & manapi::ev::status::operator=(const status &n) {
     return *this;
 }
 
-void manapi::ev::status::log() const {
-    if (this->m_syserr)
-        MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg(), this->m_syserr, this->sysname(), this->sysmsg());
-    status::log();
-}
-
-void manapi::ev::status::unwrap() const {
-    if (this->code() != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION (this->code(), "{}: msg: {} syserr: {} sysname: {} sysmsg: {}",
-            this->status_msg(), this->msg(), this->m_syserr, this->sysname(), this->sysmsg());
+std::string manapi::ev::status::fullmsg() const {
+    return std::format("{} syserr={} sysname={} sysmsg={}", manapi::status::fullmsg(), this->m_syserr, this->sysname(), this->sysmsg());
 }
 
 int manapi::ev::status::syserr() const {

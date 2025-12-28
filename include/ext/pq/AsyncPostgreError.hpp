@@ -53,15 +53,11 @@ namespace manapi::ext::pq {
 
         ~status () override;
 
-        /**
-         * initialize error status
-         *
-         * @param code error code
-         * @param msg error msg
-         * @param sqlcode sql status code
-         * @param sqlmsg sql error message
-         */
         status (manapi::err_num code, std::string_view msg, std::size_t sqlcode, std::string sqlmsg);
+
+        status (manapi::err_num code, std::string msg, std::size_t sqlcode, std::string sqlmsg);
+
+        status (manapi::err_num code, const char * msg, std::size_t sqlcode, std::string sqlmsg);
 
         status (status &&n) MANAPIHTTP_NOEXCEPT;
 
@@ -73,16 +69,7 @@ namespace manapi::ext::pq {
 
         status (const status &n);
 
-        /**
-         * print log to the logger() if it exists,
-         * otherwise it prints to the stdout
-         */
-        void log () const override;
-
-        /**
-         * throw a error if it exists, otherwise it does nothing
-         */
-        void unwrap() const override;
+        MANAPIHTTP_NODISCARD std::string fullmsg() const override;
 
         MANAPIHTTP_NODISCARD bool is_sqlerr () const MANAPIHTTP_NOEXCEPT;
 

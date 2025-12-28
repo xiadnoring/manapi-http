@@ -191,6 +191,7 @@ namespace manapi {
      */
     class exception final : public std::exception {
     public:
+        explicit exception (messages msg);
         /**
          * initialize exception
          * @param errnum error code
@@ -236,7 +237,13 @@ namespace manapi {
 
         virtual ~status ();
 
+        status (messages msg);
+
+        status (err_num code, const char *msg);
+
         status (err_num code, std::string_view msg);
+
+        status (err_num code, std::string msg);
 
         status (status &&n) MANAPIHTTP_NOEXCEPT;
 
@@ -270,7 +277,7 @@ namespace manapi {
         /**
          * do log using the status
          */
-        virtual void log () const;
+        void log () const;
 
         /**
          * get the error code as a string
@@ -284,11 +291,19 @@ namespace manapi {
          *
          * @throws manapi::exception with the error code from the status
          */
-        virtual void unwrap () const;
+        void unwrap () const;
+
+        MANAPIHTTP_NODISCARD virtual std::string fullmsg () const;
 
         void stacktrace () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
+
+        void data (messages data);
+
+        messages data ();
+
+        messages copy_data ();
     protected:
         messages m_data;
     };
@@ -375,26 +390,132 @@ namespace manapi {
     };
 
     status status_ok ();
-    status status_unknown (std::string_view msg);
+
+    status status_unknown ();
+
     status status_cancelled ();
-    status status_cancelled (std::string_view msg);
-    status status_invalid_argument (std::string_view msg);
-    status status_deadline_exceeded (std::string_view msg);
-    status status_not_found (std::string_view msg);
-    status status_already_exists (std::string_view msg);
+
+    status status_invalid_argument ();
+
+    status status_deadline_exceeded ();
+
+    status status_not_found ();
+
     status status_already_exists ();
-    status status_permission_denied (std::string_view msg);
-    status status_unauthenticated (std::string_view msg);
+
+    status status_permission_denied ();
+
     status status_resource_exhausted ();
-    status status_resource_exhausted (std::string_view msg);
-    status status_failed_precondition (std::string_view msg);
-    status status_aborted (std::string_view msg);
-    status status_unavailable (std::string_view msg);
-    status status_out_of_range (std::string_view msg);
-    status status_unimplemented (std::string_view msg);
-    status status_internal (std::string_view msg);
+
+    status status_failed_precondition ();
+
+    status status_aborted ();
+
+    status status_unavailable ();
+
+    status status_out_of_range ();
+
+    status status_unimplemented ();
+
     status status_internal ();
+
+    status status_data_loss ();
+
+    status status_data_loss (std::string msg);
+
+    status status_unknown (std::string msg);
+
+    status status_cancelled (std::string msg);
+
+    status status_invalid_argument (std::string msg);
+
+    status status_deadline_exceeded (std::string msg);
+
+    status status_not_found (std::string msg);
+
+    status status_already_exists (std::string msg);
+
+    status status_permission_denied (std::string msg);
+
+    status status_unauthenticated (std::string msg);
+
+    status status_resource_exhausted (std::string msg);
+
+    status status_failed_precondition (std::string msg);
+
+    status status_aborted (std::string msg);
+
+    status status_unavailable (std::string msg);
+
+    status status_out_of_range (std::string msg);
+
+    status status_unimplemented (std::string msg);
+
+    status status_internal (std::string msg);
+
+    status status_data_loss (const char * msg);
+
+    status status_unknown (const char * msg);
+
+    status status_cancelled (const char * msg);
+
+    status status_invalid_argument (const char * msg);
+
+    status status_deadline_exceeded (const char * msg);
+
+    status status_not_found (const char * msg);
+
+    status status_already_exists (const char * msg);
+
+    status status_permission_denied (const char * msg);
+
+    status status_unauthenticated (const char * msg);
+
+    status status_resource_exhausted (const char * msg);
+
+    status status_failed_precondition (const char * msg);
+
+    status status_aborted (const char * msg);
+
+    status status_unavailable (const char * msg);
+
+    status status_out_of_range (const char * msg);
+
+    status status_unimplemented (const char * msg);
+
+    status status_internal (const char * msg);
+
     status status_data_loss (std::string_view msg);
+
+    status status_unknown (std::string_view msg);
+
+    status status_cancelled (std::string_view msg);
+
+    status status_invalid_argument (std::string_view msg);
+
+    status status_deadline_exceeded (std::string_view msg);
+
+    status status_not_found (std::string_view msg);
+
+    status status_already_exists (std::string_view msg);
+
+    status status_permission_denied (std::string_view msg);
+
+    status status_unauthenticated (std::string_view msg);
+
+    status status_resource_exhausted (std::string_view msg);
+
+    status status_failed_precondition (std::string_view msg);
+
+    status status_aborted (std::string_view msg);
+
+    status status_unavailable (std::string_view msg);
+
+    status status_out_of_range (std::string_view msg);
+
+    status status_unimplemented (std::string_view msg);
+
+    status status_internal (std::string_view msg);
 
     template<typename T>
     auto unwrap (T status) {

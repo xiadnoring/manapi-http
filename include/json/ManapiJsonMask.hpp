@@ -19,6 +19,10 @@ namespace manapi {
 
             status (err_num code, std::string_view msg, std::string data, std::size_t pos, std::string path);
 
+            status (err_num code, std::string msg, std::string data, std::size_t pos, std::string path);
+
+            status (err_num code, const char * msg, std::string data, std::size_t pos, std::string path);
+
             status (json_error::status &&n) MANAPIHTTP_NOEXCEPT;
 
             status &operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT;
@@ -27,9 +31,7 @@ namespace manapi {
 
             status &operator=(manapi::status &&n) MANAPIHTTP_NOEXCEPT;
 
-            void log () const override;
-
-            void unwrap() const override;
+            std::string fullmsg() const override;
 
             std::string path ();
 

@@ -417,7 +417,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, htt
                     size -= pos;
                     pos = 0;
 
-                    auto const hcontentlength = req->headers.find(header::CONTENT_LENGTH);
+                    auto const hcontentlength = req->headers.find(H_CONTENT_LENGTH);
                     if (hcontentlength == req->headers.end()) {
                         req->body_size = -1;
                     }
@@ -425,7 +425,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, htt
                         req->body_size = std::stoll(hcontentlength->second);
                     }
 
-                    auto const hconnection = req->headers.find(header::CONNECTION);
+                    auto const hconnection = req->headers.find(H_CONNECTION);
                     if (hconnection != req->headers.end()) {
                         /**
                          * RFC7540 (3.2) Starting HTTP/2 for "http" URIs
@@ -445,7 +445,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, htt
 
                         for (const auto &param: val) {
                             if (manapi::string::equals(param.value, "upgrade", 0b10)) {
-                                auto const hupgrade = req->headers.find(header::UPGRADE);
+                                auto const hupgrade = req->headers.find(H_UPGRADE);
 
                                 if (hupgrade->second == "h2c") {
                                     ctx->http = versions::HTTP_v2;

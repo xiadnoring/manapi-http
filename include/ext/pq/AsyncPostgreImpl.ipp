@@ -240,7 +240,7 @@ std::size_t manapi::ext::pq::pool::size() const MANAPIHTTP_NOEXCEPT {
 }
 
 bool manapi::ext::pq::pool::connected() const MANAPIHTTP_NOEXCEPT {
-    return this->m_flags & PSQL_POOL_FLAG_CONN_LOST;
+    return !(this->m_flags & PSQL_POOL_FLAG_CONN_LOST);
 }
 
 std::size_t manapi::ext::pq::pool::waiting() const MANAPIHTTP_NOEXCEPT {
@@ -382,23 +382,31 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
     while (true) {
         auto wrk_res = type == kMaster ? (co_await this->master()) :(co_await this->slave());
         if (!wrk_res) {
-            auto err = wrk_res.err();
-            co_return ext::pq::status (err.code(), err.msg(), 0, "");
+            co_return ext::pq::status (wrk_res.err());
         }
         auto wrk = wrk_res.unwrap();
+
+        if (!wrk.m_pool->connected()) {
+            break;
+        }
+
         auto result = co_await wrk->pexec(command, nParams, paramTypes, paramValues, paramLengths, paramFormats, 1, (token));
 
         if (!result.ok() && (result.sqlcode() == 17696780 || result.code() == ERR_ABORTED || result.code() == ERR_CANCELLED)) {
             manapi::async::run(wrk.m_pool->ping());
-        }
-        else {
-            if (!wrk.m_pool->connected()) {
-                wrk.m_pool->connected(true);
-            }
+            continue;
         }
 
+        if (!wrk.m_pool->connected()) {
+            wrk.m_pool->connected(true);
+        }
+
+        token.cancel();
         co_return std::move(result);
     }
+
+    token.cancel();
+    co_return ext::pq::status {manapi::status_not_found("pq:no active client")};
 }
 
 manapi::ext::pq::connection::connection() : data_(nullptr) {
@@ -532,15 +540,19 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
         }
 
         if (!PQsendQueryParams(this->data_->conn.get(), command, nParams, paramTypes, paramValues, paramLengths, paramFormats, 1)) {
+            token.cancel();
             co_return pq::status{status_internal("pq:send query failed")};
         }
 
+        token.cancel();
         co_return co_await this->generic_single_result_query(token);
     }
     catch (std::bad_alloc const &) {
+        token.cancel();
         co_return pq::status{status_resource_exhausted()};
     }
     catch (std::exception const &e) {
+        token.cancel();
         manapi_log_error("%s failed due to %s", "pq:exec", e.what());
         co_return pq::status{status_internal("pq:exec")};
     }
@@ -624,7 +636,8 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(ma
         if (PQstatus(this->data_->conn.get()) == CONNECTION_BAD) {
             PQreset(this->data_->conn.get());
             if (PQstatus(this->data_->conn.get()) == CONNECTION_BAD)  {
-                status = status_aborted("pq::connection_bad");
+                status = ev::status(ERR_ABORTED, std::string{std::format("pq::connection_bad msg={}",
+                    PQerrorMessage(this->data_->conn.get()))}, 0);
                 goto err;
             }
         }
@@ -790,7 +803,9 @@ manapi::future<manapi::status_or<manapi::ext::pq::result>> manapi::ext::pq::conn
                 co_return manapi::status_internal ("pq:timeout was reached");
             }
 
-            co_return manapi::status_internal(res.msg());
+            auto data = res.data();
+            data.errnum(ERR_INTERNAL);
+            co_return manapi::status (std::move(data));
         }
     }
 
@@ -868,6 +883,16 @@ std::string sqlmsg) : manapi::status(code, msg) {
     this->m_sqlcode = sqlcode;
 }
 
+manapi::ext::pq::status::status(manapi::err_num code, std::string msg, std::size_t sqlcode, std::string sqlmsg) : manapi::status(code, std::move(msg)) {
+    this->m_sqlmsg = std::move(sqlmsg);
+    this->m_sqlcode = sqlcode;
+}
+
+manapi::ext::pq::status::status(manapi::err_num code, const char *msg, std::size_t sqlcode, std::string sqlmsg) : manapi::status(code, msg) {
+    this->m_sqlmsg = std::move(sqlmsg);
+    this->m_sqlcode = sqlcode;
+}
+
 manapi::ext::pq::status::status(status &&n) MANAPIHTTP_NOEXCEPT {
     this->m_sqlcode = std::exchange(n.m_sqlcode, 0);
     this->m_sqlmsg = std::move(n.m_sqlmsg);
@@ -900,17 +925,8 @@ manapi::ext::pq::status::status(const status &n) : manapi::status(n) {
     this->m_sqlcode = 0;
 }
 
-void manapi::ext::pq::status::log() const {
-    manapi_log_debug ("%.*s: msg: %.*s sqlmsg: %.*s",
-        this->status_msg().size(), this->status_msg().data(), this->m_data.msg_view().size(), this->m_data.msg_view().data(),
-        this->m_sqlmsg.size(), this->m_sqlmsg.data());
-}
-
-void manapi::ext::pq::status::unwrap() const {
-    if (this->m_data.errnum()) {
-        throw manapi::exception (this->m_data.errnum(), std::format("{} sql-{}={}",
-            this->m_data.msg_view(), this->m_sqlcode, this->m_sqlmsg));
-    }
+std::string manapi::ext::pq::status::fullmsg() const {
+    return std::format("{} sqlcode={} sqlmsg={}", manapi::status::fullmsg(), this->m_sqlcode, this->m_sqlmsg);
 }
 
 bool manapi::ext::pq::status::is_sqlerr() const MANAPIHTTP_NOEXCEPT {

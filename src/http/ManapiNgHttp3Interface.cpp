@@ -577,7 +577,7 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
             s->req->method = std::move(heit.mapped());
         }
 
-        auto hit = s->req->headers.find(manapi::net::http::header::CONTENT_LENGTH);
+        auto hit = s->req->headers.find(manapi::net::http::H_CONTENT_LENGTH);
 
         if (hit == s->req->headers.end()) {
             s->req->body_size = -1;

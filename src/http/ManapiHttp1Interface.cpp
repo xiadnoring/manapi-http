@@ -366,7 +366,7 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
 exec:
             auto req_ptr = &wrk_data->req;
 
-            auto it_header = req_ptr->headers.find(manapi::net::http::header::EXPECT);
+            auto it_header = req_ptr->headers.find(manapi::net::http::H_EXPECT);
             if (it_header != req_ptr->headers.end()) {
                 ssize_t const copy = sizeof ("HTTP/1.1 100 Continue\r\n\r\n") - 1;
                 auto const rhs = w->sync_write_ex (conn, static_cast<const char *>("HTTP/1.1 100 Continue\r\n\r\n"),
@@ -380,7 +380,7 @@ exec:
 
             std::vector<manapi::net::http::header_value_t> trailers_header{};
 
-            it_header = req_ptr->headers.find(manapi::net::http::header::TRANSFER_ENCODING);
+            it_header = req_ptr->headers.find(manapi::net::http::H_TRANSFER_ENCODING);
             if (it_header != req_ptr->headers.end()) {
                 auto rhs = manapi::net::http::parse_header_value(it_header->second);;
                 if (!rhs.ok())
@@ -412,7 +412,7 @@ exec:
                 }
             }
 
-            it_header = req_ptr->headers.find(manapi::net::http::header::CONNECTION);
+            it_header = req_ptr->headers.find(manapi::net::http::H_CONNECTION);
             if (it_header !=  req_ptr->headers.end()) {
                 auto rhs = manapi::net::http::parse_header_value(it_header->second);
                 if (!rhs.ok())

@@ -134,7 +134,11 @@ manapi::status manapi::timerpool::again_timer(std::shared_ptr<manapi::timer::tim
                 if (manapi::async::context_exists()) {
                     auto result = this->init_timer_();
                     if (!result) {
-                        return manapi::status_internal(result.msg());
+                        manapi::status status;
+                        auto s_data = result.data();
+                        s_data.errnum(ERR_INTERNAL);
+                        status.data(std::move(s_data));
+                        return std::move(status);
                     }
                 }
             }

@@ -60,7 +60,7 @@
 //         -> manapi::future<> {
 //         ssize_t len = 10737418240 / 2;
 //
-//         resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, std::to_string(len));
+//         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, std::to_string(len));
 //             co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
 //                     -> ssize_t {
 //                 size = std::min(size, len - current);
@@ -77,7 +77,7 @@
 //         char *end;
 //         ssize_t len = std::strtoll(req.param("size").unwrap().data(), &end, 10);
 //
-//         resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, std::to_string(len));
+//         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, std::to_string(len));
 //         co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
 //                     -> ssize_t {
 //                 size = std::min(size, len - current);
@@ -135,9 +135,9 @@
 //
 //     router.POST ("/echo", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
 //         -> manapi::future<> {
-//         if (req.contains_header(std::string{manapi::net::http::header::CONTENT_LENGTH}))
-//             resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH},
-//                 std::string{req.header(manapi::net::http::header::CONTENT_LENGTH).unwrap()}).unwrap();
+//         if (req.contains_header(std::string{manapi::net::http::H_CONTENT_LENGTH}))
+//             resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH},
+//                 std::string{req.header(manapi::net::http::H_CONTENT_LENGTH).unwrap()}).unwrap();
 //
 //         std::size_t sss = 0;
 //         co_return resp.callback_stream([&sss, &resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {

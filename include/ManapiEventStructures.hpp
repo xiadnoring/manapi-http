@@ -1022,14 +1022,11 @@ namespace manapi::ev {
 
         ~status () override;
 
-        /**
-         * initialize error status
-         *
-         * @param code the error code
-         * @param msg the error msg
-         * @param syserr the syserror code
-         */
         status (manapi::err_num code, std::string_view msg, int syserr);
+
+        status (manapi::err_num code, std::string msg, int syserr);
+
+        status (manapi::err_num code, const char * msg, int syserr);
 
         status (status &&n) MANAPIHTTP_NOEXCEPT;
 
@@ -1043,16 +1040,7 @@ namespace manapi::ev {
 
         status &operator=(const status &n);
 
-        /**
-         * print log to the logger() if it exists,
-         * otherwise it prints to the stdout
-         */
-        void log () const override;
-
-        /**
-         * throw a error if it exists, otherwise it does nothing
-         */
-        void unwrap() const override;
+        MANAPIHTTP_NODISCARD std::string fullmsg() const override;
 
         /**
          * Get the system code error

@@ -125,7 +125,7 @@ int main () {
         
         auto router = manapi::net::http::server::create(router_ctx).unwrap();
         
-        auto db = manapi::ext::pq::connection::create().unwrap();
+        auto db = manapi::ext::pq::db::create().unwrap();
 
         router.GET ("/", [&cnt] (http::req &req, http::uresp resp) mutable -> void {
             resp->text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
@@ -187,13 +187,14 @@ int main () {
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
             auto msg = req.param("id").unwrap();
             char *end;
-            auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
+            auto res1 = co_await db->execl(manapi::ext::pq::kMaster, "INSERT INTO for_test (id, str_col) VALUES ($2, $1);",
+                manapi::async::timeout_cancellation(2500), "no way", std::strtoll(msg.data(), &end, 10));
             if (!res1) {
                 if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
                     res1.err().log();
             }
 
-            auto res = co_await db.exec("SELECT * FROM for_test;");
+            auto res = co_await db->exec(manapi::ext::pq::kSlave, "SELECT * FROM for_test;");
             if (res) {
                 std::string content = "b";
                 for (const auto &row: res.unwrap()) {
@@ -211,7 +212,10 @@ int main () {
          * works in this context as long as possible.
          */
         manapi::async::run([router, db] () mutable -> manapi::future<> {
-            manapi::unwrap(co_await db.connect("127.0.0.1", "7879", "development", "password", "db"));
+            auto master = manapi::ext::pq::pool::create().unwrap();
+            manapi::unwrap(co_await master->connect(2, "127.0.0.1", "7879", "development", "password", "db"));
+            db->set_master(std::move(master)).unwrap();
+            
             manapi::unwrap(co_await router.config_object({
                 {"pools", manapi::json::array({
                     {

@@ -112,7 +112,7 @@ manapi::status manapi::net::http::response::text(std::string plain_text) MANAPIH
 
 manapi::status manapi::net::http::response::json(manapi::json data, size_t spaces) MANAPIHTTP_NOEXCEPT {
     try {
-        auto res = header(std::string{header::CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
+        auto res = header(std::string{H_CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
         if (!res)
             return std::move(res);
         return text(std::move(data.dump (static_cast<int>(spaces))));
@@ -238,7 +238,7 @@ std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
 
 
     if ((this->flags & internal::RESPONSE_FLAG_COMPRESS_ENABLED)) {
-        auto it = this->cdata_->req_data->headers.find(header::ACCEPT_ENCODING);
+        auto it = this->cdata_->req_data->headers.find(H_ACCEPT_ENCODING);
         if (it != this->cdata_->req_data->headers.end()) {
 
             if (this->compress_) {
@@ -293,7 +293,7 @@ void manapi::net::http::response::detect_ranges () MANAPIHTTP_NOEXCEPT {
         return;
     }
 
-    auto it = this->cdata_->req_data->headers.find(header::RANGE);
+    auto it = this->cdata_->req_data->headers.find(H_RANGE);
     if (it == this->cdata_->req_data->headers.end()) {
         return;
     }

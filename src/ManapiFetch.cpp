@@ -952,8 +952,9 @@ manapi::future<int> manapi::net::fetch::async_curl_perform() {
         using promise = async::promise_sync<int>;
         res = co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             auto err = manapi::async::current()->eventloop()->watch_curl(&this->data->curl, std::move(resolve));
-            if (!err)
-                reject(std::make_exception_ptr(manapi::exception(err.code(), err.msg())));
+            if (!err) {
+                reject(std::make_exception_ptr(manapi::exception(err.data())));
+            }
         });
 
         if (this->data->async_handler_recv_body && this->data->async_buffer_size) {
@@ -1295,7 +1296,7 @@ manapi::status manapi::net::fetch::headers(std::map<std::string, std::string, st
         return manapi::status_internal("null");
 
     {
-        auto content_length = headers.find(http::header::CONTENT_LENGTH);
+        auto content_length = headers.find(http::H_CONTENT_LENGTH);
         if (content_length != headers.end()) {
             this->data->flags |= FLAG_CONTENT_LENGTH;
             char *end;
@@ -1306,7 +1307,7 @@ manapi::status manapi::net::fetch::headers(std::map<std::string, std::string, st
         }
     }
 
-    if (headers.contains(http::header::TRANSFER_ENCODING)) {
+    if (headers.contains(http::H_TRANSFER_ENCODING)) {
         this->data->flags |= FLAG_TRANSFER_ENCODING;
     }
 
@@ -1366,7 +1367,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
 
     try {
         auto &m = headers.entries();
-        auto content_length = m.find(http::header::CONTENT_LENGTH);
+        auto content_length = m.find(http::H_CONTENT_LENGTH);
         if (content_length != m.end()) {
             this->data->flags |= FLAG_CONTENT_LENGTH;
             this->data->content_length_ = content_length->second.as_integer_cast();
@@ -1378,7 +1379,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
         return manapi::status_invalid_argument("fetch:as_integer_cast failed");
     }
 
-    auto it = headers.find(http::header::TRANSFER_ENCODING);
+    auto it = headers.find(http::H_TRANSFER_ENCODING);
     if (it != headers.end<json::OBJECT>()) {
         this->data->flags |= FLAG_TRANSFER_ENCODING;
     }

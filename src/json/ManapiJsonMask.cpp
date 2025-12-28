@@ -27,6 +27,18 @@ manapi::json_error::status::status(err_num code, std::string_view msg, std::stri
     this->m_data = std::move(data);
 }
 
+manapi::json_error::status::status(err_num code, std::string msg, std::string data, std::size_t pos, std::string path) : manapi::status(code, std::move(msg)) {
+    this->m_pos = pos;
+    this->m_path = std::move(path);
+    this->m_data = std::move(data);
+}
+
+manapi::json_error::status::status(err_num code, const char *msg, std::string data, std::size_t pos, std::string path) : manapi::status(code, msg) {
+    this->m_pos = pos;
+    this->m_path = std::move(path);
+    this->m_data = std::move(data);
+}
+
 
 manapi::json_error::status::status() : manapi::status() {
     this->m_pos = 0;
@@ -70,13 +82,8 @@ manapi::json_error::status & manapi::json_error::status::operator=(manapi::statu
     return *this;
 }
 
-void manapi::json_error::status::log() const {
-    MANAPIHTTP_LOG ("{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg(), this->m_pos, this->m_path, this->m_data);
-}
-
-void manapi::json_error::status::unwrap() const {
-    if (this->code() != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION(this->code(), "{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg(), this->m_pos, this->m_path, this->m_data);
+std::string manapi::json_error::status::fullmsg() const {
+    return std::format("{} pos={} path={} data={}", manapi::status::fullmsg(), this->m_pos, this->m_path, this->m_data);
 }
 
 std::string manapi::json_error::status::path() {

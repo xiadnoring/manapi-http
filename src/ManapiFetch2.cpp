@@ -12,7 +12,7 @@ enum fetch2_data_flags {
 
 struct manapi::net::fetch2::fetch_data {
     manapi::net::fetch data;
-    manapi::async::parallel_run<std::string_view> async_run;
+    manapi::async::parallel_run<messages> async_run;
     async::mutex mx{};
     int flags {0};
 };
@@ -20,7 +20,7 @@ struct manapi::net::fetch2::fetch_data {
 template<typename T>
 manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch_(std::string url, manapi::json params, T body, async::cancellation_action cancellation) {
     fetch2 response;
-    auto status = manapi::async::parallel_run<std::string_view>::create();
+    auto status = manapi::async::parallel_run<messages>::create();
     if (!status)
         co_return status.err();
 
@@ -94,7 +94,7 @@ manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetc
 
 manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation) {
     fetch2 response;
-    auto status = manapi::async::parallel_run<std::string_view>::create();
+    auto status = manapi::async::parallel_run<messages>::create();
     if (!status)
         co_return status.err();
 
@@ -118,7 +118,7 @@ manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetc
 manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<http::file_transfer_info> body, async::cancellation_action cancellation) {
     fetch2 response;
 
-    auto status = manapi::async::parallel_run<std::string_view>::create();
+    auto status = manapi::async::parallel_run<messages>::create();
     if (!status)
         co_return status.err();
 
@@ -235,10 +235,12 @@ manapi::status manapi::net::fetch2::setup_send_body(std::string &&data) MANAPIHT
 manapi::future<manapi::status> manapi::net::fetch2::continue_receiving(std::shared_ptr<fetch2::fetch_data> fetchdata) {
     fetchdata->mx.unlock();
     auto res = co_await fetchdata->async_run.get_or({});
-    if (res.empty())
+    if (res.errnum() == ERR_OK)
         co_return status_ok();
 
-    co_return manapi::status_internal(res);
+    manapi::status b;
+    b.data(std::move(res));
+    co_return std::move(b);
 }
 
 manapi::status manapi::net::fetch2::setup_fetch(manapi::json params) MANAPIHTTP_NOEXCEPT {
@@ -363,27 +365,24 @@ manapi::future<manapi::status> manapi::net::fetch2::response() {
 
                 auto p = manapi::async::invoke(
                     [] (std::shared_ptr<fetch_data> fetchdata, promise::resolve_t resolve)
-                    -> manapi::future<std::string_view> {
+                    -> manapi::future<messages> {
+                    messages msg;
                     try {
-                        std::string_view msg;
                         auto err = (co_await fetchdata->data.async_doit());
                         if (!err) {
-                            msg = err.msg();
-
-                            if (msg.empty()) {
-                                msg = "internal";
-                            }
+                            msg = err.copy_data();
 
                             if (!(fetchdata->flags & FETCH2_DATA_FLAG_RECEIVED)) {
                                 resolve (std::move(err));
                             }
                         }
-                        co_return msg;
                     }
                     catch (std::exception const &e) {
                         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "fetch2:response failed", e.what());
-                        co_return {"fetch2:response failed"};
+                        msg.errnum(ERR_INTERNAL);
+                        msg.msg_view("fetch2:response failed");
                     }
+                    co_return std::move(msg);
                 }, this->fetchdata, std::move(resolve));
 
                 this->fetchdata->async_run.run(
@@ -401,14 +400,13 @@ manapi::future<manapi::status> manapi::net::fetch2::response() {
 
     if (!status) {
         MANAPIHTTP_MUST_ALLOC_START
-        std::string_view msg;
+        messages msg;
         auto res = co_await this->fetchdata->async_run.get();
-        if (!res.ok())
-            msg = res.message();
-        else
-            msg = res.unwrap();
-        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed", msg.size(), msg.data());
-        co_return status_aborted(msg);
+        if (res.ok()) msg = res.unwrap();
+        else msg = res.err().data();
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed", msg.msg_view().size(), msg.msg_view().data());
+        msg.errnum(ERR_ABORTED);
+        co_return manapi::status (std::move(msg));
         MANAPIHTTP_MUST_ALLOC_END
     }
 

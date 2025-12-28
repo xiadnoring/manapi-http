@@ -470,9 +470,9 @@ int manapi::net::http::version_ip_by_addr(const sockaddr *addr) {
 }
 
 bool manapi::net::http::header_has_more_fields(std::string_view name) MANAPIHTTP_NOEXCEPT {
-    if (name == manapi::net::http::header::CACHE_CONTROL
-        || name == manapi::net::http::header::WARNING
-        || name == manapi::net::http::header::SET_COOKIE) {
+    if (name == manapi::net::http::H_CACHE_CONTROL
+        || name == manapi::net::http::H_WARNING
+        || name == manapi::net::http::H_SET_COOKIE) {
         return true;
     }
 
