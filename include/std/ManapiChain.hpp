@@ -46,6 +46,14 @@ namespace manapi {
                 return &this->src_->src;
             }
 
+            const value_type &operator*() const {
+                return this->src_->src;
+            }
+
+            const pointer operator->() const {
+                return &this->src_->src;
+            }
+
             bool operator==(const chain_iterator &_n) const {
                 return this->src_ == _n.src_;
             }
@@ -140,80 +148,86 @@ namespace manapi {
         void push_back (value_type &&n) {
             auto _n = std::make_unique<chain_item<value_type>>( std::move(n), nullptr, nullptr);
             this->push_back_chain(std::move(_n));
-            ++this->s_;
         }
 
         void push_front (value_type &&n) {
             auto _n = std::make_unique<chain_item<value_type>>( std::move(n), nullptr, nullptr);
             this->push_front_chain(std::move(_n));
-            ++this->s_;
         }
 
         void push_back (const value_type &n) {
             auto _n = std::make_unique<chain_item<value_type>>( n, nullptr, nullptr);
             this->push_back_chain(std::move(_n));
-            ++this->s_;
         }
 
         void push_front (const value_type &n) {
             auto _n = std::make_unique<chain_item<value_type>>( n, nullptr, nullptr);
             this->push_front_chain(std::move(_n));
-            ++this->s_;
         }
 
         void push_back_chain (chain_item_un n) {
             if (this->last_ == nullptr) {
                 this->src_ = std::move(n);
                 this->last_ = this->src_.get();
+                ++this->s_;
                 return;
             }
 
             this->last_->next = std::move(n);
             this->last_->next->prev = this->last_;
             this->last_ = this->last_->next.get();
+            ++this->s_;
         }
 
         void push_front_chain (chain_item_un n) {
             if (this->src_ == nullptr) {
                 this->last_ = n.get();
                 this->src_ = std::move(n);
+                ++this->s_;
                 return;
             }
 
             this->src_->prev = n.get();
             n->next = std::move(this->src_);
             this->src_ = std::move(n);
+            ++this->s_;
         }
 
-        void erase (chain_item<value_type> *n) {
+        chain_item_un erase (chain_item<value_type> *n) {
             auto ss = this->size();
 
             if (!ss) {
-                return;
+                return nullptr;
             }
+
+            chain_item_un m;
 
             if (ss == 1) {
                 if (this->src_.get() == n) {
+                    m = std::move(this->src_);
+
                     this->src_ = nullptr;
                     this->last_ = nullptr;
 
                     --this->s_;
                 }
-                return;
+                return std::move(m);
             }
 
             auto next = std::move(n->next);
             auto prev = n->prev;
 
             if (!next && !prev) {
-                // not exists
-                return;
+                // doesn't exist
+                return nullptr;
             }
 
             if (!prev) {
+                m = std::move(this->src_);
                 this->src_ = std::move(next);
             }
             else {
+                m = std::move(prev->next);
                 prev->next = std::move(next);
             }
 
@@ -225,6 +239,14 @@ namespace manapi {
             }
 
             --this->s_;
+            return std::move(m);
+        }
+
+        iterator erase (iterator n, chain_item_un &u) {
+            if (!n.src_) { return n; }
+            auto next = n.src_->next.get();
+            u = this->erase(n.src_);
+            return iterator{next};
         }
 
         iterator erase (iterator n) {

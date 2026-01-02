@@ -2,6 +2,8 @@
 
 #include <ManapiHttp.hpp>
 #include <ManapiInitTools.hpp>
+
+#include "cache/ManapiLRU.hpp"
 #include "ext/pq/AsyncPostgreClient.hpp"
 #include "ext/pq/AsyncPostgrePool.hpp"
 #define FOLDER "/home/Timur/Downloads/anime-main/"
@@ -18,36 +20,27 @@ int main() {
     ctx->run(0, [server_ctx] (auto cb) -> void {
         using http = manapi::net::http::server;
 
+        manapi::lru_cache<std::string, std::string> caching (10);
+
         auto route = manapi::net::http::server::create(server_ctx).unwrap();
         auto db = manapi::ext::pq::db::create().unwrap();
 
-        route.GET ("/", [db] (http::req &req, http::resp &resp) mutable
+        route.GET ("/", [db, &caching] (http::req &req, http::resp &resp) mutable
                 -> manapi::future<> {
-
-            manapi::ext::pq::result res = manapi::unwrap(co_await db->exec(manapi::ext::pq::kSlave, "SELECT * FROM test;"));
-            std::string content;
-            for (auto row : res) {
-                content += row["text"].as<std::string>() + "\n";
+            if (req.contains_get_param("k") && req.contains_get_param("v")) {
+                auto key = req.get("k").unwrap();
+                auto val = req.get("v").unwrap();
+                caching.put(std::string{key}, std::string(val), val.size());
+                co_return resp.text("OK!").unwrap();
             }
-
-            resp.replacers({
-                {"data", std::move(content)}
-            }).unwrap();
-
-            co_return resp.file("../test.html").unwrap();
-        }).unwrap();
-
-        route.POST ("/", [db] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            std::string name;
-            manapi::unwrap(co_await req.form([&name] (std::string key) {
-                if (key != "text") {
-                    throw std::runtime_error ("Invalid param");
-                }
-                return manapi::net::formdata_recv::save_string(&name, 500);
-            }));
-            manapi::ext::pq::result res = manapi::unwrap(co_await db->execl(manapi::ext::pq::kMaster, "INSERT INTO test (text) VALUES ($1);",
-                manapi::ctokens::timeout(2500), name));
-            co_return resp.json({{"code", 0}, {"msg", "OK"}}).unwrap();
+            else if (req.contains_get_param("k")) {
+                auto key = req.get("k").unwrap();
+                auto res = caching.get(std::string{key});
+                co_return resp.text(*res.unwrap()).unwrap();
+            }
+            else {
+                co_return resp.text("k param").unwrap();
+            }
         }).unwrap();
 
         manapi::async::run ([route, db] () mutable -> manapi::future<> {

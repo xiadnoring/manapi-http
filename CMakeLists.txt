@@ -633,6 +633,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiFetch.cpp
         src/json/ManapiJsonMask.cpp
         src/http/ManapiHttpPool.cpp
+        include/cache/ManapiLRU.hpp
         src/ManapiTimerPool.cpp
         src/http/ManapiSite.cpp
         src/http/ManapiHttpConfig.cpp
