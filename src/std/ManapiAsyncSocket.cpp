@@ -19,7 +19,7 @@
 #endif
 
 
-manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t resolve, manapi::async::cancellation_action cancellation) {
+manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t resolve, manapi::ctoken cancellation) {
     try {
         return [flags, resolve = std::move(resolve), cancellation = std::move(cancellation)]
             (const std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
@@ -41,7 +41,7 @@ manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<ma
     }
 }
 
-void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t &resolve, manapi::async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t &resolve, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     if (!cb)
         goto err;
 
@@ -150,7 +150,7 @@ manapi::future<manapi::ev::status> manapi::async::write_ready(socket_t fd) {
     co_return (co_await custom_ready(ev::WRITE, fd)).err();
 }
 
-manapi::future<manapi::ev::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {
+manapi::future<manapi::ev::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd, ctoken cancellation) {
     using promise = promise_sync<manapi::ev::status_or<int>>;
 
     auto res = co_await  promise([flags, fd, cancellation] (promise::resolve_t resolve, promise::reject_t reject) mutable -> void {
@@ -163,11 +163,11 @@ manapi::future<manapi::ev::status_or<int>> manapi::async::custom_ready(int flags
     co_return std::move(res);
 }
 
-manapi::future<manapi::ev::status> manapi::async::read_ready(socket_t fd,cancellation_action cancellation) {
+manapi::future<manapi::ev::status> manapi::async::read_ready(socket_t fd,ctoken cancellation) {
     co_return (co_await custom_ready(ev::READ, fd, std::move(cancellation))).err();
 }
 
-manapi::future<manapi::ev::status> manapi::async::write_ready(socket_t fd,cancellation_action cancellation) {
+manapi::future<manapi::ev::status> manapi::async::write_ready(socket_t fd,ctoken cancellation) {
     co_return (co_await custom_ready(ev::WRITE, fd, std::move(cancellation))).err();
 }
 

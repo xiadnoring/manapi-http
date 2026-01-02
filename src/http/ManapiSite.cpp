@@ -507,7 +507,7 @@ manapi::future<manapi::status> manapi::net::http::site::set_compressed_cache_fil
 
                 if (!del.empty()) {
                     manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(std::move(del),
-                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
+                        manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                             if (err) {
                                 /* ignore :) */
                                 return;
@@ -578,7 +578,7 @@ manapi::future<manapi::status> manapi::net::http::site::set_locked_cache_file(st
                         auto compressit = fit->second.find("compressed");
                         if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
                             manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(compressit->second.as_string(),
-                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
+                                manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                                     if (err) {
                                         /* ignore :) */
                                         return;

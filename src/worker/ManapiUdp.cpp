@@ -28,7 +28,7 @@ manapi::future<manapi::status> manapi::net::worker::udp::init(std::size_t deep) 
     auto &address = this->config_->address;
     auto &port = this->config_->port;
 
-    int rhs = co_await dns::getaddrinfo(address.data(), port.data(), &hints, &this->local, async::timeout_cancellation(5000));
+    int rhs = co_await dns::getaddrinfo(address.data(), port.data(), &hints, &this->local, ctokens::timeout(5000));
     if (rhs) {
         manapi_log_trace(debug::LOG_TRACE_HIGH, "%s failed due to %s", "dns::getaddrinfo()", ev::strerror(rhs));
         co_return status_internal("failed to resolve host");

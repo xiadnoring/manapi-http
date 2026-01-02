@@ -39,15 +39,15 @@ namespace manapi::ext::pq {
 
         static manapi::status_or<pq::connection> create () MANAPIHTTP_NOEXCEPT;
 
-        manapi::future<manapi::ev::status> connect (std::string_view uri, manapi::async::cancellation_action token = nullptr);
+        manapi::future<manapi::ev::status> connect (std::string_view uri, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (std::string host, std::string port, std::string username, std::string password, std::string database, manapi::async::cancellation_action token = nullptr);
+        manapi::future<manapi::status> connect (std::string host, std::string port, std::string username, std::string password, std::string database, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (manapi::json params, manapi::async::cancellation_action token = nullptr);
+        manapi::future<manapi::status> connect (manapi::json params, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (const char * const *keywords, const char * const *values, manapi::async::cancellation_action token = nullptr);
+        manapi::future<manapi::status> connect (const char * const *keywords, const char * const *values, manapi::ctoken token = nullptr);
 
-        manapi::future<pq::status_or<pq::result>> pexec (const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, int resultFormat, manapi::async::cancellation_action token = nullptr);
+        manapi::future<pq::status_or<pq::result>> pexec (const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, int resultFormat, manapi::ctoken token = nullptr);
 
         template<typename ...Args>
         manapi::future<pq::status_or<pq::result>> exec (const std::string &sql, Args &&...args) {
@@ -68,7 +68,7 @@ namespace manapi::ext::pq {
         }
 
         template<typename ...Args>
-        manapi::future<pq::status_or<pq::result>> execl (const std::string &sql, async::cancellation_action token, Args &&...args) {
+        manapi::future<pq::status_or<pq::result>> execl (const std::string &sql, ctoken token, Args &&...args) {
             std::string buffer;
             auto res = pq::serialize(buffer, std::make_tuple(args...));
             if (!res) co_return res.err();
@@ -77,7 +77,7 @@ namespace manapi::ext::pq {
         }
 
         template<typename ...Args>
-        manapi::future<pq::status_or<pq::result>> execl (const char *sql, async::cancellation_action token, Args &&...args) {
+        manapi::future<pq::status_or<pq::result>> execl (const char *sql, ctoken token, Args &&...args) {
             std::string buffer;
             auto res = pq::serialize(buffer, std::make_tuple(args...));
             if (!res.ok()) co_return res.err();
@@ -109,17 +109,17 @@ namespace manapi::ext::pq {
 
         void notify_cb (std::move_only_function<manapi::future<>(notification notify)> cb) MANAPIHTTP_NOEXCEPT;
     private:
-        manapi::future<manapi::ev::status> connect_psql_ (manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT;
+        manapi::future<manapi::ev::status> connect_psql_ (manapi::ctoken token) MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD manapi::status check_conn_ () const MANAPIHTTP_NOEXCEPT;
 
         manapi::status_or<size_t> esc_to_buff (std::string_view text, char *buff) MANAPIHTTP_NOEXCEPT;
 
-        future<manapi::status> flush (manapi::async::cancellation_action token);
+        future<manapi::status> flush (manapi::ctoken token);
 
-        future<pq::status_or<pq::result>> generic_single_result_query (manapi::async::cancellation_action token);
+        future<pq::status_or<pq::result>> generic_single_result_query (manapi::ctoken token);
 
-        future<manapi::status_or<pq::result>> receive_result (manapi::async::cancellation_action token);
+        future<manapi::status_or<pq::result>> receive_result (manapi::ctoken token);
 
         static error_code result_status_to_error_code (result &result) MANAPIHTTP_NOEXCEPT;
 

@@ -288,7 +288,7 @@
 //     router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
 //         -> manapi::future<> {
 //         try {
-//             auto cancellation = manapi::async::cancellation_action::unit(req.cancellation());
+//             auto cancellation = manapi::ctoken::unit(req.cancellation());
 //             cancellation.timeout(5000);
 //             cancellation.ask_cancel_callback();
 //             auto file = manapi::filesystem::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
@@ -313,7 +313,7 @@
 //                 auto const res = co_await file.fread(buffs);
 //                 fin = file.eof();
 //                 co_return res;
-//             }, manapi::async::cancellation_action::unit(cancellation))).unwrap();
+//             }, manapi::ctoken::unit(cancellation))).unwrap();
 //
 //             co_await file.close();
 //
@@ -395,7 +395,7 @@
 //         auto f = co_await manapi::net::fetch2::fetch("http://127.0.0.1:8889/noise", {
 //             {"method", "GET"}
 //         },
-//             manapi::async::cancellation_action::unit(req.cancellation()));
+//             manapi::ctoken::unit(req.cancellation()));
 //         if (!f.ok()) {
 //             std::string s = "error: ";
 //             s += f.message();

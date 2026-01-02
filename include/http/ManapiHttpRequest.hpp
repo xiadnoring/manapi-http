@@ -25,7 +25,7 @@ namespace manapi::net::http {
 
         ~request();
 
-        manapi::async::cancellation_action cancellation ();
+        manapi::ctoken cancellation ();
 
         MANAPIHTTP_NODISCARD const http::manapi_socket_information &ip_data () const;
 

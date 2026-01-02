@@ -6,27 +6,28 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
 
-namespace manapi::async {
-    class cancellation_action {
-        struct data_t;
+namespace manapi {
+    struct ctoken_data_t;
+
+    class ctoken {
     public:
-        cancellation_action (std::nullptr_t);
+        ctoken (std::nullptr_t);
 
-        cancellation_action ();
+        ctoken ();
 
-        static cancellation_action unit (cancellation_action cancellation);
+        static ctoken unit (ctoken cancellation);
 
-        cancellation_action sub () const;
+        ctoken sub () const;
 
-        cancellation_action (cancellation_action &&n) MANAPIHTTP_NOEXCEPT;
+        ctoken (ctoken &&n) MANAPIHTTP_NOEXCEPT;
 
-        cancellation_action &operator=(cancellation_action &&n) MANAPIHTTP_NOEXCEPT;
+        ctoken &operator=(ctoken &&n) MANAPIHTTP_NOEXCEPT;
 
-        cancellation_action (const cancellation_action &n);
+        ctoken (const ctoken &n);
 
-        cancellation_action &operator=(const cancellation_action &n);
+        ctoken &operator=(const ctoken &n);
 
-        ~cancellation_action();
+        ~ctoken();
 
         explicit operator bool () const;
 
@@ -35,7 +36,7 @@ namespace manapi::async {
          *
          * @return self
          */
-        cancellation_action &operator=(std::nullptr_t);
+        ctoken &operator=(std::nullptr_t);
 
         /**
          * Reuse of the cancellation object
@@ -58,7 +59,7 @@ namespace manapi::async {
          * @param cancellation Other cancellation
          * @note It must be called only in @code event loop thread@endcode
          */
-        void cancel_callback (cancellation_action cancellation);
+        void cancel_callback (ctoken cancellation);
 
         /**
          * Send a canellation signal
@@ -100,13 +101,9 @@ namespace manapi::async {
          * Disable cancellation without calling the callback to cancel
          */
         void disable ();
+
+        MANAPIHTTP_NODISCARD const std::shared_ptr<ctoken_data_t> &data () const MANAPIHTTP_NOEXCEPT;
     private:
-        void send_async_() MANAPIHTTP_NOEXCEPT;
-
-        static void stop_timeout_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
-
-        static void cancel_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
-
-        std::shared_ptr<data_t> data;
+        std::shared_ptr<ctoken_data_t> m_data;
     };
 }

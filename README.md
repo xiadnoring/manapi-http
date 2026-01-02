@@ -188,7 +188,7 @@ int main () {
             auto msg = req.param("id").unwrap();
             char *end;
             auto res1 = co_await db->execl(manapi::ext::pq::kMaster, "INSERT INTO for_test (id, str_col) VALUES ($2, $1);",
-                manapi::async::timeout_cancellation(2500), "no way", std::strtoll(msg.data(), &end, 10));
+                manapi::ctokens::timeout(2500), "no way", std::strtoll(msg.data(), &end, 10));
             if (!res1) {
                 if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
                     res1.err().log();

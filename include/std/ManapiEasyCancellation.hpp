@@ -1,6 +1,6 @@
 #pragma once
 #include "./ManapiCancellation.hpp"
 
-namespace manapi::async {
-    manapi::async::cancellation_action timeout_cancellation (size_t milliseconds = 500);
+namespace manapi::ctokens {
+    manapi::ctoken timeout (size_t milliseconds = 500);
 }

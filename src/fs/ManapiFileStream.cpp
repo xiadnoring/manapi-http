@@ -9,7 +9,7 @@ manapi::filesystem::fstream::fstream() : data() {
 
 }
 
-manapi::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     try {
         fstream f;
         f.data = std::make_shared<fstream_data_t_>(
@@ -54,7 +54,7 @@ manapi::future<manapi::ev::status> manapi::filesystem::fstream::open(int flags, 
 
     try {
         auto res = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
-            async::cancellation_action::unit(this->data->cancellation));
+            ctoken::unit(this->data->cancellation));
         if (!res.ok())
             co_return res.err();
 
@@ -95,7 +95,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
         ssize_t rhs;
 
         auto res = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
-            manapi::async::cancellation_action::unit(this->data->cancellation));
+            manapi::ctoken::unit(this->data->cancellation));
 
         if (!res.ok())
             co_return res.syserr();
@@ -121,7 +121,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssi
         ssize_t rhs;
 
         auto res = co_await manapi::filesystem::async_write(this->data->file, buff, buff_size, this->data->off_,
-            manapi::async::cancellation_action::unit(this->data->cancellation));
+            manapi::ctoken::unit(this->data->cancellation));
 
         if (!res.ok())
             co_return res.syserr();
@@ -174,7 +174,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(manapi::slice_view sli
         ssize_t rhs;
 
         auto res = co_await manapi::filesystem::async_read(this->data->file, slice, this->data->off_,
-            manapi::async::cancellation_action::unit(this->data->cancellation));
+            manapi::ctoken::unit(this->data->cancellation));
 
         if (!res.ok())
             co_return res.syserr();
@@ -200,7 +200,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(manapi::slice_view sl
         ssize_t rhs;
 
         auto res = co_await manapi::filesystem::async_write(this->data->file, slice, this->data->off_,
-            manapi::async::cancellation_action::unit(this->data->cancellation));
+            manapi::ctoken::unit(this->data->cancellation));
 
         if (!res.ok())
             co_return res.syserr();
@@ -270,7 +270,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::size() const {
     co_await manapi::filesystem::async_fstat(this->data->file, [&size] (ev::stat_t *data)
         -> void {
         size = static_cast<ssize_t>(data->st_size);
-    }, async::cancellation_action::unit(this->data->cancellation));
+    }, ctoken::unit(this->data->cancellation));
     co_return size;
 }
 

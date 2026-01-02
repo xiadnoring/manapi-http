@@ -53,7 +53,7 @@ namespace manapi::crypto {
      * @param cancellation the cancellation token
      * @return Ok if there's no error, otherwise it returns Internal, ResourceExhausted, Cancelled
      */
-    manapi::future<manapi::status> async_random_string (char *buff, size_t len, async::cancellation_action cancellation = nullptr);
+    manapi::future<manapi::status> async_random_string (char *buff, size_t len, ctoken cancellation = nullptr);
 
     /**
      * Get randomly generated string

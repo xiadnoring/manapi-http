@@ -203,7 +203,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::ev::status_or<std::shared_ptr<ev::fs>> create_watcher_fs (ev::fs_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::fs>> create_watcher_fs (ev::fs_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -211,7 +211,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::ev::status_or<std::shared_ptr<ev::getaddrinfo>> create_watcher_getaddrinfo (const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::getaddrinfo>> create_watcher_getaddrinfo (const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -219,7 +219,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::ev::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -227,7 +227,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::ev::status_or<std::shared_ptr<ev::random>> create_watcher_random (char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::random>> create_watcher_random (char *buff, std::size_t size, ev::random_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *

@@ -22,17 +22,17 @@ namespace manapi::net {
 
         fetch2 &operator=(const fetch2 &n);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params = manapi::json::object(), async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params = manapi::json::object(), ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<fetch_formdata> body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::string> body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<http::file_transfer_info> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<http::file_transfer_info> body, ctoken cancellation = nullptr);
 
         MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT;
 
@@ -49,7 +49,7 @@ namespace manapi::net {
         manapi::future<manapi::json_error::status_or<manapi::json>> json ();
     private:
         template<typename T>
-        static manapi::future<manapi::status_or<fetch2>> fetch_ (std::string url, manapi::json params, T body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<manapi::status_or<fetch2>> fetch_ (std::string url, manapi::json params, T body, ctoken cancellation = nullptr);
 
         manapi::status setup_send_body (std::string &&data) MANAPIHTTP_NOEXCEPT;
 

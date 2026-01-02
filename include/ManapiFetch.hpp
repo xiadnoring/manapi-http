@@ -128,7 +128,7 @@ namespace manapi::net {
          * @param url the site URL
          * @param cancellation the cancellation token
          */
-        static manapi::status_or<fetch> create (std::string url, manapi::async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<fetch> create (std::string url, manapi::ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Initialize Fetch API
@@ -136,7 +136,7 @@ namespace manapi::net {
          * @param url the site URL
          * @param cancellation the cancellation token
          */
-        manapi::status init (std::string url, manapi::async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::status init (std::string url, manapi::ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the sync callback to recv body from the request

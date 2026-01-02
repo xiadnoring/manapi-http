@@ -58,7 +58,7 @@ struct manapi::net::fetch::data_t {
     int flags;
     ssize_t content_length_;
 
-    manapi::async::cancellation_action cancellation;
+    manapi::ctoken cancellation;
 
     body_type body_{BODY_NONE};
 
@@ -650,7 +650,7 @@ manapi::net::fetch::~fetch() {
 
 }
 
-manapi::status_or<manapi::net::fetch> manapi::net::fetch::create(std::string url,manapi::async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::fetch> manapi::net::fetch::create(std::string url,manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     fetch response;
 
     auto res = response.init(std::move(url), std::move(cancellation));
@@ -660,7 +660,7 @@ manapi::status_or<manapi::net::fetch> manapi::net::fetch::create(std::string url
     return std::move(response);
 }
 
-manapi::status manapi::net::fetch::init(std::string url, manapi::async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::fetch::init(std::string url, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     try {
         if (!this->data)
             this->data = std::make_shared<fetch::data_t>(fetch::data_t{});

@@ -18,7 +18,7 @@ struct manapi::net::fetch2::fetch_data {
 };
 
 template<typename T>
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch_(std::string url, manapi::json params, T body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch_(std::string url, manapi::json params, T body, ctoken cancellation) {
     fetch2 response;
     auto status = manapi::async::parallel_run<messages>::create();
     if (!status)
@@ -76,23 +76,23 @@ manapi::net::fetch2::fetch2(const fetch2 &n) = default;
 
 manapi::net::fetch2 & manapi::net::fetch2::operator=(const fetch2 &n) = default;
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, ctoken cancellation) {
     return fetch_(std::move(url), std::move(params), std::optional<std::string> {}, std::move(cancellation));
 }
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<fetch_formdata> body, ctoken cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::string> body, ctoken cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, ctoken cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, ctoken cancellation) {
     fetch2 response;
     auto status = manapi::async::parallel_run<messages>::create();
     if (!status)
@@ -115,7 +115,7 @@ manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetc
     co_return std::move(response);
 }
 
-manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<http::file_transfer_info> body, async::cancellation_action cancellation) {
+manapi::future<manapi::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<http::file_transfer_info> body, ctoken cancellation) {
     fetch2 response;
 
     auto status = manapi::async::parallel_run<messages>::create();

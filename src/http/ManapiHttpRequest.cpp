@@ -25,7 +25,7 @@ manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_so
 
 manapi::net::http::request::~request () = default;
 
-manapi::async::cancellation_action manapi::net::http::request::cancellation() {
+manapi::ctoken manapi::net::http::request::cancellation() {
     return this->conn_->get()->cancellation;
 }
 

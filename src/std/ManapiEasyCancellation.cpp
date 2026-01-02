@@ -1,7 +1,7 @@
 #include "std/ManapiEasyCancellation.hpp"
 
-manapi::async::cancellation_action manapi::async::timeout_cancellation(size_t milliseconds) {
-    manapi::async::cancellation_action token;
+manapi::ctoken manapi::ctokens::timeout(size_t milliseconds) {
+    manapi::ctoken token;
     token.timeout(milliseconds);
     return std::move(token);
 }

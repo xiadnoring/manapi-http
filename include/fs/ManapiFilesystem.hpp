@@ -9,23 +9,23 @@
 #include "../std/ManapiCancellation.hpp"
 
 namespace manapi::filesystem {
-    manapi::future<ev::status_or<bool>> async_exists (std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<ev::status_or<bool>> async_exists (std::string path, manapi::ctoken cancellation = nullptr);
 
-    manapi::future<ev::status_or<std::chrono::system_clock::time_point>> async_last_time_write (std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<ev::status_or<std::chrono::system_clock::time_point>> async_last_time_write (std::string path, manapi::ctoken cancellation = nullptr);
 
-    manapi::future<ev::status> async_mkdir (std::string path, int mode = 0644, bool recursive = true, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<ev::status> async_mkdir (std::string path, int mode = 0644, bool recursive = true, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status_or<ev::file>> async_open (std::string path, int flags, int mode, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ev::file>> async_open (std::string path, int flags, int mode, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status> async_close (ev::file file, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_close (ev::file file, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_write (ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_write (ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_read (ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_read (ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status> async_write (std::string path, std::string data, int mode, int flags = ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_APPEND, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_write (std::string path, std::string data, int mode, int flags = ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_APPEND, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::string>> async_read (std::string path, int flags = ev::FS_O_RDONLY, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::string>> async_read (std::string path, int flags = ev::FS_O_RDONLY, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
     /**
      * Async Write
@@ -37,7 +37,7 @@ namespace manapi::filesystem {
      * @param cancellation
      * @return
      */
-    future<ev::status_or<ssize_t>> async_write (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_write (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, ctoken cancellation = nullptr);
 
     /**
      * Async Read
@@ -49,23 +49,23 @@ namespace manapi::filesystem {
      * @param cancellation
      * @return
      */
-    future<ev::status_or<ssize_t>> async_read (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_read (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_write (ev::file file, slice_view slice, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_write (ev::file file, slice_view slice, int64_t offset = -1, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_read (ev::file file, slice_view slice, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_read (ev::file file, slice_view slice, int64_t offset = -1, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_file_size (std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_file_size (std::string path, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status> async_unlink (std::string path, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_unlink (std::string path, ctoken cancellation = nullptr);
 
-    future<ev::status> async_rmdir (std::string path, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_rmdir (std::string path, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ev::dir_t *>> async_opendir (std::string path, async::cancellation_action cancellation_action = nullptr);
+    future<ev::status_or<ev::dir_t *>> async_opendir (std::string path, ctoken ctoken = nullptr);
 
-    future<ev::status> async_closedir (ev::dir_t *directory, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_closedir (ev::dir_t *directory, ctoken cancellation = nullptr);
 
-    future<ev::status> async_statfs (std::string path, std::move_only_function<void(ev::statfs_t *data)> callback, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_statfs (std::string path, std::move_only_function<void(ev::statfs_t *data)> callback, ctoken cancellation = nullptr);
 
     /**
      * stat
@@ -75,7 +75,7 @@ namespace manapi::filesystem {
      * @param cancellation Cancellation Token
      * @return
      */
-    future<ev::status> async_stat (std::string path, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_stat (std::string path, std::move_only_function<void(ev::stat_t *data)> callback, ctoken cancellation = nullptr);
 
     /**
      * fstat
@@ -85,47 +85,47 @@ namespace manapi::filesystem {
      * @param cancellation Cancellation token
      * @return
      */
-    future<ev::status> async_fstat (ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_fstat (ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, ctoken cancellation = nullptr);
 
-    future<ev::status> async_rename (std::string oldpath, std::string newpath, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_rename (std::string oldpath, std::string newpath, ctoken cancellation = nullptr);
 
-    future<ev::status> async_copyfile (std::string src, std::string dest, int flags, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_copyfile (std::string src, std::string dest, int flags, ctoken cancellation = nullptr);
 
-    future<ev::status> async_chmod (std::string path, int mode, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_chmod (std::string path, int mode, ctoken cancellation = nullptr);
 
-    future<ev::status> async_fchmod (ev::file file, int mode, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_fchmod (ev::file file, int mode, ctoken cancellation = nullptr);
 
-    future<ev::status> async_utime (std::string path, double atime, double mtime, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_utime (std::string path, double atime, double mtime, ctoken cancellation = nullptr);
 
-    future<ev::status> async_futime (ev::file file, double atime, double mtime, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_futime (ev::file file, double atime, double mtime, ctoken cancellation = nullptr);
 
-    future<ev::status> async_link (std::string path, std::string newpath, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_link (std::string path, std::string newpath, ctoken cancellation = nullptr);
 
-    future<ev::status> async_symlink (std::string path, std::string newpath, int flags, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_symlink (std::string path, std::string newpath, int flags, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::string>> async_readlink (std::string path, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::string>> async_readlink (std::string path, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::string>> async_realpath (std::string path, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::string>> async_realpath (std::string path, ctoken cancellation = nullptr);
 
-    future<ev::status> async_chown (std::string path, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_chown (std::string path, ev::uid_t uid, ev::gid_t gid, ctoken cancellation = nullptr);
 
-    future<ev::status> async_fchown (ev::file file, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_fchown (ev::file file, ev::uid_t uid, ev::gid_t gid, ctoken cancellation = nullptr);
 
-    future<ev::status> async_fsync (ev::file file, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_fsync (ev::file file, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::string>> async_mkdtemp (std::string tpl, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::string>> async_mkdtemp (std::string tpl, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::pair<std::string, ev::file>>> async_mkstemp (std::string tpl, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::pair<std::string, ev::file>>> async_mkstemp (std::string tpl, ctoken cancellation = nullptr);
 
-    future<ev::status> async_fdatasync (ev::file file, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_fdatasync (ev::file file, ctoken cancellation = nullptr);
 
-    future<ev::status> async_ftruncate (ev::file file, int64_t offset, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_ftruncate (ev::file file, int64_t offset, ctoken cancellation = nullptr);
 
-    future<ev::status> async_access (std::string path, int mode, async::cancellation_action cancellation = nullptr);
+    future<ev::status> async_access (std::string path, int mode, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, async::cancellation_action cancellation = nullptr);
+    future<ev::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, ctoken cancellation = nullptr);
 }
 
 

@@ -46,7 +46,7 @@ int main() {
                 return manapi::net::formdata_recv::save_string(&name, 500);
             }));
             manapi::ext::pq::result res = manapi::unwrap(co_await db->execl(manapi::ext::pq::kMaster, "INSERT INTO test (text) VALUES ($1);",
-                manapi::async::timeout_cancellation(2500), name));
+                manapi::ctokens::timeout(2500), name));
             co_return resp.json({{"code", 0}, {"msg", "OK"}}).unwrap();
         }).unwrap();
 

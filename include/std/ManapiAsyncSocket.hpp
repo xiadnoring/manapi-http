@@ -17,11 +17,11 @@ namespace manapi::async {
 
     manapi::future<manapi::ev::status> write_ready (socket_t fd);
 
-    manapi::future<manapi::ev::status_or<int>> custom_ready (int flags, socket_t fd, cancellation_action cancellation);
+    manapi::future<manapi::ev::status_or<int>> custom_ready (int flags, socket_t fd, ctoken cancellation);
 
-    manapi::future<manapi::ev::status> read_ready (socket_t fd, cancellation_action cancellation);
+    manapi::future<manapi::ev::status> read_ready (socket_t fd, ctoken cancellation);
 
-    manapi::future<manapi::ev::status> write_ready (socket_t fd, cancellation_action cancellation);
+    manapi::future<manapi::ev::status> write_ready (socket_t fd, ctoken cancellation);
 
     socklen_t socklen (const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
 }

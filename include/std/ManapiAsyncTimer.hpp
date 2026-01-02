@@ -8,11 +8,11 @@
 namespace manapi::async {
     class delay {
     public:
-        delay (size_t ms, manapi::async::cancellation_action cancellation = nullptr)  {
+        delay (size_t ms, manapi::ctoken cancellation = nullptr)  {
             if (cancellation)
                 this->cancellation = std::move(cancellation);
             else
-                this->cancellation = manapi::async::cancellation_action();
+                this->cancellation = manapi::ctoken();
 
             auto const tm = this->cancellation.timeout();
 
@@ -37,6 +37,6 @@ namespace manapi::async {
 
         void await_resume () const {}
     private:
-        manapi::async::cancellation_action cancellation;
+        manapi::ctoken cancellation;
     };
 }

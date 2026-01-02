@@ -15,7 +15,7 @@ namespace manapi::filesystem {
         };
         struct fstream_data_t_ {
             std::string path;
-            async::cancellation_action cancellation;
+            ctoken cancellation;
             ev::file file;
             std::atomic<int> status{0};
             off_t off_;
@@ -29,7 +29,7 @@ namespace manapi::filesystem {
 
         fstream ();
 
-        static manapi::status_or<fstream> create (std::string path, async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<fstream> create (std::string path, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         fstream (fstream &&n) MANAPIHTTP_NOEXCEPT;
 

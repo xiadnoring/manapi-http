@@ -47,9 +47,9 @@ namespace manapi::ext::pq {
 
         static manapi::status_or<std::shared_ptr<pool>> create () MANAPIHTTP_NOEXCEPT;
 
-        future<ev::status> connect (std::size_t size, std::string host, std::string port, std::string user, std::string password, std::string db, manapi::async::cancellation_action token = nullptr);
+        future<ev::status> connect (std::size_t size, std::string host, std::string port, std::string user, std::string password, std::string db, manapi::ctoken token = nullptr);
 
-        future<ev::status> connect (std::size_t size, manapi::json params, manapi::async::cancellation_action token = nullptr);
+        future<ev::status> connect (std::size_t size, manapi::json params, manapi::ctoken token = nullptr);
 
         future<manapi::status> stop ();
 
@@ -124,7 +124,7 @@ namespace manapi::ext::pq {
         }
 
         template<typename ...Args>
-        manapi::future<pq::status_or<pq::result>> execl (ktypes type, const std::string &sql, async::cancellation_action token, Args &&...args) {
+        manapi::future<pq::status_or<pq::result>> execl (ktypes type, const std::string &sql, ctoken token, Args &&...args) {
             std::string buffer;
             auto res = pq::serialize(buffer, std::make_tuple(args...));
             if (!res) co_return res.err();
@@ -133,7 +133,7 @@ namespace manapi::ext::pq {
         }
 
         template<typename ...Args>
-        manapi::future<pq::status_or<pq::result>> execl (ktypes type, const char *sql, async::cancellation_action token, Args &&...args) {
+        manapi::future<pq::status_or<pq::result>> execl (ktypes type, const char *sql, ctoken token, Args &&...args) {
             std::string buffer;
             auto res = pq::serialize(buffer, std::make_tuple(args...));
             if (!res) co_return res.err();
@@ -141,7 +141,7 @@ namespace manapi::ext::pq {
             co_return co_await this->pexec (type, sql, t.size(), t.data(), v.data(), l.data(), f.data(), std::move(token));
         }
     protected:
-        manapi::future<pq::status_or<pq::result>> pexec (ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, async::cancellation_action token);
+        manapi::future<pq::status_or<pq::result>> pexec (ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, ctoken token);
 
     private:
         std::shared_ptr<pq::pool> m_master;

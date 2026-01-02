@@ -170,7 +170,7 @@ finish:
     co_return std::move(status);
 }
 
-manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::async::cancellation_action cancellation) {
+manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::ctoken cancellation) {
     auto status = manapi::filesystem::fstream::create (std::move(file), std::move(cancellation));
 
     if (!status)

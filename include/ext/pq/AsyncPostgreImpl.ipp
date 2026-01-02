@@ -119,7 +119,7 @@ manapi::status_or<std::shared_ptr<manapi::ext::pq::pool>> manapi::ext::pq::pool:
     return status_resource_exhausted();
 }
 
-manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t size, std::string host, std::string port, std::string user, std::string password, std::string db, manapi::async::cancellation_action token) {
+manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t size, std::string host, std::string port, std::string user, std::string password, std::string db, manapi::ctoken token) {
     auto params = manapi::json::object();
     params.insert("host", std::move(host));
     params.insert("port", std::move(port));
@@ -129,7 +129,7 @@ manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t si
     return this->connect(size, std::move(params), std::move(token));
 }
 
-manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t size, manapi::json params, manapi::async::cancellation_action token) {
+manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t size, manapi::json params, manapi::ctoken token) {
     if (this->m_flags & PSQL_POOL_FLAG_ACTIVE)
         co_return status_already_exists("psql:pool is active");
 
@@ -378,7 +378,7 @@ manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::ma
     co_return status_not_found("db:not found");
 }
 
-manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, async::cancellation_action token) {
+manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, ctoken token) {
     while (true) {
         auto wrk_res = type == kMaster ? (co_await this->master()) :(co_await this->slave());
         if (!wrk_res) {
@@ -426,7 +426,7 @@ manapi::status_or<manapi::ext::pq::connection> manapi::ext::pq::connection::crea
 }
 
 manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect(std::string_view uri,
-                                                                                      manapi::async::cancellation_action token) {
+                                                                                      manapi::ctoken token) {
     manapi::ev::status status;
     try {
         if (!this->data_)
@@ -454,7 +454,7 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect(std::str
 }
 
 manapi::future<manapi::status> manapi::ext::pq::connection::connect(std::string host, std::string port,
-                                                                                  std::string username, std::string password, std::string database, manapi::async::cancellation_action token) {
+                                                                                  std::string username, std::string password, std::string database, manapi::ctoken token) {
     auto keywords = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[6]);
     auto values = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[6]);
     auto keys_ptr = keywords.get();
@@ -474,7 +474,7 @@ manapi::future<manapi::status> manapi::ext::pq::connection::connect(std::string 
 }
 
 manapi::future<manapi::status> manapi::ext::pq::connection::connect(manapi::json params,
-                                                                                  manapi::async::cancellation_action token) {
+                                                                                  manapi::ctoken token) {
     if (params.is_object()) {
         auto keywords = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[params.size() + 1]);
         auto values = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[params.size() + 1]);
@@ -495,7 +495,7 @@ manapi::future<manapi::status> manapi::ext::pq::connection::connect(manapi::json
 }
 
 manapi::future<manapi::status> manapi::ext::pq::connection::connect(const char * const *keywords,
-                                                                                  const char * const *values, manapi::async::cancellation_action token) {
+                                                                                  const char * const *values, manapi::ctoken token) {
     // auto uri = std::format("postgresql://{}:{}@{}:{}/{}", username, password, host, port, database);
     // co_return co_await this->connect(uri);
 
@@ -527,7 +527,7 @@ manapi::future<manapi::status> manapi::ext::pq::connection::connect(const char *
 
 manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::pexec(
     const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,
-    const int *paramFormats, int resultFormat, manapi::async::cancellation_action token) {
+    const int *paramFormats, int resultFormat, manapi::ctoken token) {
     pq::status status = this->check_conn_();
     if (!status)
         co_return std::move(status);
@@ -559,7 +559,7 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
 }
 
 manapi::future<bool> manapi::ext::pq::connection::ping(std::size_t timeoutms) {
-    auto res = co_await this->execl("SELECT 1;", async::timeout_cancellation(timeoutms));
+    auto res = co_await this->execl("SELECT 1;", ctokens::timeout(timeoutms));
     if (!res.ok()) co_return false;
     co_return res.unwrap().size();
 }
@@ -625,7 +625,7 @@ std::move_only_function<manapi::future<>(notification notify)> cb) MANAPIHTTP_NO
         this->data_->notify_cb_ = std::move(cb);
 }
 
-manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
+manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
     manapi::ev::status status = manapi::ev::status_ok();
     try {
         if (!this->data_->conn) {
@@ -708,7 +708,7 @@ manapi::status_or<size_t> manapi::ext::pq::connection::esc_to_buff(std::string_v
     return copied;
 }
 
-manapi::future<manapi::status> manapi::ext::pq::connection::flush(manapi::async::cancellation_action token) {
+manapi::future<manapi::status> manapi::ext::pq::connection::flush(manapi::ctoken token) {
     int rhs = PQflush(this->data_->conn.get());
 
     if (rhs == -1) {
@@ -757,7 +757,7 @@ manapi::future<manapi::status> manapi::ext::pq::connection::flush(manapi::async:
     co_return manapi::status_ok();
 }
 
-manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::generic_single_result_query(manapi::async::cancellation_action token) {
+manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::generic_single_result_query(manapi::ctoken token) {
     pq::status status;
 
     status = co_await this->flush(token);
@@ -788,7 +788,7 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
     co_return std::move(result);
 }
 
-manapi::future<manapi::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::receive_result(manapi::async::cancellation_action token) {
+manapi::future<manapi::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::receive_result(manapi::ctoken token) {
     while (PQisBusy(this->data_->conn.get())) {
         if (!PQconsumeInput(this->data_->conn.get())) {
             co_return manapi::status_internal ("pq:consume input failed");

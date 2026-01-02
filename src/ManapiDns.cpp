@@ -2,7 +2,7 @@
 #include "ManapiEventLoop.hpp"
 #include "std/ManapiAsyncPromise.hpp"
 
-manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token) {
+manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, ctoken token) {
     try {
         using promise = manapi::async::promise_sync<int>;
         co_return co_await promise ([&] (promise::resolve_t resolve) -> void {

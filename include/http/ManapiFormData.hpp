@@ -48,7 +48,7 @@ namespace manapi::net {
 
         manapi::future<manapi::status> get (onparam_cb_t cb);
 
-        static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::async::cancellation_action cancellation = nullptr);
+        static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::ctoken cancellation = nullptr);
 
         static ondata_cb_t save_string (std::string *str, ssize_t maxlen = -1);
 

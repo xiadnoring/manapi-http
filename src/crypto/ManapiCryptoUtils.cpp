@@ -71,7 +71,7 @@ void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
 }
 #endif
 
-manapi::future<manapi::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
+manapi::future<manapi::status> manapi::crypto::async_random_string(char *buff, std::size_t len, ctoken cancellation) {
     if (!len)
         co_return status_ok();
 

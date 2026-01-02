@@ -70,7 +70,7 @@ namespace manapi::net::worker {
             throw manapi::exception (ERR_INTERNAL, "Pointer is null");
         }
 
-        manapi::async::cancellation_action cancellation;
+        manapi::ctoken cancellation;
         std::unique_ptr<ipdata_t> ipdata;
         int version = http::versions::HTTP_v1_1;
         wrk_interface_t wrk;

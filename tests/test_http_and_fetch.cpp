@@ -344,7 +344,7 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
             {"method", "GET"},
             {"verbose", false}
         };
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", std::move(jparams), manapi::async::timeout_cancellation(5000));
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", std::move(jparams), manapi::ctokens::timeout(5000));
 
         if (!fetch_res.ok())
             co_return;
@@ -392,7 +392,7 @@ UTEST(http_and_fetch, formdata_bad_response) {
             {"method", "GET"},
             {"verbose", false}
         };
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", std::move(jparams), manapi::async::timeout_cancellation(5000));
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", std::move(jparams), manapi::ctokens::timeout(5000));
 
         if (!fetch_res.ok())
             co_return;
@@ -428,7 +428,7 @@ UTEST(http_and_fetch, chunked_request) {
             {"method", "GET"},
             {"verbose", false}
         };
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", std::move(jparams), manapi::async::timeout_cancellation(5000));
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", std::move(jparams), manapi::ctokens::timeout(5000));
 
         auto fetch = fetch_res.unwrap();
 
@@ -501,7 +501,7 @@ UTEST(http_and_fetch, chunked_response) {
             if (cursor == zz.size())
                 fin = true;
             co_return copy;
-        }, manapi::async::timeout_cancellation(5000));
+        }, manapi::ctokens::timeout(5000));
 
         auto fetch = fetch_res.unwrap();
 
@@ -546,7 +546,7 @@ UTEST(http_and_fetch, user_data) {
             {"method", "GET"},
             {"verbose", false}
         };
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/admin/test", std::move(jparams), manapi::async::timeout_cancellation(5000));
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/admin/test", std::move(jparams), manapi::ctokens::timeout(5000));
 
         auto fetch = fetch_res.unwrap();
 

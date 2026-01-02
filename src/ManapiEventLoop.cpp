@@ -195,25 +195,25 @@ namespace manapi::ev::internal {
     struct fs_ctx {
         std::shared_ptr<ev::fs> s_;
         fs_cb cb;
-        manapi::async::cancellation_action token;
+        manapi::ctoken token;
     };
 
     struct random_ctx {
         std::shared_ptr<ev::random> s_;
         random_cb cb;
-        manapi::async::cancellation_action token;
+        manapi::ctoken token;
     };
 
     struct getaddrinfo_ctx {
         std::shared_ptr<ev::getaddrinfo> s_;
         getaddrinfo_cb cb;
-        manapi::async::cancellation_action token;
+        manapi::ctoken token;
     };
 
     struct getnameinfo_ctx {
         std::shared_ptr<ev::getnameinfo> s_;
         getnameinfo_cb cb;
-        manapi::async::cancellation_action token;
+        manapi::ctoken token;
     };
 
     struct work_ctx {
@@ -1717,7 +1717,7 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::prepare>> manapi::event_loop::
     }
 }
 
-manapi::ev::status_or<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::create_watcher_fs(ev::fs_cb callback, manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
+manapi::ev::status_or<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::create_watcher_fs(ev::fs_cb callback, manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
     try {
         auto const loop = this->loop_.get();
         if (!loop)
@@ -1746,7 +1746,7 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::creat
     }
 }
 
-manapi::ev::status_or<std::shared_ptr<manapi::ev::getaddrinfo>> manapi::event_loop::create_watcher_getaddrinfo(const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
+manapi::ev::status_or<std::shared_ptr<manapi::ev::getaddrinfo>> manapi::event_loop::create_watcher_getaddrinfo(const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = std::make_shared<ev::getaddrinfo>();
         auto ctx = std::make_unique<ev::internal::getaddrinfo_ctx>();
@@ -1780,7 +1780,7 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::getaddrinfo>> manapi::event_lo
     }
 }
 
-manapi::ev::status_or<std::shared_ptr<manapi::ev::getnameinfo>> manapi::event_loop::create_watcher_getnameinfo(const sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
+manapi::ev::status_or<std::shared_ptr<manapi::ev::getnameinfo>> manapi::event_loop::create_watcher_getnameinfo(const sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = std::make_shared<ev::getnameinfo>();
         auto ctx = std::make_unique<ev::internal::getnameinfo_ctx>();
@@ -1813,7 +1813,7 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::getnameinfo>> manapi::event_lo
     }
 }
 
-manapi::ev::status_or<std::shared_ptr<manapi::ev::random>> manapi::event_loop::create_watcher_random(char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
+manapi::ev::status_or<std::shared_ptr<manapi::ev::random>> manapi::event_loop::create_watcher_random(char *buff, std::size_t size, ev::random_cb callback, manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = std::make_shared<ev::random>();
         auto ctx = std::make_unique<ev::internal::random_ctx>();
