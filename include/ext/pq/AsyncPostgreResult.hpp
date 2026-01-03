@@ -59,6 +59,10 @@ namespace manapi::ext::pq {
             return this->res_.get();
         }
 
+        result copy () const {
+            return {PQcopyResult(this->res_.get(), PG_COPYRES_ATTRS | PG_COPYRES_TUPLES)};
+        }
+
         MANAPIHTTP_NODISCARD pq::sql_states sqlstate() const MANAPIHTTP_NOEXCEPT {
             if (this->sqlstate_.has_value()) {
                 return static_cast<sql_states>(this->sqlstate_.value());

@@ -402,6 +402,10 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
         }
 
         token.cancel();
+        if (result.ok()) {
+            co_return result.unwrap().copy();
+        }
+
         co_return std::move(result);
     }
 
