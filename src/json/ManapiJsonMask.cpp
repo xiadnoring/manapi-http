@@ -942,7 +942,7 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
                     if (fit == p.end())
                     {
                         if (it.second["none"].as_bool()) { continue; }
-                        return json_error::status_invalid_argument("json_mask: item not exists", std::format("key = {}", it.first), 0, json_format_path(path));
+                        return json_error::status_invalid_argument("json_mask: item doesn't exist", std::format("key = {}", it.first), 0, json_format_path(path));
                     }
                     ev::buff_t path_part;
                     path_part.base = (char*)it.first.data();
@@ -964,7 +964,7 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
                     auto fit = p.find(it.first);
                     // dont exists
                     if (fit == p.end())
-                        return json_error::status_invalid_argument("json_mask: item not exists", std::format("key = {}", it.first), 0, json_format_path(path));
+                        return json_error::status_invalid_argument("json_mask: item doesn't exist", std::format("key = {}", it.first), 0, json_format_path(path));
                     ev::buff_t path_part;
                     path_part.base = (char*)it.first.data();
                     path_part.len = static_cast<decltype(path_part.len)>(it.first.size());

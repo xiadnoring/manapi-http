@@ -156,16 +156,20 @@ namespace manapi::ext::pq {
 
     /* string */
     template<> struct string_traits <const char *> {
-        static constexpr std::string from_string (std::string_view text_) {
-            return std::string{text_};
+        static constexpr const char *from_string (std::string_view text_) {
+            return text_.data();
         }
         static constexpr void to_string (std::string_view text_, const char *value) {
             memcpy((void*)text_.data(), value, strlen(value));
         }
         MANAPIHTTP_NODISCARD static size_t size (const char *value) {
-            return strlen(value);
+            return ::strlen(value);
         }
     };
+
+    template<> MANAPIHTTP_NODISCARD inline std::string_view from_string (std::string_view text_) {
+        return string_traits<std::string_view>::from_string(text_);
+    }
 
     template<> MANAPIHTTP_NODISCARD inline unsigned int from_string (std::string_view text_) {
         return integral_traits<unsigned int>::from_string(text_);
@@ -253,9 +257,14 @@ namespace manapi::ext::pq {
         return string_traits<std::string>::size(v);
     }
 
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const std::string_view &v) {
+        return string_traits<std::string_view>::size(v);
+    }
+
     template<> MANAPIHTTP_NODISCARD inline size_t size_of (const pq::blob &v) {
         return string_traits<pq::blob>::size(v);
     }
+
     template<> MANAPIHTTP_NODISCARD inline size_t size_of (const pq::text &v) {
         return string_traits<pq::text>::size(v);
     }
@@ -338,6 +347,10 @@ namespace manapi::ext::pq {
 
     template<> inline void to_string (std::string_view text_, const float &v) {
         return float_traits <float>::to_string(text_, v);
+    }
+
+    template<> inline void to_string (std::string_view text_, const std::string_view &v) {
+        return string_traits <std::string_view>::to_string(text_, v);
     }
 
     template<> inline void to_string (std::string_view text_, const pq::uuid &v) {

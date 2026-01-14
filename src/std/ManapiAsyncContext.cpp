@@ -185,10 +185,10 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
 
                         manapi::clear_tools::grpc_clear();
 
-                        thr->eventloop()->wait_all_();
+                        thr->eventloop()->wait_all_(false);
                     });
 
-                    thr->eventloop()->wait_all_();
+                    thr->eventloop()->wait_all_(true);
 
                     thr->eventloop()->etaskpool_->stop();
                     thr->eventloop()->etaskpool_->join();
@@ -217,11 +217,11 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
 
             manapi::clear_tools::grpc_clear();
 
-            ctx->eventloop_->wait_all_();
+            ctx->eventloop_->wait_all_(false);
 
         });
 
-        ctx->eventloop_->wait_all_();
+        ctx->eventloop_->wait_all_(true);
         ctx->eventloop()->etaskpool_->stop();
         ctx->eventloop()->etaskpool_->join();
 

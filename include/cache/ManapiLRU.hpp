@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cassert>
-#include <unordered_map>
+#include <map>
 #include <cstddef>
 
 #include "./../ManapiErrors.hpp"
@@ -124,6 +124,6 @@ namespace manapi {
 
         manapi::chain<key_value_pair_t> m_list;
 
-        std::unordered_map<K, item_t> m_items;
+        std::map<K, item_t> m_items;
     };
 }

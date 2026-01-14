@@ -18,6 +18,18 @@ int main() {
     ctx->run(0, [server_ctx] (auto cb) -> void {
         using http = manapi::net::http::server;
 
+        manapi::before_delete bd ([] () -> void {
+            manapi::async::current()->etaskpool()->append_task([] () -> void {
+                std::cout << "hello world!\n";
+            });
+        });
+
+        manapi::async::current()->eventloop()->subscribe_finish(500, [] () -> manapi::future<> {
+
+            std::cout << "finish it!\n";
+            co_return;
+        });
+
         auto route = manapi::net::http::server::create(server_ctx).unwrap();
         auto db = manapi::ext::pq::db::create().unwrap();
 
@@ -27,7 +39,8 @@ int main() {
             manapi::ext::pq::result res = manapi::unwrap(co_await db->exec(manapi::ext::pq::kSlave, "SELECT * FROM test;"));
             std::string content;
             for (auto row : res) {
-                content += row["text"].as<std::string>() + "\n";
+                content += row["text"].as<std::string_view>();
+                content += " | ";
             }
 
             resp.replacers({

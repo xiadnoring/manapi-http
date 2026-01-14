@@ -115,7 +115,7 @@ namespace manapi {
 
         manapi::future<> stop ();
 
-        size_t subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
+        size_t subscribe_finish (int priority, std::move_only_function<manapi::future<void>()> cb);
 
         void unsubscribe_finish (std::size_t id);
 
@@ -345,7 +345,7 @@ namespace manapi {
         void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
     private:
 #if MANAPIHTTP_CURL_DEPENDENCY
-        void wait_all_ () MANAPIHTTP_NOEXCEPT;
+        void wait_all_ (bool shutdown) MANAPIHTTP_NOEXCEPT;
 
         static manapi::ev::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
@@ -387,7 +387,7 @@ namespace manapi {
 
         std::shared_ptr<threadpool> taskpool_;
 
-        std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
+        std::map <size_t, std::pair<int, std::move_only_function<manapi::future<void>()>>> map_finish_cb;
 
         std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
 

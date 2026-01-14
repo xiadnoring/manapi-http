@@ -225,7 +225,7 @@ namespace manapi::ext::pq {
 
     template<typename T>
     struct string_traits {
-        static inline T from_string (std::string_view text_) { return std::string{text_}; }
+        static inline T from_string (std::string_view text_) { return T{text_}; }
         static inline void to_string (std::string_view text_, T const &value) {
             assert(text_.size() >= value.size()); memcpy((void*)text_.data(), value.data(), value.size());
         }

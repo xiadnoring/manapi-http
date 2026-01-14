@@ -72,7 +72,7 @@ manapi::future<manapi::status> manapi::net::http::server::start() {
             co_return status_already_exists("already running");
         }
 
-        data2->event_id = async::current()->eventloop()->subscribe_finish([data2] ()
+        data2->event_id = async::current()->eventloop()->subscribe_finish(std::numeric_limits<int>::min(), [data2] ()
             -> future<> {
             auto res = co_await stop_(data2, true);
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());
@@ -138,7 +138,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop_(std::shared_ptr<
         auto lk = co_await data->mx->lock_guard();
 
         if (data->stopping.exchange(true)) {
-            co_return status_not_found("not exists");
+            co_return status_not_found("doesn't exist");
         }
 
         if (!evloop) {
