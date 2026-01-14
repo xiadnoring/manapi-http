@@ -42,6 +42,8 @@ namespace manapi::net::wgrpc {
         struct data_t;
 
     public:
+        server ();
+
         server (wgrpc::server_ctx ctx);
 
         static manapi::status_or<server> create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT;

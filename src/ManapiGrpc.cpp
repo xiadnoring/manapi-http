@@ -1519,6 +1519,10 @@ manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
     this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
 }
 
+manapi::net::wgrpc::server::server() {
+    this->data_ = nullptr;
+}
+
 manapi::status_or<manapi::net::wgrpc::server> manapi::net::wgrpc::server::create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT {
     try {
         return server(std::move(ctx));

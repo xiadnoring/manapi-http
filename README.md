@@ -270,7 +270,7 @@ class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
                     {"http", "1.1"},
                     {"verify_peer", false},
                     {"verify_host", false}
-                }, manapi::async::timeout_cancellation(2000));
+                }, ctokens::timeout(2000));
 
                 if (status.ok()) {
                     auto response = status.unwrap();
@@ -354,7 +354,6 @@ private:
 
 int main () {
     ...
-    std::atomic<bool> grpc_is_running = false;
     auto grpc_server_ctx = manapi::net::wgrpc::server_ctx::create().unwrap();
     
     grpc::EnableDefaultHealthCheckService(true);
@@ -363,48 +362,46 @@ int main () {
         std::shared_ptr<GreeterServiceImpl> service;
         manapi::net::wgrpc::server grpc_server;
         
-        if (!grpc_is_running.exchange(true) {
-            service = std::make_shared<GreeterServiceImpl>();
+        service = std::make_shared<GreeterServiceImpl>();
 
-            grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
-            manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
-                auto res = co_await grpc_server.config_object({
-                    {"ssl", {
-                        {"cert", "cert.crt"},
-                        {"key", "cert.key"},
-                        {"verify_peer", false}
-                    }},
-                    {"address", "localhost"},
-                    {"port", "8080"}
-                });
-            
-                res.log();
-                res.unwrap();
-
-                res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::status {
-                    builder.RegisterService(service.get());
-                    return manapi::status_ok();
-                });
-                
-                res.log();
-                res.unwrap();
-                
-                manapi::async::current()->timerpool()->append_interval_async(100, [] (const manapi::timer &t) -> manapi::future<> {
-                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
-                    if (!creds.ok()) {
-                        creds.err().log();
-                        co_return;
-                    }
-                    GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-                    std::string user = "Xiadnoring Client";
-                    auto res = co_await greeter.SayHello(user);
-                    if (res.ok())
-                        std::cout << res.unwrap() << "\n";
-                    else
-                        res.err().log();
-                });
+        grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
+        manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
+            auto res = co_await grpc_server.config_object({
+                {"ssl", {
+                    {"cert", "cert.crt"},
+                    {"key", "cert.key"},
+                    {"verify_peer", false}
+                }},
+                {"address", "localhost"},
+                {"port", "8080"}
             });
-        }
+        
+            res.log();
+            res.unwrap();
+
+            res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::status {
+                builder.RegisterService(service.get());
+                return manapi::status_ok();
+            });
+            
+            res.log();
+            res.unwrap();
+            
+            manapi::async::current()->timerpool()->append_interval_async(100, [] (const manapi::timer &t) -> manapi::future<> {
+                auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                if (!creds.ok()) {
+                    creds.err().log();
+                    co_return;
+                }
+                GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+                std::string user = "Xiadnoring Client";
+                auto res = co_await greeter.SayHello(user);
+                if (res.ok())
+                    std::cout << res.unwrap() << "\n";
+                else
+                    res.err().log();
+            });
+        });
     ...
 }
 ```
