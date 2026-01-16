@@ -821,6 +821,7 @@ const grpc_event_engine::experimental::EventEngine::ResolvedAddress & manapi::ne
 
 manapi::net::wgrpc::event_engine_wrapper::event_engine_wrapper() : grpc_event_engine::experimental::EventEngine() {
     this->primary = manapi::async::current();
+    this->flags = 0;
 }
 
 manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() = default;

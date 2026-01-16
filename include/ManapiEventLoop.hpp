@@ -104,6 +104,7 @@ namespace manapi {
 
     class event_loop : public std::enable_shared_from_this<event_loop> {
         friend async::context;
+        friend timerpool;
     public:
         event_loop();
 
@@ -335,6 +336,10 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_active () const MANAPIHTTP_NOEXCEPT;
 
         void custom_event_loop (std::move_only_function<void()> block_cb) MANAPIHTTP_NOEXCEPT;
+
+        void increase_deps () MANAPIHTTP_NOEXCEPT;
+
+        void decrease_deps () MANAPIHTTP_NOEXCEPT;
     protected:
 #if MANAPIHTTP_CURL_DEPENDENCY
         void handle_curl_exec_connections ();
@@ -346,6 +351,8 @@ namespace manapi {
     private:
 #if MANAPIHTTP_CURL_DEPENDENCY
         void wait_all_ (bool shutdown) MANAPIHTTP_NOEXCEPT;
+
+        void timerpool_init_ (std::shared_ptr<manapi::timerpool> tp);
 
         static manapi::ev::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
@@ -406,5 +413,7 @@ namespace manapi {
         std::shared_ptr<manapi::logger> logger_;
 
         std::move_only_function<void()> custom_event_loop_;
+
+        std::size_t deps_;
     };
 }

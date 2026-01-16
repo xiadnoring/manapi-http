@@ -780,6 +780,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiEventLoopCurl.hpp
         include/std/ManapiRef.hpp
         include/std/ManapiScopePtr.hpp
+        include/cache/ManapiTL.hpp
 )
 
 set(MANAPIHTTP_MODULES

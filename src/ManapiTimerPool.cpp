@@ -29,10 +29,11 @@ manapi::timerpool::timerpool() {
 
 }
 
-manapi::status_or<manapi::timerpool> manapi::timerpool::create(std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::timerpool>> manapi::timerpool::create(std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT {
     try {
-        timerpool d;
-        d.data_ = std::make_shared<data_t>(sorted_storage(), std::move(events), 0, nullptr);
+        auto d = std::make_shared<timerpool>();
+        d->data_ = std::make_shared<data_t>(sorted_storage(), (events), 0, nullptr);
+        events->timerpool_init_(d);
         return std::move(d);
     }
     catch (std::exception const &e) {

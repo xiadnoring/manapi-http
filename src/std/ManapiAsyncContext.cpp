@@ -109,7 +109,7 @@ manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsi
 
         /* Main Event Loop */
         auto watcher_ = manapi::event_loop::create(taskpool_, logger_).unwrap();
-        auto timerpool_ = std::make_shared<manapi::timerpool>(manapi::timerpool::create(watcher_).unwrap());
+        auto timerpool_ = manapi::timerpool::create(watcher_).unwrap();
 
         auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
 
@@ -145,7 +145,7 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
         try {
             for (int i = 0; i < loops; ++i) {
                 auto watcher_ = manapi::event_loop::create(ctx->taskpool_, ctx->logger_).unwrap();
-                auto timerpool_ = std::make_shared<manapi::timerpool>(manapi::timerpool::create(watcher_).unwrap());
+                auto timerpool_ = manapi::timerpool::create(watcher_).unwrap();
 
                 ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
             }

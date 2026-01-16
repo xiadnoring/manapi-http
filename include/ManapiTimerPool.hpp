@@ -32,7 +32,7 @@ namespace manapi {
          * timerpool based on libuv timer event
          * @param events event loop
          */
-        static manapi::status_or<timerpool> create (std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<timerpool>> create (std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT;
 
         /* deconstructor */
         ~timerpool();
