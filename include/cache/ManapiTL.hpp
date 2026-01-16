@@ -4,7 +4,7 @@
 #include <map>
 #include <set>
 
-#include <manapihttp/ManapiErrors.hpp>
+#include "./../ManapiErrors.hpp"
 
 namespace manapi {
     template<typename K, typename V>
