@@ -1061,7 +1061,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${zstd_COMPONENT_NAMES})
-    endqif ()
+    endif ()
 
     if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC libnghttp2::libnghttp2)
