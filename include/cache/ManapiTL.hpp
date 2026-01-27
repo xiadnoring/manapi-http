@@ -22,8 +22,16 @@ namespace manapi {
         }
 
         void put (const K &key, const V &value, std::chrono::milliseconds duration) {
+            this->iput(K(key), V(value), duration);
+        }
+
+        void put (const K &key, V &&value, std::chrono::milliseconds duration) {
+            this->iput(key, std::forward<V>(value), duration);
+        }
+
+        void iput (const K &key, V &&value, std::chrono::milliseconds duration) {
             this->cleanup();
-            auto id = std::make_pair(std::chrono::steady_clock::now() + duration, value);
+            auto id = std::make_pair(std::chrono::steady_clock::now() + duration, std::forward<decltype(value)>(value));
             auto it = this->m_data.insert({key, id});
             if (!it.second) {
                 this->m_sorted.erase(std::make_pair(it.first->second.first, it.first->first));

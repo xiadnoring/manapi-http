@@ -36,9 +36,17 @@ namespace manapi {
         }
 
         void put (const K &key, const V &value, std::size_t weight) {
+            iput(key, V(value), weight);
+        }
+
+        void put (const K &key, V &&value, std::size_t weight) {
+            iput(key, std::forward<V>(value), weight);
+        }
+
+        void iput (const K &key, V &&value, std::size_t weight) {
             auto it = this->m_items.find(key);
             if (it == this->m_items.end()) {
-                this->m_list.push_front(key_value_pair_t (key, value));
+                this->m_list.push_front(key_value_pair_t (key, std::forward<V>(value)));
                 try {
                     item_t item (this->m_list.begin(), weight);
                     this->m_items.insert({key, std::move(item)});
@@ -49,7 +57,7 @@ namespace manapi {
                 }
             }
             else {
-                it->second.item->second = value; // malloc can be only here
+                it->second.item->second = std::forward<V>(value); // malloc can be only here
 
                 std::unique_ptr<chain_item<key_value_pair_t>> un;
                 this->m_used -= it->second.weight;

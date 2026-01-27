@@ -10,7 +10,7 @@ namespace manapi {
         bool own;
 
     public:
-        explicit scope_ptr(T* p = nullptr, bool ownership = true)
+        scope_ptr(T* p = nullptr, bool ownership = true)
             : ptr(p), own(ownership) {}
 
         ~scope_ptr() {
@@ -31,13 +31,14 @@ namespace manapi {
 
         scope_ptr& operator=(scope_ptr&& other) MANAPIHTTP_NOEXCEPT {
             if (this != &other) {
-                if (this->own) {
-                    delete this->ptr;
-                }
-                this->ptr = other.ptr;
-                this->own = other.own;
+                auto ptrn = other.ptr;
+                auto ownn = other.own;
                 other.ptr = nullptr;
                 other.own = false;
+                if (this->own)
+                    delete this->ptr;
+                this->ptr = ptrn;
+                this->own = ownn;
             }
             return *this;
         }
