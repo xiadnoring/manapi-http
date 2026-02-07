@@ -938,7 +938,7 @@ manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::h
 
 
                 http_static_handler_function func_static_hdl{};
-                func_static_hdl.folder = std::move(folder);
+                func_static_hdl.folder = manapi::filesystem::path::serialize(folder);
                 auto res = cur->statics->insert({std::move(method), std::move(func_static_hdl)});
 
                 if (res.second) {
