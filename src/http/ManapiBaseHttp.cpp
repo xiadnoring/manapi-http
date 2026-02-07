@@ -1071,6 +1071,12 @@ namespace manapi::net::http::internal {
 
                     path = manapi::filesystem::path::join(cdata->router->statics->folder, path);
 
+                    if (!path.starts_with(cdata->router->statics->folder)) {
+                        cdata->router = std::move(cdata->router->error);
+                        send_error_response(std::move(cdata), http::NOT_FOUND_404);
+                        return;
+                    }
+
                     manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
                         -> manapi::future<> {
                         bool exists = true;
