@@ -48,7 +48,7 @@ UTEST(slice, slice_pop) {
             if (i != c.size() - 1)
                 s.append(c[i]);
         }
-        b.resize(b.size() - c[2].size());
+        b.resize(b.size() - c[2].size()).unwrap();
         ASSERT_TRUE(!b.cmp(s.data(), s.size()));
     }
     manapi::async::run(ctx->stop());

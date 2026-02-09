@@ -601,6 +601,7 @@ manapi::status manapi::slice_base::rshift_add_(std::size_t s) MANAPIHTTP_NOEXCEP
 
         if (this->count) {
             this->last = parts[this->count - 1];
+            this->last->next = nullptr;
         }
         else {
             assert(this->shift_ == 0);
@@ -800,7 +801,8 @@ manapi::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEPT {
         return status_ok();
 
     if (size < cur) {
-        assert(this->rshift_add_(cur - size).ok());
+        auto res = this->rshift_add_(cur - size).ok();
+        assert(res);
     }
     else {
         size -= cur;
