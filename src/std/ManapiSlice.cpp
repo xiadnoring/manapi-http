@@ -494,6 +494,8 @@ int manapi::slice_base::cmp(const manapi::slice_base &n) const MANAPIHTTP_NOEXCE
         }
     }
 
+    size = n.size();
+
     if (this->size() == size)
         return 0;
 
@@ -503,6 +505,7 @@ int manapi::slice_base::cmp(const manapi::slice_base &n) const MANAPIHTTP_NOEXCE
 int manapi::slice_base::cmp(void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT {
     int rhs;
     size_t ss;
+
     for (auto it = this->begin(); it != this->end(); it++) {
         ss = std::min<std::size_t>(it.size(), size);
         rhs = memcmp (static_cast<const char *>(it.buffer()), static_cast<const char *>(data), ss);

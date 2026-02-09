@@ -1,10 +1,19 @@
-#include "std/ManapiSlice.hpp"
 #include <vector>
+
+#include "ManapiInitTools.hpp"
+#include "ManapiProcess.hpp"
+#include "ManapiFetch2.hpp"
+#include "ManapiString.hpp"
+#include "ManapiHttp.hpp"
+#include "json/ManapiJson.hpp"
+#include "std/ManapiEasyCancellation.hpp"
+
+#include "ManapiMath.hpp"
+#include "crypto/ManapiAES.hpp"
+#include "std/ManapiSlice.hpp"
 
 #include "./utest.h"
 #include "./tools.hpp"
-#include "ManapiMath.hpp"
-#include "crypto/ManapiAES.hpp"
 
 static int rcmp (int a) {
     if (a == 0) return 0;
