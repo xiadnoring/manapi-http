@@ -43,6 +43,8 @@ namespace manapi {
          */
         void *buffer ();
 
+        std::string_view operator *();
+
         /**
          * get the storage buffer size
          * @return the storage buffer size
@@ -56,6 +58,7 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_last () const;
     private:
         slice_part_t *part;
+
         slice_base *base_;
     };
 
@@ -73,6 +76,8 @@ namespace manapi {
         slice_const_iterator &operator++();
 
         slice_const_iterator &operator++(int);
+
+        std::string_view operator *();
 
         bool operator==(const slice_const_iterator &n) const;
 

@@ -98,6 +98,9 @@ int main() {
             co_return resp.file("../test.html").unwrap();
         }).unwrap();
 
+
+        route.GET ("/", "../utils").unwrap();
+
         route.POST ("/", [db] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
             std::string name;
             manapi::unwrap(co_await req.form([&name] (std::string key) {

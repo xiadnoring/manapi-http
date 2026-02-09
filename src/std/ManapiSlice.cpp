@@ -85,6 +85,10 @@ manapi::slice_iterator & manapi::slice_iterator::operator++(int) {
     return *this;
 }
 
+std::string_view manapi::slice_iterator::operator*() {
+    return std::string_view (static_cast<const char *> (this->buffer()), this->size ());
+}
+
 bool manapi::slice_iterator::operator==(const slice_iterator &n) const {
     return this->part == n.part;
 }
@@ -119,6 +123,10 @@ manapi::slice_const_iterator::slice_const_iterator(const slice_const_iterator &n
 manapi::slice_const_iterator & manapi::slice_const_iterator::operator=(const slice_const_iterator &n) = default;
 
 manapi::slice_const_iterator::~slice_const_iterator() = default;
+
+std::string_view manapi::slice_const_iterator::operator*() {
+    return std::string_view (static_cast<const char *> (this->buffer()), this->size ());
+}
 
 manapi::slice_const_iterator & manapi::slice_const_iterator::operator++() {
     this->part = this->part->next;
@@ -430,8 +438,6 @@ manapi::slice_const_iterator manapi::slice_base::end() const {
 
 int manapi::slice_base::cmp(const manapi::slice_base &n) const MANAPIHTTP_NOEXCEPT {
     auto size = n.size();
-    if (this->size() != size)
-        return this->size() > size ? -1 : 1;
 
     auto buffptr1 = this->first;
     auto buffptr2 = n.first;
@@ -439,81 +445,79 @@ int manapi::slice_base::cmp(const manapi::slice_base &n) const MANAPIHTTP_NOEXCE
     std::size_t cursor1 = this->shift();
     std::size_t cursor2 = n.shift();
 
-    std::size_t size1 = buffptr1->buff.len;
-    std::size_t size2 = buffptr2->buff.len;
+    if (buffptr1 && buffptr2) {
+        std::size_t size1 = buffptr1->buff.len;
+        std::size_t size2 = buffptr2->buff.len;
 
-    if (!buffptr1->next)
-        size1 -= this->rshift_;
+        if (!buffptr1->next)
+            size1 -= this->rshift_;
 
-    if (!buffptr2->next)
-        size2 -= n.rshift_;
+        if (!buffptr2->next)
+            size2 -= n.rshift_;
 
-    while (size) {
-        assert(buffptr1 && buffptr2);
+        while (size && buffptr1 && buffptr2) {
+            auto cmp_size = std::min<std::size_t>(size1 - cursor1,
+                size2 - cursor2);
 
-        auto const cmp_size = std::min<std::size_t>(size1 - cursor1,
-            size2 - cursor2);
+            if (cmp_size > size)
+                cmp_size = size;
 
-        if (auto const rhs = strncmp(buffptr1->buff.base + cursor1, buffptr2->buff.base + cursor2, cmp_size))
-            return rhs > 0 ? 1 : -1;
+            if (auto const rhs = memcmp(buffptr1->buff.base + cursor1, buffptr2->buff.base + cursor2, cmp_size))
+                return rhs > 0 ? 1 : -1;
 
-        cursor1 += cmp_size;
-        cursor2 += cmp_size;
+            cursor1 += cmp_size;
+            cursor2 += cmp_size;
 
-        if (cursor1 == buffptr1->buff.len) {
-            buffptr1 = buffptr1->next;
-            cursor1 = 0;
+            if (cursor1 == buffptr1->buff.len) {
+                buffptr1 = buffptr1->next;
+                cursor1 = 0;
 
-            if (buffptr1) {
-                size1 = buffptr1->buff.len;
-                if (!buffptr1->next)
-                    size1 -= this->rshift_;
+                if (buffptr1) {
+                    size1 = buffptr1->buff.len;
+                    if (!buffptr1->next)
+                        size1 -= this->rshift_;
+                }
             }
-        }
 
-        if (cursor2 == buffptr2->buff.len) {
-            buffptr2 = buffptr2->next;
-            cursor2 = 0;
+            if (cursor2 == buffptr2->buff.len) {
+                buffptr2 = buffptr2->next;
+                cursor2 = 0;
 
-            if (buffptr2) {
-                size2 = buffptr2->buff.len;
-                if (!buffptr2->next)
-                    size2 -= n.rshift_;
+                if (buffptr2) {
+                    size2 = buffptr2->buff.len;
+                    if (!buffptr2->next)
+                        size2 -= n.rshift_;
+                }
             }
+
+            size -= cmp_size;
         }
+    }
 
-        assert(size >= cmp_size);
-        size -= cmp_size;
-    };
+    if (this->size() == size)
+        return 0;
 
-
-    return 0;
+    return this->size() > size ? 1 : -1;
 }
 
 int manapi::slice_base::cmp(void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT {
-    auto const s = this->size ();
-    if (s == size) {
-        if (!s)
-            return 0;
-        int rhs;
-        size_t ss;
-        for (auto it = this->begin(); it != this->end(); it++) {
-            assert(size);
-            ss = std::min<std::size_t>(it.size(), size);
-            rhs = memcmp (it.buffer(), data, ss);
-            if (rhs)
-                return rhs;
-            size -= ss;
-            data = static_cast<char*>(data) + ss;
-        }
-    }
-    else {
-        if (s > size)
-            return -1;
-        return 1;
+    int rhs;
+    size_t ss;
+    for (auto it = this->begin(); it != this->end(); it++) {
+        ss = std::min<std::size_t>(it.size(), size);
+        rhs = memcmp (static_cast<const char *>(it.buffer()), static_cast<const char *>(data), ss);
+        if (rhs)
+            return rhs;
+        size -= ss;
+        data = static_cast<char*>(data) + ss;
+        if (it.size() != ss)
+            return 1;
     }
 
-    return 0;
+    if (!size)
+        return 0;
+
+    return -1;
 }
 
 void manapi::slice_base::slices_buffs(ev::buff_t *buffs) const {
