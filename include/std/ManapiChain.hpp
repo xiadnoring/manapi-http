@@ -225,17 +225,15 @@ namespace manapi {
             if (!prev) {
                 m = std::move(this->src_);
                 this->src_ = std::move(next);
+                this->src_->prev = nullptr;
             }
             else {
                 m = std::move(prev->next);
                 prev->next = std::move(next);
-            }
-
-            if (!next) {
-                this->last_ = prev;
-            }
-            else {
-                next->prev = prev;
+                if (prev->next)
+                    prev->next->prev = prev;
+                else
+                    this->last_ = prev;
             }
 
             --this->s_;
