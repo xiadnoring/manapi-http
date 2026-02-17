@@ -237,6 +237,8 @@ namespace manapi {
             }
 
             --this->s_;
+            m->prev = nullptr;
+            m->next = nullptr;
             return std::move(m);
         }
 
