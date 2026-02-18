@@ -72,7 +72,7 @@ manapi::future<manapi::status> manapi::net::http::server::start() {
             co_return status_already_exists("already running");
         }
 
-        data2->event_id = async::current()->eventloop()->subscribe_finish(std::numeric_limits<int>::min(), [data2] ()
+        data2->event_id = async::current()->eventloop()->subscribe_finish(-1, [data2] ()
             -> future<> {
             auto res = co_await stop_(data2, true);
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());

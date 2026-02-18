@@ -1687,7 +1687,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
 
         try {
             this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish(
-                    std::numeric_limits<int>::min(),
+                    -1,
                 [data = this->data_] () -> manapi::future<> {
                 co_await data->ctx.storage().unsubscribe(std::move(data->worker));
                 co_await server::stop_(data);
