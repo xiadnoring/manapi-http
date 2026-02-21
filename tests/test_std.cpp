@@ -1,6 +1,7 @@
 #include "ManapiString.hpp"
 #include "std/ManapiChain.hpp"
 #include "ManapiMath.hpp"
+#include "ManapiErrors.hpp"
 
 #include <deque>
 
@@ -132,6 +133,15 @@ UTEST(std_string, chain_4) {
         a.erase(its[p]);
         values.erase(values.begin() + p);
         its.erase(its.begin() + p);
+    }
+}
+
+UTEST(std_exception, exception_fmt) {
+    try {
+        throw manapi::exception (manapi::ERR_INTERNAL, "YOU ARE %s", "LUCKY");
+    }
+    catch (manapi::exception const &e) {
+        ASSERT_TRUE(std::string_view{e.what()} == "YOU ARE LUCKY");
     }
 }
 

@@ -109,7 +109,7 @@ namespace manapi {
 
         void fdebug (const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
 
-        void ferror (const char *fmt, int error_code, ...) MANAPIHTTP_NOEXCEPT;
+        void ferror (int error_code, const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
 
         void fwarning (const char *fmt, ...) MANAPIHTTP_NOEXCEPT;
     private:

@@ -206,6 +206,32 @@ manapi::exception::exception(manapi::err_num errnum, std::string_view message) {
     this->m_data.msg_view(message);
 }
 
+manapi::exception::exception(manapi::err_num errnum, std::string_view fmt, ...) {
+    std::string message;
+
+    va_list args;
+    va_start(args, fmt);
+
+    try {
+        va_list args_copy;
+        va_copy(args_copy, args);
+        std::size_t size = vsnprintf(nullptr, 0, fmt.data(), args_copy);
+        va_end(args_copy);
+
+        message.resize(size);
+        vsnprintf(message.data(), message.size() + 1, fmt.data(), args);
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "exception failed due to %s",
+            e.what());
+    }
+
+    va_end(args);
+
+    this->m_data.errnum(errnum);
+    this->m_data.msg(std::move(message));
+}
+
 manapi::exception::exception(manapi::err_num errnum, const char *message) {
     this->m_data.errnum(errnum);
     this->m_data.msg_view(message);

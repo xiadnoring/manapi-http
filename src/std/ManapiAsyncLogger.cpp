@@ -134,7 +134,7 @@ void manapi::logger::fdebug(const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
 
 }
 
-void manapi::logger::ferror(const char *fmt, int error_code, ...) MANAPIHTTP_NOEXCEPT {
+void manapi::logger::ferror(int error_code, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
     fcallback (logger_type::LOGGER_ERROR, this->m_service, error_code, fmt, args);

@@ -209,6 +209,14 @@ namespace manapi {
         /**
          * initialize exception
          * @param errnum error code
+         * @param fmt error message. must contains a zero end
+         * @param ... arguments
+         */
+        explicit exception (manapi::err_num errnum, std::string_view fmt, ...);
+
+        /**
+         * initialize exception
+         * @param errnum error code
          * @param message error message
          */
         explicit exception (manapi::err_num errnum, const char *message);
