@@ -171,7 +171,7 @@ finish:
 }
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::ctoken cancellation) {
-    auto status = manapi::filesystem::fstream::create (std::move(file), std::move(cancellation));
+    auto status = manapi::fs::fstream::create (std::move(file), std::move(cancellation));
 
     if (!status)
         return nullptr;
@@ -718,7 +718,7 @@ manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send
 
 manapi::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT {
     try {
-        auto filename = manapi::filesystem::path::basename(filepath);
+        auto filename = manapi::fs::path::basename(filepath);
         auto filemime = manapi::mime::mime_by_file_path(filename);
 
         auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
@@ -770,7 +770,7 @@ manapi::future<manapi::status_or<ssize_t>> manapi::net::formdata_send::payload_s
     for (const auto &param : this->data) {
         switch (param.second.type) {
             case DATA_FILE: {
-                auto res = co_await manapi::filesystem::async_file_size(param.second.data);
+                auto res = co_await manapi::fs::async_file_size(param.second.data);
                 if (!res.ok())
                     co_return res.err();
                 s += res.unwrap();
@@ -927,7 +927,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             if (!status)
                 goto err;
 
-            auto fstatus = manapi::filesystem::fstream::create (param.second.data);
+            auto fstatus = manapi::fs::fstream::create (param.second.data);
             if (!fstatus)
                 co_return fstatus.err();
             auto f = fstatus.unwrap();
@@ -971,7 +971,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
                 status = manapi::status_internal("data2multipart:Failed");
             }
 
-            co_await f.close();
+            f.close();
 
             param.second.data = {};
 

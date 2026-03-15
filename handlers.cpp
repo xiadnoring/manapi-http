@@ -52,7 +52,7 @@
 //     });
 //
 //     router.GET("/", [&folder] (http::req &req, http::resp &resp) -> manapi::future<> {
-//         co_return resp.file(manapi::filesystem::path::join(folder, "index.html")).unwrap();
+//         co_return resp.file(manapi::fs::path::join(folder, "index.html")).unwrap();
 //     });
 //
 //
@@ -141,7 +141,7 @@
 //
 //         std::size_t sss = 0;
 //         co_return resp.callback_stream([&sss, &resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-//             auto fs = manapi::filesystem::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4").unwrap();
+//             auto fs = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4").unwrap();
 //             auto rhs = co_await fs.open(manapi::ev::FS_O_RDONLY);
 //             rhs.unwrap();
 //             (co_await req.callback_async([&sss, cb = std::move(cb), fs] (manapi::slice_view buffs, bool fin) mutable
@@ -291,7 +291,7 @@
 //             auto cancellation = manapi::ctoken::unit(req.cancellation());
 //             cancellation.timeout(5000);
 //             cancellation.ask_cancel_callback();
-//             auto file = manapi::filesystem::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
+//             auto file = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
 //                 cancellation).unwrap();
 //             co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
 //             if (!file.is_open()) {

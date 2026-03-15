@@ -10,7 +10,7 @@
 #   include "malloc.h"
 #endif
 
-// static(soon) | 32 64 128 | 256 512 1024 | 2048 4100 8192 | 16384 32768 | 65536
+// static(soon) | 32 64 128 | 256 512 1024 | 2048 4096 8192 | 16384 32768 | 65536
 
 // thread_local std::set<void *> pointers;
 
@@ -21,13 +21,14 @@ enum buffer_level {
     BUFF_LEVEL_36,
     BUFF_LEVEL_64,
     BUFF_LEVEL_256,
-    BUFF_LEVEL_4100,
+    BUFF_LEVEL_4096,
+    BUFF_LEVEL_8192,
     BUFF_LEVEL_16384,
     BUFF_LEVEL_65536,
     BUFF_LEVEL_MAX
 };
 
-constexpr int area_size = 4100;
+constexpr int area_size = 4096;
 
 struct manapi::internal::object_pool_data_t {
     manapi::chain<std::pair<void*, int>> buffers[BUFF_LEVEL_MAX + 1];
@@ -49,8 +50,11 @@ int bufflen2level (int len) {
     if (len <= 256) {
         return BUFF_LEVEL_256;
     }
-    if (len <= 4100) {
-        return BUFF_LEVEL_4100;
+    if (len <= 4096) {
+        return BUFF_LEVEL_4096;
+    }
+    if (len <= 8192) {
+        return BUFF_LEVEL_8192;
     }
     if (len <= 16384) {
         return BUFF_LEVEL_16384;
@@ -68,7 +72,8 @@ int level2bufflen (int lvl) {
         case BUFF_LEVEL_36: return 36;
         case BUFF_LEVEL_64: return 64;
         case BUFF_LEVEL_256: return 256;
-        case BUFF_LEVEL_4100: return 4100;
+        case BUFF_LEVEL_4096: return 4096;
+        case BUFF_LEVEL_8192: return 8192;
         case BUFF_LEVEL_16384: return 16384;
         case BUFF_LEVEL_65536: return 65536;
     }

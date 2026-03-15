@@ -250,12 +250,12 @@ namespace manapi::net::http {
          * If the size of connections reaches the limit, the server sends an error page
          * If the size of connections reaches the double limit, the server doesn't accept new connections
          */
-        size_t max_connections;
+        int max_connections;
 
         /**
          * It's the same as 'max_connections'
          */
-        size_t max_connections_by_ip;
+        int max_connections_by_ip;
 
         /**
          * Tcp backlog option
@@ -270,7 +270,12 @@ namespace manapi::net::http {
         /**
          * max count of reset streams when connected
          */
-        ssize_t max_rst_cnt;
+        int max_rst_cnt;
+
+        /**
+         * time limit for shutdown actions
+         */
+        int max_shutdown_time;
 
         /**
          * Sets the speed check delay interval
@@ -279,15 +284,15 @@ namespace manapi::net::http {
         /**
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
-        ssize_t speed_check_bytes;
+        int speed_check_bytes;
         /**
          * Sets the speed check delay interval
          */
-        ssize_t speed_stream_check_delay;
+        int speed_stream_check_delay;
         /**
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
-        ssize_t speed_stream_check_bytes;
+        int speed_stream_check_bytes;
 
         /**
          * Sets the maximum limit rate every second

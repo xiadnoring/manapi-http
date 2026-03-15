@@ -51,7 +51,7 @@ namespace manapi::net::http {
 
         future<manapi::status> callback_async (onrecv_async_cb callback);
 
-        future<manapi::status> file (std::string filepath);
+        future<manapi::status> file (std::string filepath, int flags = 0644);
 
         ssize_t left ();
 
@@ -63,7 +63,7 @@ namespace manapi::net::http {
 
         manapi::json_error::status contains_get_param (std::string_view key);
 
-        void max_plain_body_size (size_t size);
+        manapi::status available_body_size (ssize_t size);
 
         bool contains_header (std::string_view name);
 
@@ -83,27 +83,26 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD const std::vector<std::string> &path () const;
     private:
-        static future<manapi::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
+        // static future<manapi::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
+        //
+        // static future<manapi::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
 
-        static future<manapi::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
+        std::unique_ptr<std::map<std::string, std::string, std::less<>>> m_get_params;
 
-        std::unique_ptr<std::map<std::string, std::string, std::less<>>> get_params_;
-
-        manapi::json_error::status prepare_get_params_(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
+        // manapi::json_error::status prepare_get_params_(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
 
         // peer ip
-        std::unique_ptr<http::manapi_socket_information> ip_data_;
+        std::unique_ptr<http::manapi_socket_information> m_ip_data;
 
         // body, headers, url and etc
-        http::request_data_t *request_data;
+        http::request_data_t *m_request_data;
 
-        manapi::net::worker::shared_conn * conn_;
+        manapi::net::worker::shared_conn * m_conn;
 
         // server
-        worker::shared_worker worker_;
+        worker::shared_worker m_worker;
 
-        // if peer sent larger by size then max_plain_body_size -> error
-        std::size_t max_plain_body_size_;
-        int flags;
+        // m_flags
+        int m_flags;
     };
 }

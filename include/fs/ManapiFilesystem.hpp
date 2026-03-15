@@ -8,7 +8,7 @@
 #include "../ManapiAsync.hpp"
 #include "../std/ManapiCancellation.hpp"
 
-namespace manapi::filesystem {
+namespace manapi::fs {
     manapi::future<ev::status_or<bool>> async_exists (std::string path, manapi::ctoken cancellation = nullptr);
 
     manapi::future<ev::status_or<std::chrono::system_clock::time_point>> async_last_time_write (std::string path, manapi::ctoken cancellation = nullptr);
@@ -129,7 +129,7 @@ namespace manapi::filesystem {
 }
 
 
-namespace manapi::filesystem::path {
+namespace manapi::fs::path {
     static constexpr char delimiter = std::filesystem::path::preferred_separator;
 
     static constexpr std::string_view string_delimiter (&delimiter, 1);

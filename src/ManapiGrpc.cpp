@@ -1435,7 +1435,7 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNS
 
 manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
     try {
-        auto res = co_await manapi::filesystem::async_read(certfile);
+        auto res = co_await manapi::fs::async_read(certfile);
         if (!res.ok())
             co_return res.err();
         grpc::SslCredentialsOptions ssl_opts;
@@ -1554,10 +1554,10 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
         bool update = false;
 
         if (!n.contains("grpc")) {
-            auto res_exists = co_await manapi::filesystem::async_exists(path);
+            auto res_exists = co_await manapi::fs::async_exists(path);
             if (!res_exists.ok() || !res_exists.unwrap())
-                co_await manapi::filesystem::async_write(path, "{}", ev::IRUSR|ev::IWUSR|ev::IXUSR|ev::IRGRP|ev::IWGRP);
-            auto res_text = co_await manapi::filesystem::async_read(path);
+                co_await manapi::fs::async_write(path, "{}", ev::IRUSR|ev::IWUSR|ev::IXUSR|ev::IRGRP|ev::IWGRP);
+            auto res_text = co_await manapi::fs::async_read(path);
             if (res_text.ok()) {
                 auto text = res_text.unwrap();
                 res = this->setup_config_(manapi::json::parse(text).unwrap(), n);
@@ -1660,11 +1660,11 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
 
             try {
                 grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
-                auto read_res = co_await manapi::filesystem::async_read(cert);
+                auto read_res = co_await manapi::fs::async_read(cert);
                 if (!read_res.ok())
                     co_return read_res.err();
                 pkcp.cert_chain = read_res.unwrap();
-                read_res = co_await manapi::filesystem::async_read(key);
+                read_res = co_await manapi::fs::async_read(key);
                 if (!read_res.ok())
                     co_return read_res.err();
                 pkcp.private_key = read_res.unwrap();

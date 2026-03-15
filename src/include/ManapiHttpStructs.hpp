@@ -22,6 +22,6 @@ namespace manapi::net::http::internal {
     };
 
     enum request_data_flags {
-        REQ_DATA_FLAG_HAS_BODY = 1
+        REQ_DATA_FLAG_BODY_LIMITED = 1<<0
     };
 }

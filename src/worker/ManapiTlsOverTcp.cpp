@@ -16,6 +16,7 @@
 #include "ManapiInitTools.hpp"
 #include "std/ManapiAsyncSocket.hpp"
 #include "worker/ManapiTlsOverTcp.hpp"
+
 #include "worker/ManapiBaseUtils.hpp"
 #include "../include/ManapiUtils.hpp"
 
@@ -63,7 +64,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:close_connection() %p flags=%d", conn.get(), flags);
 
     if ((connection->flags & CONN_TLS_SHUTDOWN)) {
-        if ((flags & (CLOSE_CONN_EOS|CLOSE_CONN_EOR)))
+        if ((flags & (CLOSE_CONN_EOS)) || ((flags & CLOSE_CONN_EOR)))
             goto eof;
 
         return;
@@ -73,6 +74,16 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     if (flags & CLOSE_CONN_EOR || flags & CLOSE_CONN_EOS) {
         conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
     }
+    else if (connection->flags & CONN_WANT_CLOSE) {
+        if (connection->ev_callback &&
+            !(manapi::net::worker::TLS::call_user_callback(&connection->ev_callback, conn, CONN_WANT_CLOSE, nullptr, 0, nullptr))) {
+            if (connection->flags & CONN_WANT_CLOSE)
+                return;
+        }
+    }
+
+    if (connection->flags & CONN_WANT_CLOSE)
+        connection->flags ^= CONN_WANT_CLOSE;
 
     if ((flags & CLOSE_CONN_EOR)) {
         connection->flags |= CONN_RECV_END;
@@ -85,10 +96,10 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     }
 
     this->waiting(conn, true);
-    connection->flags |= CONN_TLS_SHUTDOWN;
 
     keep_alive_disabled = (!this->config_->keep_alive || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE));
-    if (!this->config_->force_conn_shutdown && ((flags & (CLOSE_CONN_SHUTDOWN|CLOSE_CONN_ERR)) || (!flags && keep_alive_disabled))) {
+    if (!this->config_->force_conn_shutdown && ((flags & (CLOSE_CONN_SHUTDOWN|CLOSE_CONN_ERR|CLOSE_CONN_EOR)) || (!flags && keep_alive_disabled))) {
+        connection->flags |= CONN_TLS_SHUTDOWN;
 
         if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
             conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
@@ -104,11 +115,16 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
 
         this->shutdown_async_(conn);
 
+
         return;
     }
 
     eof:
     if (flags & (CLOSE_CONN_EOR|CLOSE_CONN_EOS)) {
+        connection->flags |= CONN_TLS_SHUTDOWN;
+
+        this->shutdown_async_(conn);
+
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TLS:conn %p was destroyed "
                 "CLOSE_CONN_EOR=%d CLOSE_CONN_EOS=%d", conn.get(),
             CLOSE_CONN_EOR & flags, CLOSE_CONN_EOS & flags);
@@ -126,8 +142,8 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
 
     TCP::close_connection(conn, flags);
 
-    if ((CONN_TLS_SHUTDOWN & connection->flags) && !(connection->flags & CONN_REMOVED))
-        connection->flags ^= CONN_TLS_SHUTDOWN;
+    if (connection->flags & CONN_REMOVED)
+        connection->flags |= CONN_TLS_SHUTDOWN;
 }
 
 ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
@@ -250,24 +266,30 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, ev::buff_t
 int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<tls_connection_t>();
     MANAPIHTTP_WORKER_EVENT_LOOP(data) {
-        if (status & ev::READ) {
-            if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
-                this->global_.flush_custom_read_cb(conn, &this->global_, this);
+        if (status & ev::DISCONNECT) {
+            if (data->ev_callback)
+                manapi::net::worker::TLS::call_user_callback(&data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr);
+        }
+        else {
+            if (status & ev::READ) {
+                if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
+                    this->global_.flush_custom_read_cb(conn, &this->global_, this);
 
-            this->flush_read_ (conn, data);
+                this->flush_read_ (conn, data);
 
-            if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
-                this->read_start_(conn, data);
+                if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
+                    this->read_start_(conn, data);
+                }
             }
-        }
 
-        if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0) {
-            this->read_stop_(conn, data);
-        }
+            if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0) {
+                this->read_stop_(conn, data);
+            }
 
-        if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-            if(this->call_user_callback(&data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
-                this->close_connection(conn, CLOSE_CONN_ERR);
+            if ((status & CONN_RECV_END) && (status & CONN_READ)) {
+                if(this->call_user_callback(&data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
+                    this->close_connection(conn, CLOSE_CONN_ERR);
+            }
         }
 
         MANAPIHTTP_WORKER_EVENT_BREAK(data)
@@ -298,12 +320,19 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
                 && (data->transfered_k < this->config_->speed_check_bytes)) {
-                this->close_connection(sconn, CLOSE_CONN_EOS);
-                return;
+                if (data->flags & CONN_WAS_SHUTDOWN) {
+                    data->speed_min_delay = this->config_->speed_check_delay;
+                    this->close_connection(sconn, CLOSE_CONN_EOS);
+                }
+                else {
+                    data->speed_min_delay = this->config_->max_shutdown_time;
+                    this->close_connection(sconn, CLOSE_CONN_SHUTDOWN);
+                    data->flags |= CONN_WAS_SHUTDOWN;
+                }
             }
-
+            else
+                data->speed_min_delay = this->config_->speed_check_delay;
             data->transfered_k = 0;
-            data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
         }
 
         data->transfered = 0;
@@ -317,6 +346,9 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     auto uptr = std::unique_ptr<worker::connection> (ptr);
     auto connection = std::unique_ptr<tls_connection_t> (uptr->as<tls_connection_t>());
     auto w = (dynamic_cast<TLS*>(connection->worker));
+
+    if (connection->accept_timer)
+        connection->accept_timer.stop();
 
     if (connection->watcher) {
         if (connection->watcher->is_active()) {
@@ -808,8 +840,9 @@ int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, tls_
             if (this->flush_write_(conn, true))
                 return CONN_IO_ERROR;
         }
-        else
+        else {
             return CONN_IO_ERROR;
+        }
     }
 
     if (ssl_is_init_fininshed_ (data->ssl)) {

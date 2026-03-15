@@ -45,7 +45,7 @@ namespace manapi::net::worker {
      * @param s
      * @return ERR_OK on success, otherwise it returns ERR_ABORTED
      */
-    int http_v3_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s) MANAPIHTTP_NOEXCEPT;
+    int http_v3_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s, bool force) MANAPIHTTP_NOEXCEPT;
 
     /**
      * HTTP/3 for workers, which supports a multistream

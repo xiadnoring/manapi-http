@@ -55,7 +55,7 @@ bool manapi::mime::mime_partitial_data(std::string_view mime) {
 }
 
 std::string_view manapi::mime::mime_by_file_path(std::string_view path) {
-    return mime_by_file_extension(manapi::filesystem::path::extension(path));
+    return mime_by_file_extension(manapi::fs::path::extension(path));
 }
 
 std::string_view manapi::mime::mime_by_file_extension(std::string_view ext) {

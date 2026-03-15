@@ -2,8 +2,8 @@
 
 #define MANAPI_AS_STREAM(n__) static_cast<manapi::net::worker::http_v3_stream_base_t *>(n__)
 
-int manapi::net::worker::http_v3_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s) MANAPIHTTP_NOEXCEPT {
-    return prepared::flush_read2_(config, conn, s);
+int manapi::net::worker::http_v3_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s, bool force) MANAPIHTTP_NOEXCEPT {
+    return prepared::flush_read2_(config, conn, s, force);
 }
 
 manapi::net::worker::http_v3::http_v3(worker::base *w, http_v3_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}

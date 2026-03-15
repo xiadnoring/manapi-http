@@ -99,11 +99,13 @@ namespace manapi::ev {
         EV_ASYNC
     };
     enum flags {
-        READ = UV_READABLE,
-        WRITE = UV_WRITABLE,
-        DISCONNECT = UV_DISCONNECT,
-        PRIORITIZED = UV_PRIORITIZED
+        READ = 1<<0,
+        WRITE = 1<<1,
+        DISCONNECT = 1<<2,
+        PRIORITIZED = 1<<3
     };
+    static_assert((int)flags::READ == (int)UV_READABLE && (int)flags::WRITE == (int)UV_WRITABLE
+        && (int)flags::DISCONNECT == (int)UV_DISCONNECT && (int)flags::PRIORITIZED == (int)UV_PRIORITIZED);
     enum fs_o_flags {
         FS_O_APPEND = UV_FS_O_APPEND,
         FS_O_CREAT = UV_FS_O_CREAT,

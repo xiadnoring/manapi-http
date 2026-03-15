@@ -5,29 +5,19 @@
 #include "../ManapiThreadPool.hpp"
 #include "../std/ManapiCancellation.hpp"
 
-namespace manapi::filesystem {
+namespace manapi::fs {
     class fstream {
-        enum fstream_status_flags {
-            FILE_READ = 0b1,
-            FILE_WRITE  = 0b10,
-            FILE_CLOSED = 0b100,
-            FILE_EOF = 0b1000
-        };
-        struct fstream_data_t_ {
-            std::string path;
-            ctoken cancellation;
-            ev::file file;
-            std::atomic<int> status{0};
-            off_t off_;
-        };
-
     public:
+        struct fstream_data_t;
+
         enum seek_flag_t {
             FILE_SEEK_START = 0,
             FILE_SEEK_CURRENT
         };
 
         fstream ();
+
+        operator bool () const MANAPIHTTP_NOEXCEPT;
 
         static manapi::status_or<fstream> create (std::string path, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
@@ -61,7 +51,9 @@ namespace manapi::filesystem {
 
         future<ssize_t> fwrite (manapi::slice_view slice);
 
-        future<> close ();
+        future<ev::status> close_and_wait ();
+
+        void close ();
 
         MANAPIHTTP_NODISCARD ssize_t tellg() const;
 
@@ -71,10 +63,6 @@ namespace manapi::filesystem {
 
         MANAPIHTTP_NODISCARD bool eof () const;
     private:
-        MANAPIHTTP_NODISCARD ssize_t seekg_ (ssize_t pos, seek_flag_t flag = FILE_SEEK_START) const;
-
-        static future<> close_(ev::file fileno);
-
-        std::shared_ptr<fstream_data_t_> data;
+        std::shared_ptr<fstream_data_t> m_data;
     };
 }

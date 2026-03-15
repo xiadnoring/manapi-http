@@ -25,7 +25,8 @@ namespace manapi::net::worker {
         WRK_INTERFACE_IS_STREAM = 16,
         WRK_INTERFACE_IS_READ_STOP = 32,
         WRK_INTERFACE_IS_DRAINING = 64,
-        WRK_INTERFACE_IS_CTRL = 128
+        WRK_INTERFACE_IS_CTRL = 128,
+        WRK_INTERFACE_RESET = 256
     };
 
     enum worker_base_flags {
@@ -195,10 +196,10 @@ namespace manapi::net::worker {
             CONN_TOP_READ       = 128,
             CONN_EVENT_LOCKED   = 256,
             CONN_WANT_CLOSE     = 512,
-            CONN_ST_RESERVED2   = 1024,
+            CONN_WAS_SHUTDOWN   = 1024,
             CONN_MAX_CODE       = 1024,
 
-            CONN_MASK_UPDATE    = CONN_READ | CONN_WRITE | CONN_RECV_END | CONN_SEND_END,
+            CONN_MASK_UPDATE    = CONN_READ | CONN_WRITE | CONN_WANT_CLOSE,
             CONN_MASK_GETTING   = CONN_READ | CONN_WRITE | CONN_CLOSED | CONN_RECV_END | CONN_SEND_END | CONN_WANT_CLOSE
         };
 

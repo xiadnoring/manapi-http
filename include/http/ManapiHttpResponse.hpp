@@ -160,36 +160,36 @@ namespace manapi::net::http {
         // detect the range header
         void detect_ranges () MANAPIHTTP_NOEXCEPT;
 
-        http::config *config_;
+        http::config *m_config;
 
-        uint8_t type_;
+        uint8_t m_type;
 
-        uint16_t status_code_;
+        uint16_t m_status_code;
 
-        uint8_t flags;
+        uint8_t m_flags;
 
-        std::unique_ptr<std::string> compress_;
+        std::unique_ptr<std::string> m_compress;
 
-        std::map<std::string, std::string, std::less<>> headers_;
+        std::map<std::string, std::string, std::less<>> m_headers;
 
-        std::unique_ptr<std::vector <std::pair <ssize_t, ssize_t> > > ranges_;
+        std::unique_ptr<std::vector <std::pair <ssize_t, ssize_t> > > m_ranges;
 
         // custom data for layers
-        std::unique_ptr<custom_data_t, custom_data_deleter_t> custom_data_;
+        std::unique_ptr<custom_data_t, custom_data_deleter_t> m_custom_data;
 
-        std::unique_ptr<std::vector<std::pair<std::string, std::string>>> replacers_;
+        std::unique_ptr<std::vector<std::pair<std::string, std::string>>> m_replacers;
 
-        std::unique_ptr<http::request> req_;
+        std::unique_ptr<http::request> m_req;
 
-        internal::handle_data_t *cdata_;
+        internal::handle_data_t *m_cdata;
 
-        std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> finish_cb;
+        std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> m_finish_cb;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup;
+        std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> m_proxy_setup;
 #endif
 
-        void *data_;
+        void *m_data;
     };
 
     class uresponse {
@@ -212,7 +212,7 @@ namespace manapi::net::http {
 
         void finish () MANAPIHTTP_NOEXCEPT;
     private:
-        response *resp;
+        response *m_resp;
     };
 
 }

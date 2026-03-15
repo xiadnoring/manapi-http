@@ -64,9 +64,9 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
         std::string certkey;
         std::string certpem;
 
-        std::string current = manapi::filesystem::path::current_path();
+        std::string current = manapi::fs::path::current_path();
         while (true) {
-            auto st = co_await manapi::filesystem::async_exists(manapi::filesystem::path::join(current, "examples", "self-signed-ssl"));
+            auto st = co_await manapi::fs::async_exists(manapi::fs::path::join(current, "examples", "self-signed-ssl"));
             if (st.ok()) {
                 if (st.unwrap())
                     break;
@@ -74,14 +74,14 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
             else {
                 st.err().log();
             }
-            current = manapi::filesystem::path::join(current, "..");
-            if (!current.contains(manapi::filesystem::path::delimiter)) {
+            current = manapi::fs::path::join(current, "..");
+            if (!current.contains(manapi::fs::path::delimiter)) {
                 manapi_log_error("!!! failed to find self-signed-ssl !!!");
                 co_await manapi::async::current()->stop();
                 break;
             }
         }
-        current = manapi::filesystem::path::join(current, "examples", "self-signed-ssl");
+        current = manapi::fs::path::join(current, "examples", "self-signed-ssl");
 
         manapi::json config = {
             {"pools", manapi::json::array()}
@@ -97,8 +97,8 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                 {"buffer_size", 4096},
                 {"ssl", {
                     {"verify_peer", false},
-                    {"key", manapi::filesystem::path::join(current, "cert.key")},
-                    {"cert", manapi::filesystem::path::join(current, "cert.crt")},
+                    {"key", manapi::fs::path::join(current, "cert.key")},
+                    {"cert", manapi::fs::path::join(current, "cert.crt")},
                     {"ticket", false},
                     {"enable", true}
                 }},
@@ -123,8 +123,8 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                 {"transport", "tls"},
                 {"ssl", {
                     {"verify_peer", false},
-                    {"key", manapi::filesystem::path::join(current, "cert.key")},
-                    {"cert", manapi::filesystem::path::join(current, "cert.crt")},
+                    {"key", manapi::fs::path::join(current, "cert.key")},
+                    {"cert", manapi::fs::path::join(current, "cert.crt")},
                     {"ticket", false},
                     {"enable", true}
                 }},

@@ -36,6 +36,11 @@ namespace manapi::init_tools {
      * Enable Log Trace
      */
     void log_trace_init (manapi::debug::trace_level lvl);
+
+    /**
+     * Enable Log
+     */
+    void log_name_enable (const char *name, bool enable);
 }
 
 namespace manapi::clear_tools {

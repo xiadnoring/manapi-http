@@ -131,7 +131,7 @@ finish:
 manapi::future<void> manapi::net::http::internal::send_response_file(std::unique_ptr<response> res, response_features_t features) {
     std::string filepath;
     auto reserr = res->file();
-    manapi::status err;
+    manapi::status err = manapi::status_ok();
     if (!reserr)
         co_return;
 
@@ -180,7 +180,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 filepath = std::move(resfile);
             }
 
-            auto status = filesystem::fstream::create (filepath);
+            auto status = fs::fstream::create (filepath);
             if (!status) {
                 cdata->router = std::move(cdata->router->error);
                 uq_handle_data_t uq_cdata (res->connection_data_release());
@@ -212,19 +212,22 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 resfile.empty() ? filepath : resfile);
             std::vector<replace_founded_item> replacers;
 
-            if (mimetype.starts_with("text/")) {
-                auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-                err = res->header(std::string{H_CONTENT_TYPE}, std::move(mimegen));
+            if (!res->headers().contains(H_CONTENT_TYPE)) {
+                if (mimetype.starts_with("text/")) {
+                    auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                    err = res->header(std::string{H_CONTENT_TYPE}, std::move(mimegen));
+                }
+                else {
+                    err = res->header(std::string{H_CONTENT_TYPE}, std::string{mimetype});
+                }
             }
-            else {
-                err = res->header(std::string{H_CONTENT_TYPE}, std::string{mimetype});
-            }
+
             if (!err) {
                 co_return;
             }
 
             // get file size
-            auto stat_res = co_await manapi::filesystem::async_file_size(filepath);
+            auto stat_res = co_await manapi::fs::async_file_size(filepath);
             ssize_t fileSize = stat_res.unwrap();
             ssize_t dynamicFileSize = fileSize;
 
@@ -233,7 +236,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 if (fileSize <= 65536) {
                     auto token = res->req()->cancellation().sub();
                     token.timeout(5000);
-                    auto data = co_await manapi::filesystem::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
+                    auto data = co_await manapi::fs::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
                     res->text(data.unwrap());
                     manapi::async::run(send_response_text(std::move(res), std::move(features)));
                     co_return;
@@ -1058,22 +1061,23 @@ namespace manapi::net::http::internal {
                     size_t path_reserved = 0;
 
                     for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                        path_reserved += 1;
+                        path_reserved += sizeof (manapi::fs::path::delimiter);
                         path_reserved += cdata->req_data->path[i].size();
                     }
 
                     path.reserve(path_reserved);
 
                     for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                        path += manapi::filesystem::path::delimiter;
+                        path += manapi::fs::path::delimiter;
                         path += cdata->req_data->path[i];
                     }
 
-                    path = manapi::filesystem::path::join(cdata->router->statics->folder, path);
+                    path = manapi::fs::path::join(cdata->router->statics->folder, path);
 
-                    if (!path.starts_with(cdata->router->statics->folder)) {
+                    if (!path.starts_with(cdata->router->statics->folder)
+                        || (path.size() != cdata->router->statics->folder.size() && (path[cdata->router->statics->folder.size()] != manapi::fs::path::delimiter))) {
                         cdata->router = std::move(cdata->router->error);
-                        send_error_response(std::move(cdata), http::NOT_FOUND_404);
+                        send_error_response(std::move(cdata), http::BAD_REQUEST_400);
                         return;
                     }
 
@@ -1082,7 +1086,7 @@ namespace manapi::net::http::internal {
                         bool exists = true;
                         uint64_t st_mode = 0;
 
-                        co_await manapi::filesystem::async_stat(path, [&st_mode, &exists] (ev::stat_t *stat)
+                        co_await manapi::fs::async_stat(path, [&st_mode, &exists] (ev::stat_t *stat)
                             -> void {
                             if (stat) {
                                 st_mode = stat->st_mode;
@@ -1094,7 +1098,7 @@ namespace manapi::net::http::internal {
 
                         if (exists) {
                             if (st_mode & (ev::IFREG|ev::IFLNK)) {
-                                const auto ext = manapi::filesystem::path::extension(path);
+                                const auto ext = manapi::fs::path::extension(path);
                                 auto const mime = mime::mime_by_file_extension(ext);
                                 bool const binary = mime::mime_partitial_data(mime);
                                 auto client = std::make_unique<manapi_socket_information>();
@@ -1212,7 +1216,7 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
     handle_income_request_(std::move(cdata), status);
 }
 
-manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, filesystem::fstream f, ssize_t size) {
+manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, fs::fstream f, ssize_t size) {
     ssize_t const block_size = 4096 * 16;
     auto const cdata = res->connection_data();
 
@@ -1337,7 +1341,7 @@ void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
 }
 
 std::string generate_cache_name(const std::string &file, const std::string &ext) {
-    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::filesystem::path::basename(std::forward<const std::string&> (file)),
+    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::fs::path::basename(std::forward<const std::string&> (file)),
         manapi::time::current_time (true), manapi::string::random(25), ext);
 
     return std::move(name);
@@ -1350,7 +1354,7 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::comp
     try {
         std::chrono::time_point<std::chrono::system_clock> filetime;
         {
-            auto ft_res = co_await manapi::filesystem::async_last_time_write(file);
+            auto ft_res = co_await manapi::fs::async_last_time_write(file);
             filetime = ft_res.unwrap();
         }
         // compressor
@@ -1378,9 +1382,9 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::comp
                 }
 
                 try {
-                    auto exists = co_await filesystem::async_exists (folder);
+                    auto exists = co_await fs::async_exists (folder);
                     if (!exists.ok() || !exists.unwrap())
-                        (co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR)).unwrap();
+                        (co_await fs::async_mkdir(folder, ev::IRUSR|ev::IWUSR)).unwrap();
                 }
                 catch (std::exception const &e) {
                     manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());

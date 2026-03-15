@@ -41,7 +41,7 @@ namespace manapi::ev {
 
     typedef std::move_only_function<void(const ev::shared_tcp &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
 
-    typedef std::move_only_function<void(const ev::shared_udp &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
+    typedef std::move_only_function<void(const ev::shared_udp &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned m_flags)> udp_cb;
 
     typedef std::move_only_function<void(const ev::shared_udp_send &, int status)> udp_send_cb;
 
@@ -220,7 +220,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        manapi::ev::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::ev::status_or<std::shared_ptr<ev::getnameinfo>> create_watcher_getnameinfo (const struct sockaddr *addr, int m_flags, ev::getnameinfo_cb callback, manapi::ctoken token = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          *
@@ -322,10 +322,12 @@ namespace manapi {
 
         manapi::ev::status start () MANAPIHTTP_NOEXCEPT;
 
+        void breakit () MANAPIHTTP_NOEXCEPT;
+
         /**
          * Run Event Loop
          * @param mode Run Mode
-         * @return AbortedError when event loop is interrupted or stopped (you must to finish the current context),
+         * @return AbortedError when event loop is m_interrupted or stopped (you must to finish the current context),
          * AlreadExists when event loop already exists,
          * returns Ok in other cases
          */
@@ -348,72 +350,54 @@ namespace manapi {
 #endif
 
         void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
+
+        void timerpool_init (std::shared_ptr<manapi::timerpool> tp);
+
+        void wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT;
     private:
 #if MANAPIHTTP_CURL_DEPENDENCY
-        void wait_all_ (bool shutdown) MANAPIHTTP_NOEXCEPT;
-
-        void timerpool_init_ (std::shared_ptr<manapi::timerpool> tp);
-
         static manapi::ev::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
         static socket_t handle_curl_open_socket (void *cbp, int socktype, void *addr);
 
-        //static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
-
         static int handle_curl_socket (void *curl, socket_t fd, int revents, void *userp, void *);
 
         static int handle_curl_close_socket (void *cbp, socket_t socket);
-
-        void handle_curl_watcher_data(std::unique_ptr<ev::internal::adding_curl_data_t> data);
 #endif
-        future<std::optional<manapi::timer>> template_cmd_timer_ (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
+        static std::atomic<bool> m_interrupted;
 
-        static std::atomic<bool> interrupted;
+        static std::map <size_t, std::shared_ptr<event_loop>> m_events;
 
-        static std::map <size_t, std::shared_ptr<event_loop>> events;
+        static std::mutex m_stop_mx;
 
-        static std::mutex stop_mx;
+        int m_flags;
 
-        manapi::ev::status register_ () MANAPIHTTP_NOEXCEPT;
+        std::shared_ptr<threadpool> m_etaskpool;
 
-        void unregister_ () MANAPIHTTP_NOEXCEPT;
+        std::unique_ptr<uv_loop_t> m_loop;
 
-        manapi::future<> _call_on_finish_cb ();
+        std::shared_ptr<threadpool> m_taskpool;
 
-        void free_on_finish_cb_ ();
+        std::map <size_t, std::pair<int, std::move_only_function<manapi::future<void>()>>> m_map_finish_cb;
 
-        void try_tasks_ (const ev::shared_idle &w);
+        std::map <size_t, std::move_only_function<void()>> m_map_clean_up_cb;
 
-        int flags;
-
-        std::atomic<int> interrupted_;
-
-        std::shared_ptr<threadpool> etaskpool_;
-
-        std::unique_ptr<uv_loop_t> loop_;
-
-        std::shared_ptr<threadpool> taskpool_;
-
-        std::map <size_t, std::pair<int, std::move_only_function<manapi::future<void>()>>> map_finish_cb;
-
-        std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
-
-        std::shared_ptr<ev::async> interrupted_watcher_;
+        std::shared_ptr<ev::async> m_interrupted_watcher;
 
 #if MANAPIHTTP_CURL_DEPENDENCY
-        std::unique_ptr<ev::internal::curl_watcher_t> curl_watcher;
+        std::unique_ptr<ev::internal::curl_watcher_t> m_curl_watcher;
 #endif
 
-        std::unique_ptr<ev::internal::custom_callback_t> callback_watcher_{};
+        std::unique_ptr<ev::internal::custom_callback_t> m_callback_watcher{};
 
-        std::shared_ptr<ev::idle> idle_tasks_;
+        std::shared_ptr<ev::idle> m_idle_tasks;
 
-        std::shared_ptr<ev::prepare> prepare_tasks_;
+        std::shared_ptr<ev::prepare> m_prepare_tasks;
 
-        std::shared_ptr<manapi::logger> logger_;
+        std::shared_ptr<manapi::logger> m_logger;
 
-        std::move_only_function<void()> custom_event_loop_;
+        std::move_only_function<void()> m_custom_event_loop;
 
-        std::size_t deps_;
+        std::size_t m_deps;
     };
 }

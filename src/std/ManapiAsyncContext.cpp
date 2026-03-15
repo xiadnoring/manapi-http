@@ -178,20 +178,20 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
                     async::cthread::current(thr);
 
                     callback([thr] () -> void {
-                        thr->eventloop()->etaskpool_->start();
+                        thr->eventloop()->m_etaskpool->start();
                         thr->start().unwrap();
 
                         thr->timerpool()->stop();
 
                         manapi::clear_tools::grpc_clear();
 
-                        thr->eventloop()->wait_all_(false);
+                        thr->eventloop()->wait_all(false);
                     });
 
-                    thr->eventloop()->wait_all_(true);
+                    thr->eventloop()->wait_all(true);
 
-                    thr->eventloop()->etaskpool_->stop();
-                    thr->eventloop()->etaskpool_->join();
+                    thr->eventloop()->m_etaskpool->stop();
+                    thr->eventloop()->m_etaskpool->join();
 
                     manapi::async::context::current(nullptr);
 
@@ -210,20 +210,20 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
             tres.err().log();
 
         callback([ctx] () -> void {
-            ctx->eventloop()->etaskpool_->start();
+            ctx->eventloop()->m_etaskpool->start();
             ctx->start().unwrap();
 
             ctx->timerpool_->stop();
 
             manapi::clear_tools::grpc_clear();
 
-            ctx->eventloop_->wait_all_(false);
+            ctx->eventloop_->wait_all(false);
 
         });
 
-        ctx->eventloop_->wait_all_(true);
-        ctx->eventloop()->etaskpool_->stop();
-        ctx->eventloop()->etaskpool_->join();
+        ctx->eventloop_->wait_all(true);
+        ctx->eventloop()->m_etaskpool->stop();
+        ctx->eventloop()->m_etaskpool->join();
 
         ctx->taskpool_->stop();
         ctx->taskpool_->join();

@@ -1205,7 +1205,7 @@ manapi::future<manapi::status> manapi::net::fetch::body(http::file_transfer_info
     if (!this->data)
         co_return status_internal("null");
 
-    auto fileres = manapi::filesystem::fstream::create (file_info.filelocal());
+    auto fileres = manapi::fs::fstream::create (file_info.filelocal());
     if (!fileres)
         co_return fileres.err();
     auto file = fileres.unwrap();

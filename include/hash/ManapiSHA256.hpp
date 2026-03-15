@@ -12,7 +12,7 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
 
-namespace manapi::net::hash {
+namespace manapi::hash {
     class sha256 {
         protected:
             typedef unsigned char uint8;

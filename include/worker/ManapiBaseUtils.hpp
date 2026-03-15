@@ -5,12 +5,12 @@
 #include "./ManapiTimerObject.hpp"
 
 #define MANAPIHTTP_WORKER_EVENT_LOOP(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_check_delay); \
-auto const prev = std::exchange(n__->flags, ((n__->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE)); \
+auto const prev = std::exchange(n__->flags, ((n__->flags & (~CONN_MASK_UPDATE))) | (flags & CONN_MASK_UPDATE)); \
 if (n__->flags & CONN_EVENT_LOCKED) return prev; \
 n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
 while (true)
 #define MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_stream_check_delay); \
-auto const prev = std::exchange(n__->flags, ((n__->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE)); \
+auto const prev = std::exchange(n__->flags, ((n__->flags & (~CONN_MASK_UPDATE))) | (flags & CONN_MASK_UPDATE)); \
 if (n__->flags & CONN_EVENT_LOCKED) return prev; \
 n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
 while (true)
@@ -68,7 +68,7 @@ namespace manapi::net::worker {
 
         void flush_read_ (worker::base *w, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        int flush_read2_ (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        int flush_read2_ (http::config *config, const shared_conn &conn, connection_prepared_t *data, bool force) MANAPIHTTP_NOEXCEPT;
 
         bool is_writable (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 

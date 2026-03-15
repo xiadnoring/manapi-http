@@ -1,6 +1,7 @@
 #include <cstdarg>
 #include <ctime>
 #include <cstring>
+#include <set>
 
 #include "ManapiErrors.hpp"
 #include "ManapiDebug.hpp"
@@ -23,9 +24,22 @@ static const char* level_colors[] = {
 #endif
 
 
-int manapi::debug::log_trace_enabled = -1;
+static int log_trace_enabled = -1;
 
 static std::mutex log_mx;
+
+static std::set <std::string, std::less<>> log_names_disabled;
+
+void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
+    if (enabled)
+        log_names_disabled.erase(name);
+    else
+        log_names_disabled.insert(name);
+}
+
+void manapi::debug::set_log_trace_enabled (int value) MANAPIHTTP_NOEXCEPT {
+    log_trace_enabled = value;
+}
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
@@ -600,8 +614,11 @@ manapi::status manapi::status_internal(const char *msg) {
     return status_internal(std::string_view(msg));
 }
 
-void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *fmt, va_list args) {
-    if (type == manapi::debug::LOG_TRACE && level > manapi::debug::log_trace_enabled)
+static void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *name, const char *fmt, va_list args) {
+    if (type == manapi::debug::LOG_TRACE && level > log_trace_enabled)
+        return;
+
+    if (log_names_disabled.contains(std::string_view (name)))
         return;
 
     auto timepoint = std::chrono::system_clock::now();
@@ -653,31 +670,31 @@ void logit_ (manapi::debug::log_level type, int level, const char *file, const c
     fflush(stderr);
 }
 
-void manapi::debug::logit(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::logit(log_level type, const char *file, int line, const char *name, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    logit_(type, LOG_TRACE_HIGH, file, nullptr, line, fmt, args);
+    ::logit_(type, LOG_TRACE_HIGH, file, nullptr, line, name, fmt, args);
     va_end(args);
 }
 
-void manapi::debug::logit(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::logit(log_level type, const char *file, int line, const char *name, int level, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    logit_(type, level, file, nullptr, line, fmt, args);
+    ::logit_(type, level, file, nullptr, line, name, fmt, args);
     va_end(args);
 }
 
-void manapi::debug::flogit(log_level type, const char *file, const char *func, int line, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::flogit(log_level type, const char *file, const char *func, int line, const char *name, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    logit_(type, LOG_TRACE_HIGH, file, func, line, fmt, args);
+    ::logit_(type, LOG_TRACE_HIGH, file, func, line, name, fmt, args);
     va_end(args);
 }
 
-void manapi::debug::flogit(log_level type, const char *file, const char *func, int level, int line, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
+void manapi::debug::flogit(log_level type, const char *file, const char *func, int line, const char *name, int level, const char *fmt,...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
-    logit_(type, LOG_TRACE_HIGH, file, func, line, fmt, args);
+    ::logit_(type, LOG_TRACE_HIGH, file, func, line, name, fmt, args);
     va_end(args);
 }
 

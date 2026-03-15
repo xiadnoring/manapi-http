@@ -20,7 +20,8 @@ manapi::bytebuffer manapi::net::worker::prepared::recv_first_buffer(const shared
 
     if (!data->top->recv.deque) {
         data->top->recv.last_deque = nullptr;
-        assert(object.resize(data->top->recv.deque_cursor).ok());
+        auto status = object.resize(data->top->recv.deque_cursor);
+        assert(status.ok());
         data->top->recv.deque_cursor = 0;
     }
 
@@ -91,10 +92,10 @@ void manapi::net::worker::prepared::flush_read_(worker::base *w, const shared_co
     }
 }
 
-int manapi::net::worker::prepared::flush_read2_(http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT {
+int manapi::net::worker::prepared::flush_read2_(http::config *config, const shared_conn &conn, connection_prepared_t *data, bool force) MANAPIHTTP_NOEXCEPT {
     auto s = data->top.get();
     while (s->recv.last_deque && (data->flags & manapi::ev::READ)
-        && (data->top->recv_size >= config->max_merge_buffer_stack || (data->flags & base::CONN_RECV_END))) {
+        && (force || data->top->recv_size >= config->max_merge_buffer_stack || (data->flags & base::CONN_RECV_END))) {
 
         auto b = std::move(s->recv.deque->buffer);
         ssize_t sz;
@@ -104,7 +105,8 @@ int manapi::net::worker::prepared::flush_read2_(http::config *config, const shar
 
         if (!s->recv.deque) {
             s->recv.last_deque = nullptr;
-            assert(b.resize(s->recv.deque_cursor).ok());
+            auto status = b.resize(s->recv.deque_cursor);
+            assert(status.ok());
 
             s->recv.deque_cursor = 0;
         }
@@ -179,6 +181,11 @@ void manapi::net::worker::prepared::timer_clear(manapi::timer t) MANAPIHTTP_NOEX
 }
 
 void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+    if (flags & base::CONN_RECV_END)
+        data->flags |= base::CONN_RECV_END;
+    if (flags & base::CONN_SEND_END)
+        data->flags |= base::CONN_SEND_END;
+
     if (flags & ev::READ) {
         if (flags & base::CONN_TOP_READ) {
             w->feed_event_read_ (conn, &data->ev_callback, &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
@@ -218,12 +225,19 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
                 && (data->transfered_k < speed_check_bytes)) {
-                w->close_connection(sconn, CLOSE_CONN_EOS);
-                return;
+                if (data->flags & base::CONN_WAS_SHUTDOWN) {
+                    w->close_connection(sconn, CLOSE_CONN_EOS);
+                }
+                else {
+                    w->close_connection(sconn, CLOSE_CONN_SHUTDOWN);
+                    data->speed_min_delay = config->max_shutdown_time;
+                    data->flags |= base::CONN_WAS_SHUTDOWN;
+                }
             }
+            else
+                data->speed_min_delay = static_cast<int>(speed_check_delay);
 
             data->transfered_k = 0;
-            data->speed_min_delay = static_cast<int>(speed_check_delay);
         }
 
         data->transfered = 0;

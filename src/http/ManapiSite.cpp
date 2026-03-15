@@ -295,15 +295,15 @@ manapi::future<manapi::status> manapi::net::http::site::config(std::string path)
                 if (!config.contains("site") || !config["site"].is_object()) {
 
                     try {
-                        auto exists = co_await manapi::filesystem::async_exists(path);
+                        auto exists = co_await manapi::fs::async_exists(path);
                         if (!exists.ok() || !exists.unwrap())
                         {
                             std::string data = manapi::json::object().dump(4);
-                            auto res = co_await manapi::filesystem::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                            auto res = co_await manapi::fs::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
                             res.unwrap();
                         }
 
-                        auto res = co_await manapi::filesystem::async_read (path);
+                        auto res = co_await manapi::fs::async_read (path);
                         auto obj = manapi::json(res.unwrap(), true);
 
                         if (!obj.is_object())
@@ -394,19 +394,19 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
 
     try {
         if (cache_path.empty())
-            cache_path = manapi::filesystem::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
+            cache_path = manapi::fs::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
 
         {
-            auto mkdir_res = co_await manapi::filesystem::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+            auto mkdir_res = co_await manapi::fs::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
             mkdir_res.unwrap();
         }
 
-        manapi::filesystem::path::append_delimiter(cache_path);
-        auto path = manapi::filesystem::path::join(cache_path, std::string{site::default_config_name});
+        manapi::fs::path::append_delimiter(cache_path);
+        auto path = manapi::fs::path::join(cache_path, std::string{site::default_config_name});
         try {
-            auto exists = co_await manapi::filesystem::async_exists(path);
+            auto exists = co_await manapi::fs::async_exists(path);
             if (!exists.ok() || exists.unwrap()) {
-                auto res = co_await manapi::filesystem::async_read(path);
+                auto res = co_await manapi::fs::async_read(path);
                 cache = manapi::json(res.unwrap(), true);
             }
         }
@@ -506,7 +506,7 @@ manapi::future<manapi::status> manapi::net::http::site::set_compressed_cache_fil
                 }
 
                 if (!del.empty()) {
-                    manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(std::move(del),
+                    manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(std::move(del),
                         manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                             if (err) {
                                 /* ignore :) */
@@ -577,7 +577,7 @@ manapi::future<manapi::status> manapi::net::http::site::set_locked_cache_file(st
                     if (fit->second.is_object()) {
                         auto compressit = fit->second.find("compressed");
                         if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
-                            manapi::async::run<manapi::ev::status>(manapi::filesystem::async_unlink(compressit->second.as_string(),
+                            manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(compressit->second.as_string(),
                                 manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
                                     if (err) {
                                         /* ignore :) */
@@ -626,7 +626,7 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
     auto path = config["site_path"].as_string();
     if (path.empty())
         co_return;
-    co_await manapi::filesystem::async_write(std::move(path),
+    co_await manapi::fs::async_write(std::move(path),
             config["site"].dump(4), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
 }
 
@@ -938,7 +938,7 @@ manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::h
 
 
                 http_static_handler_function func_static_hdl{};
-                func_static_hdl.folder = manapi::filesystem::path::serialize(folder);
+                func_static_hdl.folder = manapi::fs::path::serialize(folder);
                 auto res = cur->statics->insert({std::move(method), std::move(func_static_hdl)});
 
                 if (res.second) {

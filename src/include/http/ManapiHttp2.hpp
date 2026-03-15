@@ -25,7 +25,7 @@ namespace manapi::net::http {
 
     struct http_v2_stream_t : worker::http_v2_stream_base_t {
 
-        uint32_t id;
+        int id;
 
         http_v2_t *ctx;
 
@@ -70,7 +70,8 @@ namespace manapi::net::http {
         std::unique_ptr<http_v2_settings_t> client;
         std::unique_ptr<http_v2_settings_t> server;
 
-        std::unique_ptr<std::map<uint32_t, worker::shared_conn>> streams;
+        std::map<uint32_t, worker::shared_conn> streams;
+        std::size_t streams_size;
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;
         std::unique_ptr<manapi::compress::hpack::encoder_t> encoder;
@@ -118,9 +119,11 @@ namespace manapi::net::http {
         EHTTP_V2_NEW_STREAM
     };
 
+    int http_v2_on_closing (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_on_close (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT;
 
-    int http_v2_on_close_stream (http_v2_t *ctx, uint32_t id) MANAPIHTTP_NOEXCEPT;
+    int http_v2_on_close_stream (http_v2_t *ctx, int id) MANAPIHTTP_NOEXCEPT;
 
     int http_v2_on_write (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT;
 

@@ -9,9 +9,9 @@
 #define CHUNK_SIZE 65536
 
 
-static manapi::future<manapi::status> compress_file_init (manapi::filesystem::fstream &input, manapi::filesystem::fstream &output, std::string src, std::string dest, manapi::ctoken &cancellation) {
-    auto ires = manapi::filesystem::fstream::create (std::move(src), manapi::ctoken::unit(cancellation));
-    auto ores = manapi::filesystem::fstream::create (std::move(dest), manapi::ctoken::unit(cancellation));
+static manapi::future<manapi::status> compress_file_init (manapi::fs::fstream &input, manapi::fs::fstream &output, std::string src, std::string dest, manapi::ctoken &cancellation) {
+    auto ires = manapi::fs::fstream::create (std::move(src), manapi::ctoken::unit(cancellation));
+    auto ores = manapi::fs::fstream::create (std::move(dest), manapi::ctoken::unit(cancellation));
 
     if (!ires)
         co_return ires.err();
@@ -86,7 +86,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::brotli_compress_file(std::string src, std::string dest, int quality, int window, int mode, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
 
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
@@ -179,7 +179,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -235,7 +235,7 @@ manapi::status_or<std::string> manapi::compress::zstd_compress_string(std::strin
 }
 
 manapi::future<manapi::status> manapi::compress::zstd_compress_file(std::string src, std::string dest, int level, int additional_threads, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -328,7 +328,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::zstd_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -431,7 +431,7 @@ err:
 #include <zlib.h>
 
 manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -500,7 +500,7 @@ excep:
 
 /* decompress */
 manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation){
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -727,7 +727,7 @@ manapi::status_or<std::string> manapi::compress::gzip_decompress_string(std::str
 
 manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string src, std::string dest, int level, int strategy, manapi::ctoken cancellation)
 {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -795,7 +795,7 @@ excep:
 }
 
 manapi::future<manapi::status> manapi::compress::gzip_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::filesystem::fstream input, output;
+    manapi::fs::fstream input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);

@@ -27,6 +27,10 @@
 #define THROW_MANAPIHTTP_EXCEPTION2(errnum, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, __VA_ARGS__)
 
 namespace manapi::debug {
+    void set_log_trace_enabled (int value) MANAPIHTTP_NOEXCEPT;
+
+    void set_log_name_enabled (const char *name, bool enabled);
+
     void do_log_ (std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data) MANAPIHTTP_NOEXCEPT;
 
     template <class... Args>

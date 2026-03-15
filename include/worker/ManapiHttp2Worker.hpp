@@ -35,7 +35,7 @@ namespace manapi::net::worker {
         manapi::net::worker::connection::ipdata_t *(*http_v2_ip_data) (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXCEPT;
     };
 
-    int http_v2_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXCEPT;
+    int http_v2_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s, bool force) MANAPIHTTP_NOEXCEPT;
 
     class http_v2 final : public worker::base {
     public:

@@ -65,6 +65,7 @@ namespace manapi::net::http {
         ssize_t body_size;
 
         uint32_t headers_size;
+
         uint32_t trailers_size;
 
         std::shared_ptr<http_handler_function> handler;

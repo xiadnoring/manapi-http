@@ -500,7 +500,7 @@ manapi::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_context(s
     auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", false);
     auto const ticket = this->config_->get_config_param<bool>(this->config_->ssl, "ticket", true);
     auto const sess_timeout = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_timeout", 300);
-    auto const sess_cache = this->config_->get_config_param<bool>(this->config_->ssl, "sess_cache", false);
+    auto const sess_cache = this->config_->get_config_param<bool>(this->config_->ssl, "sess_cache", true);
     auto const sess_cache_size = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_cache_size", 1024 * 20);
     auto const max_early_data = this->config_->get_config_param<uint32_t>(this->config_->ssl, "max_early_data", 0);
 

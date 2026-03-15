@@ -151,7 +151,7 @@ int main () {
                 {"verify_peer", false},
                 {"alpn", true},
                 {"method", "GET"}
-            })));
+            }));
 
             if (!fetch.ok()) {
                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}}).unwrap();

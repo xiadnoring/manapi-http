@@ -2,8 +2,8 @@
 #include "http/ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 
-int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXCEPT {
-    return prepared::flush_read2_(config, conn, s);
+int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s, bool force) MANAPIHTTP_NOEXCEPT {
+    return prepared::flush_read2_(config, conn, s, force);
 }
 
 manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}
@@ -65,7 +65,7 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
         return;
 
     /* got something wrong */
-    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_NO_ERROR);
+    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_FLOW_CONTROL_ERROR);
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT {

@@ -142,8 +142,6 @@ namespace manapi {
         MANAPIHTTP_NODISCARD std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
     private:
         static void stop_ (std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT;
-        //
-        // std::optional<manapi::timer> _cb_event (void *data);
 
         static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXCEPT;
 
@@ -165,6 +163,6 @@ namespace manapi {
 
         void unref_important_ () MANAPIHTTP_NOEXCEPT;
 
-        std::shared_ptr<data_t> data_;
+        std::shared_ptr<data_t> m_data;
     };
 }
