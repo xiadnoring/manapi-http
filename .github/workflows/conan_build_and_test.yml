@@ -76,6 +76,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: /home/runner/.conan2
+        save-always: true
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
     - name: Cache Conan Dependencies (Windows Latest)
@@ -83,6 +84,7 @@ jobs:
       id: cache-conan-windows
       uses: actions/cache@v4
       with:
+        save-always: true
         path: C:\Users\runneradmin\.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
@@ -186,6 +188,7 @@ jobs:
         with:
           path: C:\Users\runneradmin\.conan2
           key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.library_type }}
+          save-always: true
 
       - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
         name: Create default Conan profile

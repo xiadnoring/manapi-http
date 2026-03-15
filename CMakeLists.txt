@@ -1,6 +1,6 @@
 # cmake_minimum_required(VERSION 3.28.2) # CXX Modules Support
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp LANGUAGES CXX VERSION 1.0.5 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -1001,14 +1001,12 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    get_target_property(LIBUV_INCLUDE_DIRECTORIES uv INTERFACE_INCLUDE_DIRECTORIES)
-
-    message(STATUS ${libuv_CONAN_INCLUDE_DIRS})
+    message(STATUS ${libuv_INCLUDE_DIR})
     if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/ext/uv.h")
-        file(COPY ${libuv_CONAN_INCLUDE_DIRS}/uv DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
-        file(COPY ${libuv_CONAN_INCLUDE_DIRS}/uv.h DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+        file(COPY ${libuv_INCLUDE_DIR}/uv DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+        file(COPY ${libuv_INCLUDE_DIR}/uv.h DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
         if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/ext/uv.h")
-            message( FATAL_ERROR "Failed to copy uv.h from ${libuv_CONAN_INCLUDE_DIRS}" )
+            message( FATAL_ERROR "Failed to copy uv.h from ${libuv_INCLUDE_DIR}" )
         endif()
     endif()
 

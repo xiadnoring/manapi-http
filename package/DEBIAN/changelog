@@ -1,3 +1,4 @@
-manapihttp (1.0.5dfsg-1) unstable; urgency=high
+manapihttp (1.1.0dfsg-1) unstable; urgency=high
   * Bug fixes
- -- Timur Zajnullin <me@timurtuty.ru>  Wed, 22 Dec 2025 10:00:00 +0000
+  * Disable some logs
+ -- Timur Zajnullin <me@timurtuty.ru>  Wed, 15 Mar 2025 10:00:00 +0000
