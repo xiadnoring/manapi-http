@@ -70,25 +70,14 @@ jobs:
     - name: Install Conan
       run: pip install conan==2.*
 
-    - name: Cache Conan Dependencies (Ubuntu Latest)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+    - name: Restore Cache Conan Dependencies
       id: cache-conan-ubuntu
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v5
       with:
         path: /home/runner/.conan2
-        save-always: true
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
-    - name: Cache Conan Dependencies (Windows Latest)
-      if: ${{ matrix.os == 'windows-latest' }}
-      id: cache-conan-windows
-      uses: actions/cache@v4
-      with:
-        save-always: true
-        path: C:\Users\runneradmin\.conan2
-        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
-
-    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
+    - if: ${{ steps.cache-conan-ubuntu.outputs.cache-hit != 'true' }}
       name: Create default Conan profile
       run: conan profile detect --force
 
@@ -116,6 +105,14 @@ jobs:
 
     - name: Clean up
       run: conan cache clean "*/*"
+
+    - name: Save Cache Conan Dependencies
+      if: always() && steps.cache-conan-ubuntu.outputs.cache-hit != 'true'
+      id: save-cache-conan-ubuntu
+      uses: actions/cache/save@v5
+      with:
+        path: /home/runner/.conan2
+        key: ${{ steps.cache-conan-ubuntu.outputs.cache-primary-key }}
 
     - name: Configure CMake
       run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
@@ -181,14 +178,12 @@ jobs:
       - name: Install Conan
         run: pip install conan==2.*
 
-      - name: Cache Conan Dependencies (Windows Latest)
-        if: ${{ matrix.os == 'windows-latest' }}
+      - name: Cache Conan Dependencies
         id: cache-conan-windows
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v5
         with:
           path: C:\Users\runneradmin\.conan2
           key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.library_type }}
-          save-always: true
 
       - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
         name: Create default Conan profile
@@ -206,6 +201,15 @@ jobs:
 
       - name: Clean up
         run: conan cache clean "*/*"
+
+
+      - name: Save Cache Conan Dependencies
+        id: save-cache-conan-windows
+        uses: actions/cache/save@v5
+        if: always() && steps.cache-conan-windows.outputs.cache-hit != 'true'
+        with:
+          path: C:\Users\runneradmin\.conan2
+          key: ${{ steps.cache-conan-windows.outputs.cache-primary-key }}
 
       - name: Configure CMake
         run: cmake --preset conan-default -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF -DMANAPIHTTP_CPPTRACE_DEPENDENCY=ON
