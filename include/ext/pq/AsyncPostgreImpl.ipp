@@ -378,6 +378,14 @@ manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::ma
     co_return status_not_found("db:not found");
 }
 
+bool manapi::ext::pq::db::has_master() const {
+    return !!this->m_master;
+}
+
+bool manapi::ext::pq::db::has_slaves() const {
+    return !!this->m_slaves.size();
+}
+
 manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, ctoken token) {
     while (true) {
         auto wrk_res = type == kMaster ? (co_await this->master()) :(co_await this->slave());

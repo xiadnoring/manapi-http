@@ -105,6 +105,10 @@ namespace manapi::ext::pq {
 
         future<manapi::status_or<item>> master ();
 
+        bool has_master () const;
+
+        bool has_slaves () const;
+
         template<typename ...Args>
         manapi::future<pq::status_or<pq::result>> exec (ktypes type, const std::string &sql, Args &&...args) {
             std::string buffer;

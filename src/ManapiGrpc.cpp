@@ -16,6 +16,7 @@
 #if MANAPIHTTP_GRPC_DEPENDENCY
 
 #include <grpcpp/grpcpp.h>
+#include <grpc/event_engine/event_engine.h>
 
 enum manapi_grpc_endpoint_flags {
     MANAPI_GRPC_ENDPOINT_WANT_READ = 1,
@@ -1251,10 +1252,11 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
         auto rhs = ctx->timerpool()->append_timer_sync(ms,
             [td] (manapi::timer timer) -> void {
-                try { td->closure->Run(); }
+                auto closure = std::move(td->closure);
+                task_handle_cancel(manapi::async::current().get(), td->index);
+                try { closure->Run(); }
                 catch (std::exception const &e) { manapi_log_error("%s:%s failed due to %s",
                     "wgrpc", "gRPC send a error", e.what()); }
-                task_handle_cancel(manapi::async::current().get(), td->index);
             });
 
         *timer = rhs.unwrap();
@@ -1349,10 +1351,11 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
         auto rhs = ctx->timerpool()->append_timer_sync(ms,
             [td] (manapi::timer timer) mutable -> void {
-                try { td->closure (); }
+                auto closure = std::move(td->closure);
+                task_handle_cancel(manapi::async::current().get(), td->index);
+                try { closure (); }
                 catch (std::exception const &e) { manapi_log_error(
                     "%s:%s failed due to %s", "wgrpc", "gRPC send a error", e.what()); }
-                task_handle_cancel(manapi::async::current().get(), td->index);
             });
 
         *timer = rhs.unwrap();

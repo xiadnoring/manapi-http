@@ -355,9 +355,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             connection->wrk.flags |= WRK_INTERFACE_CONN_RETRY;
         }
 
-        auto res = it->second.insert({reinterpret_cast<uintptr_t>(connection.get()),
-            connection});
-        assert((res.second));
+        auto res = it->second.insert_or_assign(reinterpret_cast<uintptr_t>(connection.get()),
+            connection);
     }
     catch (std::exception const &e) {
         manapi_log_error("tcp accept: failed due to %s", e.what());
