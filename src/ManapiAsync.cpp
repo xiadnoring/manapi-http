@@ -3,7 +3,9 @@
 #include "std/ManapiAsyncContext.hpp"
 
 static size_t max_stack_depth_ = 300;
+
 thread_local std::size_t current_stack_cnt = 0;
+
 thread_local std::shared_ptr<manapi::async::cthread> current_cthread_ = nullptr;
 
 void manapi::async::internal::current_(std::shared_ptr<cthread> ctx) MANAPIHTTP_NOEXCEPT {
