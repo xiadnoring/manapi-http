@@ -261,6 +261,65 @@ manapi::async::run([]() -> manapi::future<> {
 });
 ```
 
+#### Lifetime Of Objects
+
+If you want to pass some variables to an async function, you must understand how lifetime works for objects.
+
+We have `some_func`:
+
+```cpp
+manapi::future<> some_func (std::string &&a) {
+    std::cout << "SOME FUNC " << a << "\n";
+    co_await manapi::async::delay{1000};
+    std::cout << "FIN " << a << "\n";
+}
+```
+
+Bad example
+
+```cpp
+manapi::future<void> task (nullptr);
+
+{
+    // ❌ Your object will be destroyed
+    task = some_func (std::string ("hello world"));
+}
+
+// ❌ SEGFAULT
+co_await task;
+```
+
+But you can do this instead
+
+```cpp
+manapi::future<void> task (nullptr);
+std::string str ("hello world");
+
+{
+    // ✅ It's okay 
+    task = some_func (std::move(str));
+}
+
+// ✅ OK
+co_await task;
+```
+
+#### Detached Task
+
+<Callout title="Warning" type="warn">
+You cannot call an async function in a way that is both detached and awaitable simultaneously
+</Callout>
+
+```cpp
+manapi::future<void> task = ...;
+
+// Task is detached now
+task ();
+
+// ❌ SEGFAULT
+co_await task;
+```
+
 ## Stopping Mechanism
 
 To stop the current context, use the asynchronous ```stop()``` method in the ```manapi::async::context``` class:
