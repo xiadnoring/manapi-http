@@ -33,7 +33,8 @@ static std::unordered_map <std::string_view, std::string> log_names_enabled;
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
     if (enabled) {
         auto data = std::string (name);
-        log_names_enabled.insert({std::string_view(data.data()), std::move(data)});
+        auto sv = std::string_view(data.data());
+        log_names_enabled.insert({sv, std::move(data)});
     }
     else
         log_names_enabled.erase(std::string_view(name));
