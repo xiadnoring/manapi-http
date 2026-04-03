@@ -23,6 +23,8 @@ struct manapi::net::http::site::data_t {
     std::shared_ptr<multithread_storage::worker_t> server_config;
     std::shared_ptr<manapi::json> config_;
     server_ctx sctx;
+    std::size_t event_id;
+    std::size_t clean_up_id;
     http_uri_part handlers{};
     std::unique_ptr<std::map <std::string, compress_file_cb_t, std::less<>>> compressors_for_file{};
     std::unique_ptr<std::map <std::string, compress_str_cb_t, std::less<>>> compressors_for_string{};

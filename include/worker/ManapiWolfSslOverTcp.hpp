@@ -8,13 +8,13 @@
 namespace manapi::net::worker {
     class WolfSSL_TLS : public worker::TLS {
     public:
-        WolfSSL_TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        WolfSSL_TLS (std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         ~WolfSSL_TLS () override;
 
         manapi::future<manapi::status> init(std::size_t deep) override;
 
-        static std::shared_ptr<worker::WolfSSL_TLS> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::WolfSSL_TLS> create (std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
         void stop(std::function<void()> cb) override;
     protected:

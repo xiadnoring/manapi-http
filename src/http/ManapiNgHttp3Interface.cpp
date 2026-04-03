@@ -654,7 +654,7 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
                     // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                     // this->event_flags(conn, 0);
 
-                    cdata->router = s->ctx->gctx->worker->site().handler(req_ptr);
+                    cdata->router = s->ctx->gctx->worker->site()->handler(req_ptr);
                     manapi::net::http::internal::handle_income_request(std::move(cdata), status);
                 }
                 catch (std::exception const &e) {

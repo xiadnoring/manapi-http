@@ -4,7 +4,6 @@
 #include <future>
 #include <functional>
 
-#include "./ManapiSite.hpp"
 #include "./ManapiSiteCtx.hpp"
 #include "./ManapiBaseHttp.hpp"
 #include "./ManapiHttpConfig.hpp"
@@ -14,6 +13,10 @@
 #include "../worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net {
+    namespace http {
+        class site;
+    }
+
     class http_pool {
     public:
         /**
@@ -24,7 +27,7 @@ namespace manapi::net {
          * @param id ID
          * @param events event loop
          */
-        explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events);
+        explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<http::site> site, size_t id);
 
         /* deconstructor */
         ~http_pool();
@@ -45,30 +48,28 @@ namespace manapi::net {
          * get the site instance
          * @return the site instance
          */
-        MANAPIHTTP_NODISCARD http::site site () const;
+        MANAPIHTTP_NODISCARD const std::shared_ptr<http::site> &site () const;
 
         MANAPIHTTP_NODISCARD std::shared_ptr <http::config> config () const;
     private:
         manapi::future<manapi::status> pool_ ();
 
-        std::size_t id;
+        std::size_t m_id;
 
-        std::shared_ptr<multithread_storage::worker_t> worker_config;
+        std::shared_ptr<multithread_storage::worker_t> m_worker_config;
 
-        std::shared_ptr <http::config> config_;
+        std::shared_ptr <http::config> m_config;
 
-        std::shared_ptr <worker::base> worker;
+        std::shared_ptr <worker::base> m_worker;
 
         // pool
 
-        std::shared_ptr<manapi::async::mutex> mx;
+        std::shared_ptr<manapi::async::mutex> m_mx;
 
-        std::shared_ptr<event_loop> events;
+        std::unique_ptr<std::promise <int> > m_pool_promise;
 
-        std::unique_ptr<std::promise <int> > pool_promise;
-
-        http::site site_;
+        std::shared_ptr<http::site> m_site;
         // watchers
-        std::shared_ptr <ev::io> watcher;
+        std::shared_ptr <ev::io> m_watcher;
     };
 }

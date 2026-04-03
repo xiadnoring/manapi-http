@@ -57,10 +57,10 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
 
         if (!features.compress.empty() && !res->partial_enabled()) {
             if (res->is_text()) {
-                features.compressor_for_string = cdata->worker->site().compressor_for_string(features.compress);
+                features.compressor_for_string = cdata->worker->site()->compressor_for_string(features.compress);
             }
             else if (res->is_file()) {
-                features.compressor_for_file = cdata->worker->site().compressor_for_file(features.compress);
+                features.compressor_for_file = cdata->worker->site()->compressor_for_file(features.compress);
             }
 
             if (features.compressor_for_file || features.compressor_for_string) {
@@ -151,7 +151,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 bool rst_compress = false;
 
                 try {
-                    auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+                    auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site()->config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
                     if (!rhs.ok()) {
                         if (rhs.code() == manapi::ERR_UNAVAILABLE)
                             rst_compress = true;
@@ -1347,7 +1347,7 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
+manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(std::shared_ptr<net::http::site> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
     std::string filepath;
     std::string cached;
 
@@ -1362,7 +1362,7 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::comp
             cached.clear();
         }
         else {
-            auto res = co_await site.get_compressed_cache_file(file, compress, filetime);
+            auto res = co_await site->get_compressed_cache_file(file, compress, filetime);
             if (res.ok())
                 cached = res.unwrap();
             else {
@@ -1374,7 +1374,7 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::comp
         }
 
         if (cached.empty()) {
-            auto res = co_await site.set_locked_cache_file(file, true, compress);
+            auto res = co_await site->set_locked_cache_file(file, true, compress);
             try {
                 if (!res.ok()) {
                     res = manapi::status_unavailable("busy");
@@ -1400,7 +1400,7 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::comp
                     goto err;
                 }
 
-                res = co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
+                res = co_await site->set_compressed_cache_file(file, filepath, compress, filetime);
                 if (!res.ok()) {
                     res = manapi::status_unavailable("busy");
                     goto err;
@@ -1419,7 +1419,7 @@ err:
                     "file compress", res.msg().size(), res.msg().data());
             }
 
-            res = co_await site.set_locked_cache_file(file, false, compress);
+            res = co_await site->set_locked_cache_file(file, false, compress);
 
             if (!res.ok())
                 manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());

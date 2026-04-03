@@ -4,8 +4,13 @@
 #include <functional>
 
 #include "../http/ManapiHttpConfig.hpp"
-#include "../http/ManapiSite.hpp"
+#include "../http/ManapiSiteCtx.hpp"
+#include "../std/ManapiCancellation.hpp"
 #include "../ManapiUtils.hpp"
+
+namespace manapi::net::http {
+    class site;
+}
 
 namespace manapi::net::worker {
     struct sockaddr_st {
@@ -228,7 +233,7 @@ namespace manapi::net::worker {
 
         virtual wrk_interface_global_t *wrk_global () = 0;
 
-        virtual http::site &site() = 0;
+        virtual const std::shared_ptr<http::site> &site() = 0;
 
         virtual http::config *config() = 0;
 

@@ -263,7 +263,9 @@ manapi::future<manapi::ev::status_or<manapi::ev::file>> manapi::fs::async_open(s
         if (async_fs_operation_result_error<manapi::ev::status_or<ev::file>>(w, resolve, cancel)) {
             return;
         }
-        resolve (static_cast<manapi::ev::file>(w->result()));
+        auto file = static_cast<manapi::ev::file>(w->result());
+        manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d open", file);
+        resolve (file);
     }, cancellation);
     co_return fileno;
 }
@@ -271,7 +273,7 @@ manapi::future<manapi::ev::status_or<manapi::ev::file>> manapi::fs::async_open(s
 manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken cancellation) {
     typedef manapi::async::promise_sync<manapi::ev::status> promise_sync;
 
-    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", file);
+    manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", file);
 
     co_return co_await async_fs_operation<manapi::ev::status>([file] (std::shared_ptr<ev::fs> w)
         -> bool {
@@ -283,7 +285,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken
                     file, ev::strerror(w->result()));
                 return;
             }
-            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "fs:fd %d finished", file);
+            manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d finished", file);
             resolve(ev::status_ok());
         }, std::move(cancellation));
 }

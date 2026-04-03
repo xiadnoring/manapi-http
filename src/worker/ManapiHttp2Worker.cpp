@@ -26,7 +26,7 @@ manapi::net::http::config * manapi::net::worker::http_v2::config() MANAPIHTTP_NO
     return this->w->config();
 }
 
-manapi::net::http::site & manapi::net::worker::http_v2::site() MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::net::http::site> &manapi::net::worker::http_v2::site() MANAPIHTTP_NOEXCEPT {
     return this->w->site();
 }
 

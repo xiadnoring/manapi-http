@@ -450,7 +450,7 @@ exec:
             w->event_flags(conn, 0);
 
 
-            cdata->router = w->site().handler(req_ptr);
+            cdata->router = w->site()->handler(req_ptr);
             cdata->req_data->handler = cdata->router->handler;
 
 

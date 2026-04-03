@@ -1,7 +1,7 @@
 #include "worker/ManapiInterfaceWorker.hpp"
 #include "../include/ManapiUtils.hpp"
 
-manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config)
+manapi::net::worker::interface_worker::interface_worker(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config)
     : site_(std::move(site)), config_(config), worker_data_(std::move(data)), worker_pool_id_(0), global_() {
     this->deep_worker_id_ = 0;
     this->flags_ = 0;
@@ -22,7 +22,7 @@ manapi::net::worker::wrk_interface_global_t * manapi::net::worker::interface_wor
 }
 
 
-manapi::net::http::site & manapi::net::worker::interface_worker::site() MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::net::http::site> & manapi::net::worker::interface_worker::site() MANAPIHTTP_NOEXCEPT {
     return this->site_;
 }
 

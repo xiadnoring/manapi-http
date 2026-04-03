@@ -18,18 +18,6 @@
 #include "../json/ManapiJson.hpp"
 #include "../json/ManapiJsonMask.hpp"
 
-namespace manapi::net::worker {
-    class base;
-    class interface_worker;
-    struct wrk_interface_global_t;
-}
-
-namespace manapi::net::http {
-    class request;
-    class response;
-    class uresponse;
-}
-
 namespace manapi::net::http {
     typedef std::move_only_function <future<>(manapi::net::http::request &req, manapi::net::http::response &res)> async_handler_t;
 
@@ -97,6 +85,7 @@ namespace manapi::net::http {
 
     class site {
     public:
+        struct data_t;
         /**
          * Compress file callback
          */
@@ -107,11 +96,10 @@ namespace manapi::net::http {
          */
         typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb_t;
 
-        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
+        typedef std::function<std::shared_ptr<worker::base>(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
 
         typedef std::function<manapi::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
 
-        struct data_t;
 
         site ();
         /**
@@ -265,20 +253,27 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD const std::string &config_cache_dir();
 
+
+        virtual manapi::future<manapi::status> stop () = 0;
     protected:
-        void init_data_ (server_ctx sctx);
-
-        static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT;
-
-        void setup ();
-
-        manapi::future<> setup_config (manapi::json &n);
+        static std::string_view default_config_name;
 
         static manapi::future<> save_config (std::shared_ptr<data_t> data);
 
+        static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT;
+
+        virtual std::shared_ptr<site> copy () = 0;
+
+        void init_data_ (server_ctx sctx);
+
+        void setup ();
+
+        virtual void clean_up () = 0;
+
+        manapi::future<> setup_config (manapi::json &n);
+
         std::shared_ptr<data_t> data;
 
-        static std::string_view default_config_name;
     private:
         static std::shared_ptr<http_handler_function> default_error_handler;
 

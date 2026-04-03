@@ -111,15 +111,15 @@ namespace manapi::net::http {
          * stop working the server
          * @return the future
          */
-        manapi::future<manapi::status> stop ();
+        manapi::future<manapi::status> stop () override;
     private:
-        static manapi::future<manapi::status> stop_ (std::shared_ptr<data2_t> data2, bool evloop);
+        std::shared_ptr<site> copy() override;
 
         manapi::future<> init_pool_ ();
 
         manapi::status pool_ (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT;
 
-        static void clean_up (const std::shared_ptr<data2_t>& data2);
+        void clean_up () override;
 
         static manapi::future<void> stop_pool (std::shared_ptr<data2_t> data2);
     };

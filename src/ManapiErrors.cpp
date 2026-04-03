@@ -1,7 +1,7 @@
 #include <cstdarg>
 #include <ctime>
 #include <cstring>
-#include <set>
+#include <unordered_map>
 
 #include "ManapiErrors.hpp"
 #include "ManapiDebug.hpp"
@@ -28,13 +28,13 @@ static int log_trace_enabled = -1;
 
 static std::mutex log_mx;
 
-static std::set <std::string, std::less<>> log_names_disabled;
+static std::unordered_map <std::string_view, std::string> log_names_enabled;
 
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
     if (enabled)
-        log_names_disabled.erase(name);
+        log_names_enabled.insert({std::string_view(name), std::string (name)});
     else
-        log_names_disabled.insert(name);
+        log_names_enabled.erase(std::string_view(name));
 }
 
 void manapi::debug::set_log_trace_enabled (int value) MANAPIHTTP_NOEXCEPT {
@@ -335,7 +335,9 @@ void manapi::status::unwrap() const {
 }
 
 std::string manapi::status::fullmsg() const {
-    return std::format("{}: msg={}", this->status_msg(), this->m_data.msg_view());
+    std::string_view msg = this->m_data.msg_view();
+    if (msg.empty()) msg = "EMPTY";
+    return std::format("{}: msg={}", this->status_msg(), msg);
 }
 
 void manapi::status::stacktrace() const MANAPIHTTP_NOEXCEPT {
@@ -618,7 +620,7 @@ static void logit_ (manapi::debug::log_level type, int level, const char *file, 
     if (type == manapi::debug::LOG_TRACE && level > log_trace_enabled)
         return;
 
-    if (log_names_disabled.contains(std::string_view (name)))
+    if (!log_names_enabled.contains(std::string_view (name)))
         return;
 
     auto timepoint = std::chrono::system_clock::now();

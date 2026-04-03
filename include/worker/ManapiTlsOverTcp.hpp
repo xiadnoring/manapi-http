@@ -10,7 +10,7 @@ namespace manapi::net::worker {
     class TLS : public worker::TCP {
     public:
 
-        TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        TLS (std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         ~TLS () override;
 

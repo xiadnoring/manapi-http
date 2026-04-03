@@ -6,6 +6,18 @@
 #include "../std/ManapiAsyncThreadsMutex.hpp"
 #include "../utils/ManapiMultithreadStorage.hpp"
 
+namespace manapi::net::worker {
+    class base;
+    class interface_worker;
+    struct wrk_interface_global_t;
+}
+
+namespace manapi::net::http {
+    class request;
+    class response;
+    class uresponse;
+}
+
 namespace manapi::net::http {
     class server_ctx {
         struct data_t;

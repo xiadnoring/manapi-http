@@ -158,7 +158,7 @@ BIO_METHOD *BIO_manapi_mem () MANAPIHTTP_NOEXCEPT {
     return c;
 }
 
-manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
+manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = SSL_ERROR_NONE;
     this->ssl_error_syscall_ = SSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = SSL_ERROR_WANT_READ;
@@ -193,7 +193,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
     auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }

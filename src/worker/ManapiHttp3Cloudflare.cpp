@@ -93,7 +93,7 @@ struct quiche_h3_event_deleter {
     }
 };
 
-manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
+manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(std::shared_ptr<net::http::site> site,
     std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
     this->flags = 0;
     this->count = 0;
@@ -111,7 +111,7 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 }
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
-    net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata,
+    std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata,
     manapi::net::http::config *config) {
     auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config);
     return std::move(worker);
@@ -930,7 +930,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                                 // this->event_flags(conn, 0);
 
-                                cdata->router = this->site().handler(req_ptr);
+                                cdata->router = this->site()->handler(req_ptr);
                                 net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
                             }
                             catch (std::exception const &e) {

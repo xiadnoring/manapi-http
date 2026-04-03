@@ -3,6 +3,7 @@
 #include "./ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
+#include "../http/ManapiHttpUtils.hpp"
 #include "../std/ManapiAsyncContext.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
 

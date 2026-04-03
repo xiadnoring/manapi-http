@@ -283,9 +283,26 @@ void manapi::net::http::site::setup() {
 }
 
 manapi::future<manapi::status> manapi::net::http::site::config(std::string path) {
+    auto p = this->copy();
+
     try {
-        this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
-            -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
+        if (this->data->event_id)
+            co_return status_already_exists("http:config already exists");
+
+
+        this->data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p, data = this->data] () mutable
+            -> future<> {
+            auto res = co_await p->stop();
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());
+        });
+
+        this->data->clean_up_id = async::current()->eventloop()->subscribe_clean_up([p] () mutable
+            -> void {
+            p->clean_up();
+        });
+
+        this->data->server_config = co_await this->data->sctx.storage().subscribe([p] (auto &&f1)
+            -> void { on_config_update(p->data, std::forward<decltype(f1)>(f1)); });
 
         auto res = co_await this->data->sctx.storage().edit_async (this->data->server_config,
             [this, path = std::move(path)] (manapi::json &config) mutable -> manapi::future<bool> {
@@ -330,13 +347,43 @@ manapi::future<manapi::status> manapi::net::http::site::config(std::string path)
         co_return status_ok();
     }
     catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "config() failed", e.what());
+        manapi_log_error("%s due to %s", "http:config() failed", e.what());
     }
-    co_return status_internal("config() failed");
+
+    auto res = manapi::status_ok();
+    try {
+        res = co_await p->stop();
+        p->clean_up();
+    }
+    catch (std::exception const &e) {
+       res = manapi::status_unknown(std::string{e.what()});
+    }
+
+    if (!res.ok())
+        manapi_log_ferror("http:failed to stop due to %s", res.msg().data());
+
+    co_return status_internal("http:config() failed");
 }
 
 manapi::future<manapi::status> manapi::net::http::site::config_object(json config) {
+    auto p = this->copy();
+
     try {
+        if (this->data->event_id)
+            co_return status_already_exists("http:config already exists");
+
+
+        this->data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p] () mutable
+            -> future<> {
+            auto res = co_await p->stop();
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());
+        });
+
+        this->data->clean_up_id = async::current()->eventloop()->subscribe_clean_up([p] () mutable
+            -> void {
+            p->clean_up();
+        });
+
         this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
             -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
 
@@ -369,9 +416,22 @@ manapi::future<manapi::status> manapi::net::http::site::config_object(json confi
         co_return status_ok();
     }
     catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "config() failed", e.what());
+        manapi_log_error("%s due to %s", "http:config() failed", e.what());
     }
-    co_return status_internal("config() failed");
+
+    auto res = manapi::status_ok();
+    try {
+        res = co_await p->stop();
+        p->clean_up();
+    }
+    catch (std::exception const &e) {
+        res = manapi::status_unknown(std::string{e.what()});
+    }
+
+    if (!res.ok())
+        manapi_log_ferror("http:failed to stop due to %s", res.msg().data());
+
+    co_return status_internal("http:config() failed");
 }
 
 manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {

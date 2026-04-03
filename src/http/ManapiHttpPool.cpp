@@ -10,20 +10,20 @@
 #include <fcntl.h>
 
 #include "http/ManapiHttpPool.hpp"
+#include "http/ManapiSite.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp1.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events) : site_(std::move(site)) {
-    this->events = std::move(events);
-    this->config_ = std::make_shared <http::config> (config);
-    this->id = id;
-    this->worker_config = std::move(worker_config);
-    this->mx = std::make_shared<async::mutex>();
+manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<http::site> site, size_t id) : m_site(std::move(site)) {
+    this->m_config = std::make_shared <http::config> (config);
+    this->m_id = id;
+    this->m_worker_config = std::move(worker_config);
+    this->m_mx = std::make_shared<async::mutex>();
 
-    this->config_->function_contains_compressor([this] (std::string_view name) -> bool {
-        return this->site_.contains_compressor_for_file(name)
-            || this->site_.contains_compressor_for_string(name);
+    this->m_config->function_contains_compressor([this] (std::string_view name) -> bool {
+        return this->m_site->contains_compressor_for_file(name)
+            || this->m_site->contains_compressor_for_string(name);
     });
 }
 
@@ -31,13 +31,13 @@ manapi::net::http_pool::~http_pool() = default;
 
 manapi::future<manapi::status> manapi::net::http_pool::stop() {
     try {
-        auto lk = co_await this->mx->lock_guard();
+        auto lk = co_await this->m_mx->lock_guard();
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "shutdown socket");
-        if (this->worker) {
+        if (this->m_worker) {
             typedef manapi::async::promise_sync<void> promise;
             co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
                 try {
-                    this->worker->stop(std::move(resolve));
+                    this->m_worker->stop(std::move(resolve));
                 }
                 catch (...) {
                     reject(std::current_exception());
@@ -76,15 +76,15 @@ std::string concat_keys_in_map (const std::map<std::string, T> &m) {
 
 manapi::future<manapi::status> manapi::net::http_pool::pool_() {
     try {
-        manapi_log_trace("http: pool init №%zu", this->id);
+        manapi_log_trace("http: pool init №%zu", this->m_id);
 
-        auto lk = co_await this->mx->lock_guard();
+        auto lk = co_await this->m_mx->lock_guard();
 
-        manapi_log_trace("http: pool start №%zu", this->id);
+        manapi_log_trace("http: pool start №%zu", this->m_id);
 
-        auto implementation = this->config_->implementation;
-        auto transport = this->config_->transport;
-        auto implementations = this->site_.transport_protocol_worker(transport);
+        auto implementation = this->m_config->implementation;
+        auto transport = this->m_config->transport;
+        auto implementations = this->m_site->transport_protocol_worker(transport);
 
         http::site::implemenet_http_cb const *implement_http_callback{nullptr};
 
@@ -92,8 +92,8 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
         {
             try {
                 auto &generate = implementations[implementation];
-                this->worker = generate (this->site_, this->worker_config, this->config_.get());
-                auto const workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
+                this->m_worker = generate (this->m_site, this->m_worker_config, this->m_config.get());
+                auto const workerptr = dynamic_cast<worker::interface_worker *> (this->m_worker.get());
 
 
                 worker::wrk_interface_global_t wrk{};
@@ -108,12 +108,12 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                 auto wrkptr = workerptr->wrk_global();
 
                 if (implementation == "quiche") {
-                    if (!this->config_->contains_http_version(http::versions::HTTP_v0_9)
-                        && !this->config_->contains_http_version(http::versions::HTTP_v1_0)
-                        && !this->config_->contains_http_version(http::versions::HTTP_v1_1)
-                        && !this->config_->contains_http_version(http::versions::HTTP_v2)
-                        && this->config_->contains_http_version(http::versions::HTTP_v3)
-                        && this->config_->http3_implementation == "quiche") {
+                    if (!this->m_config->contains_http_version(http::versions::HTTP_v0_9)
+                        && !this->m_config->contains_http_version(http::versions::HTTP_v1_0)
+                        && !this->m_config->contains_http_version(http::versions::HTTP_v1_1)
+                        && !this->m_config->contains_http_version(http::versions::HTTP_v2)
+                        && this->m_config->contains_http_version(http::versions::HTTP_v3)
+                        && this->m_config->http3_implementation == "quiche") {
 
                     }
                     else {
@@ -131,16 +131,16 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
 
                     for (auto version : hlist) {
                         if (version == http::versions::HTTP_v1_1
-                            || this->config_->contains_http_version(version)) {
+                            || this->m_config->contains_http_version(version)) {
                             if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
                                 version = http::versions::HTTP_v1_1;
 
-                            auto &http_implementation = this->site_.http_protocol_worker(static_cast<http::versions::http>(version));
+                            auto &http_implementation = this->m_site->http_protocol_worker(static_cast<http::versions::http>(version));
                             std::string *http_impl_name{nullptr};
                             switch (version) {
-                                case http::versions::HTTP_v1_1: http_impl_name = &this->config_->http1_implementation; break;
-                                case http::versions::HTTP_v2: http_impl_name = &this->config_->http2_implementation; break;
-                                case http::versions::HTTP_v3: http_impl_name = &this->config_->http3_implementation; break;
+                                case http::versions::HTTP_v1_1: http_impl_name = &this->m_config->http1_implementation; break;
+                                case http::versions::HTTP_v2: http_impl_name = &this->m_config->http2_implementation; break;
+                                case http::versions::HTTP_v3: http_impl_name = &this->m_config->http3_implementation; break;
                             }
 
                             assert(http_impl_name);
@@ -163,7 +163,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                     }
                 }
 
-                workerptr->worker_pool_id(this->id);
+                workerptr->worker_pool_id(this->m_id);
                 res = co_await workerptr->init(0);
 
                 if (!res.ok()) {
@@ -193,10 +193,10 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
     co_return status_internal("pool() failed");
 }
 
-manapi::net::http::site manapi::net::http_pool::site() const {
-    return this->site_;
+const std::shared_ptr<manapi::net::http::site> &manapi::net::http_pool::site() const {
+    return this->m_site;
 }
 
 std::shared_ptr <manapi::net::http::config> manapi::net::http_pool::config() const {
-    return this->config_;
+    return this->m_config;
 }
