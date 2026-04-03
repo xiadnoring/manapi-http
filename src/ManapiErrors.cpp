@@ -28,12 +28,15 @@ static int log_trace_enabled = -1;
 
 static std::mutex log_mx;
 
-static std::unordered_map <std::string_view, std::string> log_names_enabled;
+static std::unordered_map <std::string_view, std::unique_ptr <char, manapi::ev::chars_deleter>> log_names_enabled;
 
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
     if (enabled) {
-        auto data = std::string (name);
-        auto sv = std::string_view(data.data());
+        auto const len = ::strlen(name);
+        std::unique_ptr<char, manapi::ev::chars_deleter> data( new char (len + 1));
+        ::strcpy(data.get(), name);
+        data.get()[len] = '\0';
+        std::string_view sv (data.get(), len);
         log_names_enabled.insert({sv, std::move(data)});
     }
     else
