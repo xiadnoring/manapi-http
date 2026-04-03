@@ -31,8 +31,10 @@ static std::mutex log_mx;
 static std::unordered_map <std::string_view, std::string> log_names_enabled;
 
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
-    if (enabled)
-        log_names_enabled.insert({std::string_view(name), std::string (name)});
+    if (enabled) {
+        auto data = std::string (name);
+        log_names_enabled.insert({std::string_view(data.data()), std::move(data)});
+    }
     else
         log_names_enabled.erase(std::string_view(name));
 }
@@ -617,11 +619,12 @@ manapi::status manapi::status_internal(const char *msg) {
 }
 
 static void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *name, const char *fmt, va_list args) {
-    if (type == manapi::debug::LOG_TRACE && level > log_trace_enabled)
-        return;
-
-    if (!log_names_enabled.contains(std::string_view (name)))
-        return;
+    if (type == manapi::debug::LOG_TRACE ) {
+        if (!log_names_enabled.contains(std::string_view (name)))
+            return;
+        if (level > log_trace_enabled)
+            return;
+    }
 
     auto timepoint = std::chrono::system_clock::now();
     auto coarse = std::chrono::system_clock::to_time_t(timepoint);
