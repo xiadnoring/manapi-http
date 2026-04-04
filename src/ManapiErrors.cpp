@@ -9,6 +9,17 @@
 #include "std/ManapiAsyncContext.hpp"
 #include "./include/ManapiUtils.hpp"
 
+struct manapi_errors_string_hash
+{
+    using hash_type = std::hash<std::string_view>;
+    using is_transparent = void;
+
+    std::size_t operator()(const char* str) const        { return hash_type{}(str); }
+    std::size_t operator()(std::string_view str) const   { return hash_type{}(str); }
+    std::size_t operator()(std::string const& str) const { return hash_type{}(str); }
+};
+
+
 static const char* level_strings[] = {
     "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
@@ -28,19 +39,17 @@ static int log_trace_enabled = -1;
 
 static std::mutex log_mx;
 
-static std::unordered_map <std::string_view, std::unique_ptr <char, manapi::ev::chars_deleter>> log_names_enabled;
+static std::unordered_set<std::string, manapi_errors_string_hash, std::equal_to<>> log_names_enabled;
 
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
     if (enabled) {
-        auto const len = ::strlen(name);
-        std::unique_ptr<char, manapi::ev::chars_deleter> data( new char (len + 1));
-        ::strcpy(data.get(), name);
-        data.get()[len] = '\0';
-        std::string_view sv (data.get(), len);
-        log_names_enabled.insert({sv, std::move(data)});
+        log_names_enabled.insert(std::string(name));
     }
-    else
-        log_names_enabled.erase(std::string_view(name));
+    else {
+        auto it = log_names_enabled.find(std::string_view(name));
+        if (it != log_names_enabled.end())
+            log_names_enabled.erase(it);
+    }
 }
 
 void manapi::debug::set_log_trace_enabled (int value) MANAPIHTTP_NOEXCEPT {

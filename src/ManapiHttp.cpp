@@ -38,6 +38,10 @@ struct manapi::net::http::server::data2_t : manapi::net::http::site::data_t {
     async::promise_sync<void>::resolve_t resolve_stop;
     std::shared_ptr<ev::async> init_watcher;
     uint8_t flags;
+
+    ~data2_t () {
+        std::cout << "OH NO\n";
+    }
 };
 
 manapi::net::http::server::server() : site() {
@@ -151,8 +155,6 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
 
         // короч. мне лень. это проблема не сегодняшнего меня
 
-        async::current()->eventloop()->unsubscribe_finish(std::exchange(data->event_id, 0));
-        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(data->clean_up_id, 0));
 
         co_await stop_pool(data);
 
@@ -194,6 +196,9 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
 
         if (data->flags & MANAPI_HTTP_SERVER_FLAG_RUNNING)
             data->flags ^= MANAPI_HTTP_SERVER_FLAG_RUNNING;
+
+        async::current()->eventloop()->unsubscribe_finish(std::exchange(data->event_id, 0));
+        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(data->clean_up_id, 0));
 
         co_return status_ok();
     }

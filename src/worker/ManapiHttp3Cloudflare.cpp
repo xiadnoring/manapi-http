@@ -41,7 +41,7 @@ enum http_v3_stream_flags {
 };
 
 struct manapi::net::worker::http_v3_cloudflare_quiche::connection_t {
-    std::string_view cid;
+    std::string cid;
     int flags;
     http_v3_cloudflare_quiche *worker;
     quiche_conn *conn;
@@ -734,7 +734,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
         try {
             std::string conn_id{dcid, dcid_len};
 
-            auto p = std::make_unique<connection_t>(std::string_view{conn_id}, 0, this, quiche_conn_, nullptr, std::map<int64_t, shared_conn>{});
+            auto p = std::make_unique<connection_t>(conn_id, 0, this, quiche_conn_, nullptr, std::map<int64_t, shared_conn>{});
             connection = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
 
             conn_data = connection->as<connection_t>();

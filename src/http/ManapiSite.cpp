@@ -290,7 +290,7 @@ manapi::future<manapi::status> manapi::net::http::site::config(std::string path)
             co_return status_already_exists("http:config already exists");
 
 
-        this->data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p, data = this->data] () mutable
+        this->data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p] () mutable
             -> future<> {
             auto res = co_await p->stop();
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());
