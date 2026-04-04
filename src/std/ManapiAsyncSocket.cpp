@@ -155,7 +155,7 @@ manapi::future<manapi::ev::status_or<int>> manapi::async::custom_ready(int flags
 
     auto res = co_await  promise([flags, fd, cancellation] (promise::resolve_t resolve, promise::reject_t reject) mutable -> void {
         auto cb = pio_ready_mk_(flags, fd, resolve, cancellation);
-        pio_ready(fd, flags, std::move(cb), resolve, cancellation);
+        pio_ready(fd, flags, std::move(cb), resolve, std::move(cancellation));
     });
 
     /** already */

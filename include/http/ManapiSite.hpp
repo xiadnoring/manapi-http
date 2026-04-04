@@ -211,14 +211,14 @@ namespace manapi::net::http {
          * @param path file path
          * @return a future
          */
-        manapi::future<manapi::status> config (std::string path);
+        virtual manapi::future<manapi::status> config (std::string path) = 0;
 
         /**
          * set a config JSON object
          * @param config config JSON object
          * @return a future
          */
-        manapi::future<manapi::status> config_object (json config);
+        virtual manapi::future<manapi::status> config_object (json config) = 0;
 
         // const manapi::json &config ();
 

@@ -112,6 +112,10 @@ namespace manapi::net::http {
          * @return the future
          */
         manapi::future<manapi::status> stop () override;
+
+        manapi::future<manapi::status> config(std::string path) override;
+
+        manapi::future<manapi::status> config_object(json config) override;
     private:
         std::shared_ptr<site> copy() override;
 

@@ -215,7 +215,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
 
             ctoken cancellation2 = ctoken::unit (cancellation);
 
-            auto err = co_await async_fs_operation<manapi::ev::status>([path = path.substr(0, size), mode, cancellation2, cancellation](std::shared_ptr<ev::fs> w) mutable
+            auto err = co_await async_fs_operation<manapi::ev::status>([path = path.substr(0, size), mode](std::shared_ptr<ev::fs> w) mutable
                 -> bool {
                     return !w->mkdir(path.data(), mode);
                 },

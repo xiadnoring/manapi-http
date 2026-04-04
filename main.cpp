@@ -126,6 +126,8 @@ int main() {
             db->add_slave(std::move(slave)).unwrap();
 
             manapi::unwrap(co_await route.config(manapi::fs::path::join(".", "config.json")));
+
+            manapi::unwrap(co_await route.start());
         });
 
         cb();

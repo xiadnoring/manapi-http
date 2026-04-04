@@ -20,17 +20,17 @@ struct manapi::ctoken_data_t {
     std::move_only_function<void()> cancel_sync_callback_;
     std::unique_ptr<manapi::chain<ctoken>> unites;
     manapi::chain<ctoken>::iterator it;
-    ctoken *parent;
+    ctoken_data_t *parent;
 };
 
-static void ctoken_stop_timeout_(const std::shared_ptr<manapi::ctoken_data_t>& m_data) MANAPIHTTP_NOEXCEPT {
+static void ctoken_stop_timeout_( std::shared_ptr<manapi::ctoken_data_t> m_data) MANAPIHTTP_NOEXCEPT {
     if (m_data->timeout_struct_) {
         m_data->timeout_struct_.stop();
         m_data->timeout_struct_ = nullptr;
     }
 }
 
-static void ctoken_cancel_(const std::shared_ptr<manapi::ctoken_data_t>& m_data) MANAPIHTTP_NOEXCEPT {
+static void ctoken_cancel_( std::shared_ptr<manapi::ctoken_data_t> m_data) MANAPIHTTP_NOEXCEPT {
     ctoken_stop_timeout_(m_data);
 
     if (m_data->cancel_sync_callback_) {
@@ -125,26 +125,32 @@ manapi::ctoken & manapi::ctoken::operator=(const ctoken &n) {
 }
 
 manapi::ctoken::~ctoken() {
-    if (this->m_data
-        && this->m_data.use_count() == 1) {
-        if (this->m_data->parent) {
-            assert(this->m_data->it);
+    if (this->m_data) {
+        std::size_t usage = 1;
+        if (this->m_data->parent)
+            usage++;
 
-            this->m_data->parent->m_data->unites->erase(this->m_data->it);
-            this->m_data->it = nullptr;
-            this->m_data->parent = nullptr;
-        }
+        assert(this->m_data.use_count() >= usage);
+        if (this->m_data.use_count() == usage) {
+            if (this->m_data->parent) {
+                assert(this->m_data->it);
 
-        if (this->m_data->unites) {
-            while (!this->m_data->unites->empty()) {
-                auto it = std::move(this->m_data->unites->back());
-                this->m_data->unites->pop_back();
-
-                it.m_data->it = nullptr;
-                it.m_data->parent = nullptr;
+                this->m_data->parent->unites->erase(this->m_data->it);
+                this->m_data->it = nullptr;
+                this->m_data->parent = nullptr;
             }
+
+            if (this->m_data->unites) {
+                while (!this->m_data->unites->empty()) {
+                    auto it = std::move(this->m_data->unites->back());
+                    this->m_data->unites->pop_back();
+
+                    it.m_data->it = nullptr;
+                    it.m_data->parent = nullptr;
+                }
+            }
+            this->m_data.reset();
         }
-        this->m_data.reset();
     }
 }
 
@@ -172,7 +178,7 @@ void manapi::ctoken::cancel_callback(ctoken cancellation) {
     if (this->m_data && cancellation) {
         if (this->m_data->parent) {
             assert(this->m_data);
-            this->m_data->parent->m_data->unites->erase(this->m_data->it);
+            this->m_data->parent->unites->erase(this->m_data->it);
             this->m_data->parent = nullptr;
             this->m_data->it = nullptr;
         }
@@ -190,7 +196,7 @@ void manapi::ctoken::cancel_callback(ctoken cancellation) {
             this->ask_cancel_callback();
 
             cancellation.m_data->unites->push_back((*this));
-            this->m_data->parent = this;
+            this->m_data->parent = cancellation.m_data.get();
             this->m_data->it = cancellation.m_data->unites->rbegin();
         }
     }

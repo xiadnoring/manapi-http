@@ -681,25 +681,27 @@ static void m_event_loop_free_on_finish_cb_( std::map <size_t, std::move_only_fu
 }
 
 static manapi::future<> m_event_loop_call_on_finish_cb(std::map <size_t, std::pair<int, std::move_only_function<manapi::future<>()>>> &m) {
-    using item_t = std::pair<int, std::move_only_function<manapi::future<void>()>>;
-    std::vector<item_t> values;
-    values.reserve(m.size());
     while (!m.empty()) {
-        const auto it = m.extract(m.begin());
-        values.push_back(std::move(it.mapped()));
-    }
+        using item_t = std::pair<int, std::move_only_function<manapi::future<void>()>>;
+        std::vector<item_t> values;
+        values.reserve(m.size());
+        while (!m.empty()) {
+            const auto it = m.extract(m.begin());
+            values.push_back(std::move(it.mapped()));
+        }
 
-    std::sort(values.begin(), values.end(), +[](const item_t& a, const item_t& b)
-        -> bool { return a.first > b.first; });
+        std::sort(values.begin(), values.end(), +[](const item_t& a, const item_t& b)
+            -> bool { return a.first > b.first; });
 
-    for (auto &it : values) {
-        if (it.second) {
-            try {
-                auto callback = std::move(it.second);
-                co_await manapi::async::invoke(std::move(callback));
-            }
-            catch (std::exception const &e) {
-                manapi_log_error("eventloop:finish callback failed due to %s", e.what());
+        for (auto &it : values) {
+            if (it.second) {
+                try {
+                    auto callback = std::move(it.second);
+                    co_await manapi::async::invoke(std::move(callback));
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("eventloop:finish callback failed due to %s", e.what());
+                }
             }
         }
     }
@@ -879,6 +881,9 @@ manapi::future<> manapi::event_loop::stop() {
     co_await ::m_event_loop_call_on_finish_cb(this->m_map_finish_cb);
 
     ::m_event_loop_free_on_finish_cb_(this->m_map_clean_up_cb);
+
+    this->m_map_finish_cb.clear();
+    this->m_map_clean_up_cb.clear();
 
     if (this->m_flags & EVENT_LOOP_FLAG_ACTIVE) {
         ::uv_stop(this->m_loop.get());
