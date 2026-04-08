@@ -96,6 +96,10 @@ manapi::future<ssize_t> write_internal (manapi::net::worker::base *w, ssize_t rh
         rhs = co_await promise ([&write_data]
             (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
+            // if (write_data.w->is_send_pending(*write_data.conn)) {
+            //     resolve(0);
+            //     return;
+            // }
             write_data.resolve=std::move(resolve);
             write_data.prev_cb = write_data.w->event_on(*write_data.conn, [&write_data]
                 (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {

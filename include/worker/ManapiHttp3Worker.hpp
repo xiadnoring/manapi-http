@@ -58,6 +58,8 @@ namespace manapi::net::worker {
 
         ~http_v3 () override;
 
+        // bool is_send_pending(const shared_conn &conn) const noexcept(true) override;
+
         const std::shared_ptr<multithread_storage::worker_t> &worker_data() MANAPIHTTP_NOEXCEPT override;
 
         wrk_interface_global_t *wrk_global() MANAPIHTTP_NOEXCEPT override;

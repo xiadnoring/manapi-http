@@ -237,4 +237,17 @@ UTEST(slice, slice_cmp7) {
     wait_ctx(ctx);
 }
 
+UTEST(slice, slice_cmp10) {
+    auto ctx = init_ctx(utest_result);
+    for (int i = 0; i < 1; i++) {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        auto res = b.subslice(9999).unwrap();
+        ASSERT_TRUE(res.size() == 1 && !res.cmp(s1.data() + 9999, 1));
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
 MANAPIHTTP_TESTS_MAIN

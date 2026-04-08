@@ -588,7 +588,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
     ssize_t rhs;
 
-    if (connection->top->send_size) {
+    if (connection->top->send_size || true) {
         rhs = 0;
     }
     else {
@@ -955,6 +955,11 @@ bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) MANAPIHTTP_N
     auto const data = conn->as<tcp_connection_t>();
     return prepared::is_writable(this->config_, conn, data);
 }
+
+// bool manapi::net::worker::TCP::is_send_pending(const shared_conn &conn) const noexcept(true) {
+//     auto const data = conn->as<tcp_connection_t>();
+//     return data->top->send_size!=data->top->cur_send_size;
+// }
 
 manapi::net::worker::shared_conn manapi::net::worker::TCP::connection_init_cb(void *user_data) MANAPIHTTP_NOEXCEPT {
     try {

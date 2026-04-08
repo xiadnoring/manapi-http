@@ -1150,6 +1150,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::feed_event(const shared_con
     prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
+// bool manapi::net::worker::http_v3_cloudflare_quiche::is_send_pending(const shared_conn &conn) const noexcept(true) {
+//     auto const data = conn->as<connection_stream_t>();
+//     return data->top->send_size != data->top->cur_send_size;
+// }
+
 bool manapi::net::worker::http_v3_cloudflare_quiche::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<connection_stream_t>();
     return prepared::is_writable(this->config_, conn, data);

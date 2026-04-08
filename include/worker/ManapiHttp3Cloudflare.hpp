@@ -51,6 +51,8 @@ namespace manapi::net::worker {
 
         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT override;
 
+        // bool is_send_pending(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
+
         bool is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
 
         MANAPIHTTP_NODISCARD std::size_t recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;

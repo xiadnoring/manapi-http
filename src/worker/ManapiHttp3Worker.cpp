@@ -10,6 +10,10 @@ manapi::net::worker::http_v3::http_v3(worker::base *w, http_v3_callbacks_t *call
 
 manapi::net::worker::http_v3::~http_v3() = default;
 
+// bool manapi::net::worker::http_v3::is_send_pending(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {
+//     return !this->callbacks->http_v3_is_writable(conn);
+// }
+
 const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::http_v3::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->w->worker_data();
 }
@@ -121,7 +125,6 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v3::ipdata
 bool manapi::net::worker::http_v3::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const s = conn->as<http_v3_stream_base_t>();
     return this->callbacks->http_v3_is_writable(conn) && prepared::is_writable(this->config(), conn, s);
-
 }
 
 void manapi::net::worker::http_v3::stop(std::function<void()> cb) {

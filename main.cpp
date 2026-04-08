@@ -1,22 +1,19 @@
 #include <iostream>
 
-#include <ManapiHttp.hpp>
-#include <ManapiInitTools.hpp>
-#include <ManapiProcess.hpp>
-#include <ManapiString.hpp>
-#include <cache/ManapiTL.hpp>
-#include <ManapiFetch2.hpp>
+#include <manapihttp/ManapiHttp.hpp>
+#include <manapihttp/ManapiInitTools.hpp>
+#include <manapihttp/ManapiProcess.hpp>
+#include <manapihttp/ManapiString.hpp>
+#include <manapihttp/cache/ManapiTL.hpp>
+#include <manapihttp/ManapiFetch2.hpp>
+#include <manapihttp/ext/pq/AsyncPostgreClient.hpp>
 
 struct data_t {
-    manapi::json content;
     std::mutex mx;
 };
 
 static std::string zfrontend;
 static std::string zconfig;
-
-static manapi::tl_cache<std::string, std::shared_ptr<data_t>> messages;
-static std::mutex mx_messages;
 
 static manapi::status setup_cors(manapi::net::http::request &req, manapi::net::http::response &resp) MANAPIHTTP_NOEXCEPT {
     try {
@@ -54,8 +51,13 @@ int main() {
 
         manapi::json app;
         auto router = manapi::net::http::server::create(router_ctx).unwrap();
+        auto db = manapi::ext::pq::connection::create().unwrap();
 
         router.GET("/", zfrontend).unwrap();
+
+        router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+            co_return resp.file(manapi::fs::path::join(zfrontend, "index.html")).unwrap();
+        }).unwrap();
 
         router.GET("/+layer", [] (http::req &req, http::resp &resp) -> manapi::future<> {
             manapi::unwrap(setup_cors (req, resp));
@@ -73,67 +75,71 @@ int main() {
             co_return;
         }).unwrap();
 
-        router.GET("/api/create", [&app] (http::req &req, http::resp &resp) -> manapi::future<> {
-            auto api = manapi::string::random(78);
-            auto tv = 86400000;
-            std::lock_guard<std::mutex> lk (mx_messages);
-            auto data = std::make_shared<data_t>();
-            data->content = manapi::json::array();
-            data->content.push_back({
-                {"role", "system"},
-                {"content", app["prompt"]}
-            });
-            messages.put(api, std::move(data), std::chrono::milliseconds (tv + 60000));
-            co_return resp.json({{"ok", true}, {"api", api}, {"live_in", tv}}).unwrap();
+        router.GET("/api/create", [&app, db] (http::req &req, http::resp &resp) mutable  -> manapi::future<> {
+            while (true) {
+                auto api = manapi::string::random(78);
+                auto tv = 86400000;
+                auto content = manapi::json::array();
+                content.push_back({
+                    {"role", "system"},
+                    {"content", app["prompt"]}
+                });
+                auto result = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())"
+                        "INSERT INTO chats (id, chat, created_at, removed_at) VALUES ($1,$2,NOW(),NOW() + $3 * INTERVAL '1 millisecond');",
+                        req.cancellation().sub(), api, content.dump(), tv));
+                if (!result.affected_rows()) {
+                    continue;
+                }
+                co_return resp.json({{"ok", true}, {"api", api}, {"live_in", tv}}).unwrap();
+            }
         }).unwrap();
 
-        router.POST ("/api/[api]/chat", [&app] (http::req &req, http::resp &resp) -> manapi::future<> {
+        router.POST ("/api/[api]/chat", [&app, db] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
             auto api = std::string{req.param("api").unwrap()};
             auto userdata = manapi::unwrap(co_await req.json());
-            std::unique_lock<std::mutex> lk (mx_messages);
-            auto data_res = messages.get(api);
-            if (!data_res)
+            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())"
+                                                        "UPDATE chats SET version = version + 1 RETURNING version, chat;", req.cancellation().sub()));
+            if (res.empty())
                 co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
-            auto data = *data_res.unwrap();
-            std::unique_lock<std::mutex> lkz (data->mx, std::try_to_lock);
-            lk.unlock();
-            if (!lkz.owns_lock())
-                co_return resp.json({{"ok", false}, {"msg", "already thinking"}}).unwrap();
-            data->content.push_back({
-                {"role", "user"},
-                {"content", std::move(userdata["content"].as_string())}
-            });
-            auto b = manapi::string::random(100);
-            for (int i = 0; i < 6; i++)
-                b = b + b;
-            auto b2 = std::format("{}\n{}\n{}", b, api, b);
-            data->content.push_back({
-                {"role", "assistant"},
-                {"content", b},
-                {"reasoning_details", b}
-            });
-            co_return resp.callback_async([b = std::move(b2), s = 0] (manapi::slice_view buffs, bool &f) mutable -> manapi::future<ssize_t> {
-                co_await manapi::async::delay{1000};
-                auto size =  std::min<ssize_t>(100000000, b.size() - s);
-                buffs.copy_from(b.data() + s, 0,size);
-                s += size;
-                if (size==0)
-                    f=true;
-                co_return size;
-            }).unwrap();
-            auto response = manapi::unwrap(co_await manapi::net::fetch2::fetch ("https://openrouter.ai/api/v1/chat/completions", {
-                {"method", "POST"},
-                {"headers", {
-                    {"Authorization", std::format("Bearer {}", app["api-key"].as_string())},
-                    {"Content-Type", "application/json"}
-                }},
-                {"recv_nodelay", true}
-            }, manapi::json ({
-                {"model", app["model"]},
-                {"messages", data->content},
-                {"stream", true},
-                {"reasoning", manapi::json::object({{"enabled", true}})}
-            }).dump()));
+            auto data = manapi::json::parse(res[0]["chat"].as<std::string>()).unwrap();
+            auto version = res[0]["version"].as<int>();
+            auto usermsg = manapi::json::object();
+            usermsg.insert("role", "user");
+            usermsg.insert("content", std::move(userdata["content"]));
+            data.push_back(std::move(usermsg));
+            // auto b = manapi::string::random(100);
+            // for (int i = 0; i < 6; i++)
+            //     b = b + b;
+            // auto b2 = std::format("{}\n{}\n{}", b, api, b);
+            // data->content.push_back({
+            //     {"role", "assistant"},
+            //     {"content", b},
+            //     {"reasoning_details", b}
+            // });
+            // co_return resp.callback_async([b = std::move(b2), s = 0] (manapi::slice_view buffs, bool &f) mutable -> manapi::future<ssize_t> {
+            //     co_await manapi::async::delay{100};
+            //     auto size =  std::min<ssize_t>(100, b.size() - s);
+            //     buffs.copy_from(b.data() + s, 0,size);
+            //     s += size;
+            //     if (size==0)
+            //         f=true;
+            //     co_return size;
+            // }).unwrap();
+            auto headers = manapi::json::object();
+            headers.insert("Authorization", std::format("Bearer {}", app["api-key"].as_string()));
+            headers.insert("Content-Type", "application/json");
+            auto pfetch = manapi::json::object();
+            pfetch.insert("method", "POST");
+            pfetch.insert("headers", std::move(headers));
+            pfetch.insert("recv_nodelay", true);
+            auto body = manapi::json::object();
+            auto reasoning = manapi::json::object();
+            reasoning.insert("enabled", true);
+            body.insert("model", app["model"]);
+            body.insert("messages", data);
+            body.insert("stream", true);
+            body.insert("reasoning", std::move(reasoning));
+            auto response = manapi::unwrap(co_await manapi::net::fetch2::fetch ("https://openrouter.ai/api/v1/chat/completions", std::move(pfetch), body.dump()));
 
             if (!response.ok()) {
                 auto text = manapi::unwrap(co_await response.text());
@@ -141,7 +147,7 @@ int main() {
                 co_return resp.json({{"ok", false}, {"msg", "response failed"}}).unwrap();
             }
 
-            co_return resp.callback_stream([lkz = std::move(lkz), data, response, api]
+            co_return resp.callback_stream([db, version, data = std::move(data), response, api]
                     (std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool)> send) mutable
                         -> manapi::future<> {
 
@@ -202,27 +208,36 @@ int main() {
                         part.buff.base = reasoning.data() + rsize;
                         part.buff.len = reasoning.size() - rsize;
                         manapi::slice_view b (&part);
-                        co_await send (b, fin && content.size() == csize);
+                        if (co_await send (b, fin && content.size() == csize) < 0)
+                            co_return -1;
                     }
                     if (content.size() != csize) {
                         manapi::slice_part_t part{};
                         part.buff.base = content.data() + csize;
                         part.buff.len = content.size() - csize;
                         manapi::slice_view b (&part);
-                        co_await send (b, fin);
+                        if (co_await send (b, fin) < 0)
+                            co_return -1;
                     }
                     else if (fin) {
-                        co_await send (manapi::slice_view (), fin);
+                        if (co_await send (manapi::slice_view (), fin) < 0)
+                            co_return -1;
                     }
                     co_return sv.size();
                 }));
 
                 manapi::string::replace(reasoning, api, "");
-                data->content.push_back({
-                    {"role", "assistant"},
-                    {"content", std::move(content)},
-                    {"reasoning_details", std::move(reasoning)}
+                auto obj = manapi::json::object();
+                obj.insert("role", "assistant");
+                obj.insert("content", std::move(content));
+                obj.insert("reasoning_details", std::move(reasoning));
+                data.push_back(std::move(obj));
+
+                manapi::async::run ([db, api, data = std::move(data), version] () mutable -> manapi::future<> {
+                    manapi::unwrap(co_await db.execl("UPDATE chats SET chat = $2 WHERE id = $1 AND version = $3;",
+                        manapi::ctokens::timeout(5000), api, data.dump(), version));
                 });
+
             }).unwrap();
         }).unwrap();
 
@@ -230,54 +245,57 @@ int main() {
             co_return resp.json({{"ok", false}, {"msg", "something gets wrong"}}).unwrap();
         }).unwrap();
 
-        router.POST ("/api/[api]/alive", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+        router.POST ("/api/[api]/alive", [db] (http::req &req, http::resp &resp) mutable  -> manapi::future<> {
             auto api = std::string{req.param("api").unwrap()};
-            std::unique_lock<std::mutex> lk (mx_messages);
-            auto data_res = messages.get(api);
-            if (!data_res)
+            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT id FROM chats WHERE id = $1;", req.cancellation().sub(), api));
+            if (res.empty())
                 co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
             co_return resp.json({{"ok", true}}).unwrap();
         }).unwrap();
 
-        router.POST ("/api/[api]/remove", [](http::req &req, http::resp &resp) -> manapi::future<> {
+        router.POST ("/api/[api]/remove", [db](http::req &req, http::resp &resp) mutable  -> manapi::future<> {
             auto api = std::string{req.param("api").unwrap()};
-            std::unique_lock<std::mutex> lk (mx_messages);
-            messages.remove(api);
+            auto res = manapi::unwrap(co_await db.execl("DELETE FROM chats WHERE id = $1", req.cancellation().sub(), api));
             co_return resp.json({{"ok", true}}).unwrap();
         }).unwrap();
 
-        router.POST ("/api/[api]/history", [](http::req &req, http::resp &resp) -> manapi::future<> {
+        router.POST ("/api/[api]/history", [db](http::req &req, http::resp &resp) mutable  -> manapi::future<> {
             auto api = std::string{req.param("api").unwrap()};
-            std::unique_lock<std::mutex> lk (mx_messages);
-            auto data_res = messages.get(api);
-            if (!data_res)
+            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT chats FROM chats WHERE id = $1;", req.cancellation().sub(), api));
+            if (res.empty())
                 co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
-            auto data = *data_res.unwrap();
+            auto data = manapi::json::parse(res[0]["chat"].as<std::string>()).unwrap();
             manapi::json z = manapi::json::array();
-            for (int i = 1; i < data->content.size(); i++) {
-                z.push_back(data->content[i]);
+            for (int i = 1; i < data.size(); i++) {
+                z.push_back(data[i]);
             }
             co_return resp.json({{"ok", true}, {"data", std::move(z)}}).unwrap();
         }).unwrap();
 
-        manapi::async::run([&app, router] () mutable  -> manapi::future<> {
+        manapi::async::run([&app, router, db] () mutable  -> manapi::future<> {
             app = manapi::json::parse(manapi::unwrap(co_await manapi::fs::async_read(zconfig))).unwrap();
 
-            manapi::unwrap(co_await router.config_object({
-                {"pools", manapi::json::array({
-                    {
-                        {"address", "127.0.0.1"},
-                        {"http", manapi::json::array({"1.1"})},
-                        {"transport", "tcp"},
-                        {"partial_data_min_size", 0},
-                        {"port", "8888"},
-                        {"tcp_no_delay", true},
-                        {"max_merge_buffer_stack", 0},
-                        {"buffer_size", 4096}
-                    }
-                })},
-                {"save_config", false}
-            }));
+            auto &dbapp = app["db"];
+
+            manapi::unwrap(co_await db.connect(dbapp["host"].as_string(), dbapp["port"].as_string(), dbapp["user"].as_string(), dbapp["password"].as_string(), dbapp["db"].as_string()));
+
+            auto pools = manapi::json::array();
+            auto pool = manapi::json::object();
+            auto version = manapi::json::array();
+            version.push_back("1.1");
+            pool.insert("address", "0.0.0.0");
+            pool.insert("http", std::move(version));
+            pool.insert("transport", "tcp");
+            pool.insert("port" ,"8888");
+            pool.insert("tcp_no_delay", true);
+            pool.insert("max_merge_buffer_stack", 0);
+            pool.insert("buffer_size", 4096);
+            pools.push_back(std::move(pool));
+
+            auto pconfig = manapi::json::object();
+            pconfig.insert("pools", std::move(pools));
+            pconfig.insert("save_config" , false);
+            manapi::unwrap(co_await router.config_object(std::move(pconfig)));
             manapi::unwrap(co_await router.start());
         });
 

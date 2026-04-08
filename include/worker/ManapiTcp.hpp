@@ -71,6 +71,8 @@ namespace manapi::net::worker {
 
         bool is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
 
+        // bool is_send_pending(const shared_conn & conn) const MANAPIHTTP_NOEXCEPT override;
+
         virtual int onaccept_event_ (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
         int onreaccept_event_ (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;

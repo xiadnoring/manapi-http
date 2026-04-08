@@ -398,6 +398,10 @@ manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t p
     return manapi::slice_base{current, scurrent, cnt, pos, static_cast<std::size_t>(rshift), tmp_size};
 }
 
+manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos) const MANAPIHTTP_NOEXCEPT {
+    return this->subslice(pos, this->size() - pos);
+}
+
 std::size_t manapi::slice_base::shift() const {
     return this->shift_;
 }

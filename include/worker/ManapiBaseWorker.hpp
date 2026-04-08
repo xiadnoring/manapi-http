@@ -285,6 +285,8 @@ namespace manapi::net::worker {
 
         virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT = 0;
 
+        // virtual bool is_send_pending (const shared_conn & conn) const MANAPIHTTP_NOEXCEPT = 0;
+
         void event_toggle (const shared_conn & conn, bool state, int flag) MANAPIHTTP_NOEXCEPT;
 
         /**

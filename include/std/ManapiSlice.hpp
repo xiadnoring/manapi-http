@@ -141,7 +141,9 @@ namespace manapi {
 
         manapi::status copy_from (slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD manapi::status_or<manapi::slice_base> subslice (std::size_t pos, std::size_t size = 0) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<manapi::slice_base> subslice (std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD manapi::status_or<manapi::slice_base> subslice (std::size_t pos) const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::size_t shift () const;
 
