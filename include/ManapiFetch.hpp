@@ -299,6 +299,8 @@ namespace manapi::net {
          */
         manapi::status continue_write_loop () MANAPIHTTP_NOEXCEPT;
 
+        void async_recv_nodelay (bool enabled) MANAPIHTTP_NOEXCEPT;
+
         /**
          * Get the current HTTP status code
          * @return the HTTP status code

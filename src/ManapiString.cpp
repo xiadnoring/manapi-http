@@ -168,10 +168,18 @@ ssize_t manapi::string::replace(std::string &s, std::string_view from, std::stri
             break;
         }
 
-        s.resize(s.size() + shift);
+        if (shift <= 0) {
+            memmove(s.data() + it + to.size(), s.data() + it + from.size(), s.size() - it - to.size());
+            memcpy(s.data() + it, to.data(), to.size());
 
-        memmove(s.data() + it + shift, s.data() + it, s.size() - it - shift);
-        memcpy(s.data() + it, to.data(), to.size());
+            s.resize(s.size() + shift);
+        }
+        else {
+            s.resize(s.size() + shift);
+
+            memmove(s.data() + it + shift, s.data() + it, s.size() - it - shift);
+            memcpy(s.data() + it, to.data(), to.size());
+        }
 
         res++;
         cnt--;

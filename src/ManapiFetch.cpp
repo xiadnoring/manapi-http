@@ -23,19 +23,20 @@ enum body_type {
     BODY_CALLBACK = 3
 };
 
-enum status_flags {
-    FLAG_POST = 1<<0,
-    FLAG_HEAD = 1<<1,
-    FLAG_PUT = 1<<2,
-    FLAG_DELETE = 1<<3,
-    FLAG_TRACE = 1<<4,
-    FLAG_TRANSFER_ENCODING = 1<<5,
-    FLAG_CONTENT_LENGTH = 1<<6,
-    FLAG_WAS_USED = 1<<7,
-    FLAG_STATUS_PASSED = 1<<8,
-    FLAG_DATA_EOF = 1<<9,
-    FLAG_DATA_CLOSED = 1<<10,
-    FLAG_CALLBACK_SYNC = 1<<11
+enum m_curl_status_flags {
+    M_CURL_FLAG_POST = 1<<0,
+    M_CURL_FLAG_HEAD = 1<<1,
+    M_CURL_FLAG_PUT = 1<<2,
+    M_CURL_FLAG_DELETE = 1<<3,
+    M_CURL_FLAG_TRACE = 1<<4,
+    M_CURL_FLAG_TRANSFER_ENCODING = 1<<5,
+    M_CURL_FLAG_CONTENT_LENGTH = 1<<6,
+    M_CURL_FLAG_WAS_USED = 1<<7,
+    M_CURL_FLAG_STATUS_PASSED = 1<<8,
+    M_CURL_FLAG_DATA_EOF = 1<<9,
+    M_CURL_FLAG_DATA_CLOSED = 1<<10,
+    M_CURL_FLAG_CALLBACK_SYNC = 1<<11,
+    M_CURL_FLAG_ASYNC_RECV_NODELAY = 1<<12
 };
 
 static constexpr uint32_t status_flags_methods = 0xFFFFFFE0;
@@ -121,7 +122,7 @@ static manapi::future<manapi::status> curl_send_async_body (std::shared_ptr<mana
 
         if (fin || !rhs) {
             /* eof */
-            data->flags |= FLAG_DATA_EOF;
+            data->flags |= M_CURL_FLAG_DATA_EOF;
 
             if (!rhs)
                 break;
@@ -167,8 +168,8 @@ static std::size_t curl_send_async_continue (const std::shared_ptr<manapi::net::
             return size;
         }
 
-        if (data->flags & FLAG_DATA_EOF) {
-            if (!(data->flags & FLAG_CONTENT_LENGTH)) {
+        if (data->flags & M_CURL_FLAG_DATA_EOF) {
+            if (!(data->flags & M_CURL_FLAG_CONTENT_LENGTH)) {
 
             }
 
@@ -202,7 +203,7 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
          */
         f->async_buffer_size = 0;
 
-        if (f->flags & FLAG_STATUS_PASSED) {
+        if (f->flags & M_CURL_FLAG_STATUS_PASSED) {
             std::string_view const str (buffer, size * n_items - 2);
             if (!str.empty()) {
                 auto res = manapi::net::http::parse_header(str);
@@ -215,7 +216,7 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
             }
         }
         else {
-            f->flags |= FLAG_STATUS_PASSED;
+            f->flags |= M_CURL_FLAG_STATUS_PASSED;
         }
 
         return n_items * size;
@@ -247,7 +248,7 @@ size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t
 std::size_t manapi::net::fetch::curl_read_handler(char *buffer, std::size_t size, std::size_t nitems, void *user_p) {
     auto f = static_cast<data_t *> (user_p);
     try {
-        if (f->flags & FLAG_CALLBACK_SYNC) {
+        if (f->flags & M_CURL_FLAG_CALLBACK_SYNC) {
             auto res = f->handler_send_body->operator()(buffer, static_cast<ssize_t> (size * nitems));
 
             if (res < 0)
@@ -292,8 +293,14 @@ static manapi::status response_headers_received_(const std::shared_ptr<manapi::n
 }
 
 static std::size_t curl_recv_data_and_wait (const std::shared_ptr<manapi::net::fetch::data_t> &data, char *buffer, ssize_t size) {
-    if (data->async_buffer_size < data->async_buffer.size()
-        && data->async_buffer.size() - data->async_buffer_size >= size) {
+    bool decision;
+    if (data->flags & M_CURL_FLAG_ASYNC_RECV_NODELAY)
+        decision = data->async_buffer_size == data->async_buffer_index;
+    else
+        decision = data->async_buffer_size < data->async_buffer.size()
+            && data->async_buffer.size() - data->async_buffer_size >= size;
+
+    if (decision) {
         const auto copy = size;
         auto res = data->async_buffer.copy_from(buffer, data->async_buffer_size, copy);
         if (!res.ok())
@@ -375,7 +382,7 @@ static manapi::future<manapi::status> curl_recv_async_callback (const std::share
         }
 
         if (data->async_buffer_size) {
-            if (data->flags & FLAG_DATA_CLOSED) {
+            if (data->flags & M_CURL_FLAG_DATA_CLOSED) {
                 data->async_run.unlock();
                 co_return manapi::status_ok();
             }
@@ -688,10 +695,10 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
 
         std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
-        if (this->data->flags & FLAG_WAS_USED)
+        if (this->data->flags & M_CURL_FLAG_WAS_USED)
             co_return status_already_exists("fetch was already used. create another fetch object or reinit current");
 
-        this->data->flags |= FLAG_WAS_USED;
+        this->data->flags |= M_CURL_FLAG_WAS_USED;
 
         if (!this->data->curl)
             co_return status_internal("curl can not be init");
@@ -720,15 +727,15 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
             if (this->data->method_)
                 method = this->data->method_->data();
             else {
-                if (this->data->flags & FLAG_POST)
+                if (this->data->flags & M_CURL_FLAG_POST)
                     opt = CURLOPT_POST;
-                else if (this->data->flags & FLAG_PUT)
+                else if (this->data->flags & M_CURL_FLAG_PUT)
                     opt = CURLOPT_UPLOAD;
-                else if (this->data->flags & FLAG_HEAD)
+                else if (this->data->flags & M_CURL_FLAG_HEAD)
                     opt = CURLOPT_NOBODY;
-                else if (this->data->flags & FLAG_DELETE)
+                else if (this->data->flags & M_CURL_FLAG_DELETE)
                     method = "DELETE";
-                else if (this->data->flags & FLAG_TRACE)
+                else if (this->data->flags & M_CURL_FLAG_TRACE)
                     method = "TRACE";
                 else
                     optex = false;
@@ -775,7 +782,7 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
                 if ((status=curl_easy_setopt(this->data->curl.get(), CURLOPT_READDATA, this->data.get()))!=CURLE_OK)
                     goto errjmp;
 
-                if (this->data->flags & FLAG_CONTENT_LENGTH) {
+                if (this->data->flags & M_CURL_FLAG_CONTENT_LENGTH) {
                     if ((status=curl_easy_setopt(this->data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->data->content_length_)) != CURLE_OK)
                         goto errjmp;
                 }
@@ -839,7 +846,7 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
             resp = CURLE_AGAIN;
         }
 
-        this->data->flags |= FLAG_DATA_CLOSED;
+        this->data->flags |= M_CURL_FLAG_DATA_CLOSED;
 
         /* wait all jobs */
 #if !MANAPIHTTP_DISABLE_TRACE
@@ -1155,15 +1162,15 @@ manapi::status manapi::net::fetch::method(std::string_view method) MANAPIHTTP_NO
     }
 
     if (string::equals("post", method, 0b01))
-        flag = FLAG_POST;
+        flag = M_CURL_FLAG_POST;
     else if (string::equals("delete", method, 0b01))
-        flag = FLAG_DELETE;
+        flag = M_CURL_FLAG_DELETE;
     else if (string::equals("put", method, 0b01))
-        flag = FLAG_PUT;
+        flag = M_CURL_FLAG_PUT;
     else if (string::equals("head", method, 0b01))
-        flag = FLAG_HEAD;
+        flag = M_CURL_FLAG_HEAD;
     else if (string::equals("trace", method, 0b01))
-        flag = FLAG_TRACE;
+        flag = M_CURL_FLAG_TRACE;
 
     if (flag) {
         this->data->flags |= flag;
@@ -1245,8 +1252,8 @@ manapi::status manapi::net::fetch::async_body(std::move_only_function<manapi::fu
 
     try {
 
-        if (this->data->flags & FLAG_CALLBACK_SYNC) {
-            this->data->flags ^= FLAG_CALLBACK_SYNC;
+        if (this->data->flags & M_CURL_FLAG_CALLBACK_SYNC) {
+            this->data->flags ^= M_CURL_FLAG_CALLBACK_SYNC;
             this->data->handler_send_body = nullptr;
         }
 
@@ -1278,7 +1285,7 @@ manapi::status manapi::net::fetch::body(std::move_only_function<ssize_t(char *, 
         if (this->data->async_handler_send_body)
             this->data->async_handler_send_body = nullptr;
 
-        this->data->flags |= FLAG_CALLBACK_SYNC;
+        this->data->flags |= M_CURL_FLAG_CALLBACK_SYNC;
 
         this->data->body_ = BODY_CALLBACK;
         this->data->async_handler_send_body = nullptr;
@@ -1298,7 +1305,7 @@ manapi::status manapi::net::fetch::headers(std::map<std::string, std::string, st
     {
         auto content_length = headers.find(http::H_CONTENT_LENGTH);
         if (content_length != headers.end()) {
-            this->data->flags |= FLAG_CONTENT_LENGTH;
+            this->data->flags |= M_CURL_FLAG_CONTENT_LENGTH;
             char *end;
             this->data->content_length_ = std::strtoll(content_length->second.data(), &end, 10);
             if (errno == ERANGE)
@@ -1308,7 +1315,7 @@ manapi::status manapi::net::fetch::headers(std::map<std::string, std::string, st
     }
 
     if (headers.contains(http::H_TRANSFER_ENCODING)) {
-        this->data->flags |= FLAG_TRANSFER_ENCODING;
+        this->data->flags |= M_CURL_FLAG_TRANSFER_ENCODING;
     }
 
     // headers
@@ -1369,7 +1376,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
         auto &m = headers.entries();
         auto content_length = m.find(http::H_CONTENT_LENGTH);
         if (content_length != m.end()) {
-            this->data->flags |= FLAG_CONTENT_LENGTH;
+            this->data->flags |= M_CURL_FLAG_CONTENT_LENGTH;
             this->data->content_length_ = content_length->second.as_integer_cast();
             headers.erase(content_length);
         }
@@ -1381,7 +1388,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
 
     auto it = headers.find(http::H_TRANSFER_ENCODING);
     if (it != headers.end<json::OBJECT>()) {
-        this->data->flags |= FLAG_TRANSFER_ENCODING;
+        this->data->flags |= M_CURL_FLAG_TRANSFER_ENCODING;
     }
 
     // headers
@@ -1489,6 +1496,15 @@ manapi::status manapi::net::fetch::continue_write_loop() MANAPIHTTP_NOEXCEPT {
         return status_ok();
 
     return status_invalid_argument(curl_easy_strerror(res));
+}
+
+void manapi::net::fetch::async_recv_nodelay(bool enabled) MANAPIHTTP_NOEXCEPT {
+    if (!this->data)
+        return;
+    if (enabled)
+        this->data->flags |= M_CURL_FLAG_ASYNC_RECV_NODELAY;
+    else if (this->data->flags & M_CURL_FLAG_ASYNC_RECV_NODELAY)
+        this->data->flags ^= M_CURL_FLAG_ASYNC_RECV_NODELAY;
 }
 
 uint16_t manapi::net::fetch::status_code() const MANAPIHTTP_NOEXCEPT {

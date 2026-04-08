@@ -11,7 +11,7 @@ std::size_t summary_size_buffs (std::unique_ptr<manapi::slice_part_t, manapi::sl
     *last = current;
 
     while (current) {
-        assert(current->buff.len);
+        //assert(current->buff.len);
         res += current->buff.len;
         *last = current;
         current = current->next;
@@ -27,7 +27,7 @@ std::size_t summary_size_buffs (manapi::slice_part_t *first, manapi::slice_part_
         return 0;
 
     for (; first != last->next; first = first->next) {
-        assert(first->buff.len);
+        //assert(first->buff.len);
         res += first->buff.len;
     }
 
@@ -348,8 +348,6 @@ manapi::status manapi::slice_base::copy_from(slice_base &n, std::size_t shift, s
 manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT {
     pos += this->shift_;
     auto const size_ = this->size_ - this->rshift_;
-    if (!size)
-        size = size_ - pos;
 
     if (!size)
         return slice_base(nullptr, nullptr, 0, 0, 0, 0);

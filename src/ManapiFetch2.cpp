@@ -286,6 +286,12 @@ manapi::status manapi::net::fetch2::setup_fetch(manapi::json params) MANAPIHTTP_
             if (!res)
                 goto err;
         }
+
+        it = params.as_object().find("recv_nodelay");
+        if (it != params.as_object().end()) {
+            this->fetchdata->data.async_recv_nodelay(it->second.as_bool_cast());
+        }
+
         it = params.as_object().find("http");
         if (it != params.as_object().end()) {
             std::string_view version;

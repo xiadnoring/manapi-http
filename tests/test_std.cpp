@@ -48,6 +48,13 @@ UTEST(std_string, str_replace_5) {
     ASSERT_TRUE(9 == res);
 }
 
+UTEST(std_string, str_replace_7) {
+    std::string a = "Hello World!\nIt is a good time for it\n";
+    auto res = manapi::string::replace(a, "It is a good time for it", "");
+
+    ASSERT_TRUE(a == "Hello World!\n\n");
+}
+
 UTEST(std_string, chain_1) {
     manapi::chain<int> a;
     a.push_back(1);
