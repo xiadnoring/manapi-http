@@ -261,7 +261,7 @@ int main() {
 
         router.POST ("/api/[api]/history", [db](http::req &req, http::resp &resp) mutable  -> manapi::future<> {
             auto api = std::string{req.param("api").unwrap()};
-            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT chats FROM chats WHERE id = $1;", req.cancellation().sub(), api));
+            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT chat FROM chats WHERE id = $1;", req.cancellation().sub(), api));
             if (res.empty())
                 co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
             auto data = manapi::json::parse(res[0]["chat"].as<std::string>()).unwrap();
@@ -290,6 +290,7 @@ int main() {
             pool.insert("tcp_no_delay", true);
             pool.insert("max_merge_buffer_stack", 0);
             pool.insert("buffer_size", 4096);
+            pool.insert("keep_alive", 0);
             pools.push_back(std::move(pool));
 
             auto pconfig = manapi::json::object();
