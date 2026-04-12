@@ -490,7 +490,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         }
     }
     else {
-        manapi_log_trace("tcp renew connection %p", conn.get());
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "tcp renew connection %p", conn.get());
         try {
             if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
                 MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
@@ -598,7 +598,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
     ssize_t rhs;
 
-    if (connection->top->send_size || true) {
+    if (connection->top->send_size) {
         rhs = 0;
     }
     else {
@@ -775,7 +775,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     conn->top->send.deque = std::move(current->next);
 
                 ssize_t rhs;
-                if (conn->top->cur_send_size == conn->top->send_size && false)
+                if (conn->top->cur_send_size == conn->top->send_size)
                     rhs = conn->watcher->try_write(s, conn->top->cur_send_size);
                 else
                     rhs = 0;
@@ -847,6 +847,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                     }
 
 
+#ifndef MANAPIHTTP_DISABLE_TRACE_HARD
                                     size_t written = 0;
                                     size_t memory = 0;
                                     auto bnext = b.get();
@@ -858,7 +859,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         written += s.get()[i].len;
                                     }
                                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "written=%zu used=%zu bytes on %p conn", written, memory, connection.get());
-
+#endif
                                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets(%d) were sent %p. now=%d",
                                         nbuff, connection.get(), conn->top->send_size);
 

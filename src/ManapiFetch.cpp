@@ -849,7 +849,7 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
         this->data->flags |= M_CURL_FLAG_DATA_CLOSED;
 
         /* wait all jobs */
-#if !MANAPIHTTP_DISABLE_TRACE
+#ifndef MANAPIHTTP_DISABLE_TRACE
         if (this->data->async_run.try_to_lock()) {
             manapi_log_trace(debug::LOG_TRACE_LOW, "fetch(%p):wait unfinished jobs", this->data.get());
             this->data->async_run.unlock();

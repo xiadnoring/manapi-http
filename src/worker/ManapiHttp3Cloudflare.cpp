@@ -1063,7 +1063,7 @@ ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shar
         assert(buff[i].len > 0 && buff[i].len < 1e6);
         auto rhs = quiche_h3_send_body(s->conn->http3_conn, s->conn->conn, s->id,
             reinterpret_cast <const uint8_t *> (buff[i].base), buff[i].len, fin);
-#if !MANAPIHTTP_DISABLE_TRACE
+#ifndef MANAPIHTTP_DISABLE_TRACE
         if (fin) {
             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "send finish frame stream=%zu", s->id);
         }
