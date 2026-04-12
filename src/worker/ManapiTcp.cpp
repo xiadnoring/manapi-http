@@ -444,13 +444,22 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
     conn->cancellation.cancel();
 
-    if (  !(flags & CLOSE_CONN_FINISHED)
-        || (flags & CLOSE_CONN_ERR)
-        || (flags & CLOSE_CONN_EOS)
-        || (flags & CLOSE_CONN_SHUTDOWN)
-        || !this->config_->keep_alive
-        || (conn->wrk.flags & WRK_INTERFACE_IS_DRAINING)
-        || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
+    int terminate = 0;
+
+    if (flags & CLOSE_CONN_ERR || flags & CLOSE_CONN_EOS || flags & CLOSE_CONN_SHUTDOWN) {
+        terminate = 1;
+    }
+
+    else if (!(flags & CLOSE_CONN_FINISHED) || !this->config_->keep_alive) {
+        terminate = 1;
+    }
+
+    else if (conn->wrk.flags & WRK_INTERFACE_IS_DRAINING || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
+        terminate = 1;
+    }
+
+
+    if (terminate) {
 
         connection->flags |= CONN_CLOSED;
 
@@ -481,15 +490,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         }
     }
     else {
+        manapi_log_trace("tcp renew connection %p", conn.get());
         try {
             if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
                 MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
-
-            if (connection->flags & CONN_SEND_END)
-                connection->flags ^= CONN_SEND_END;
-
-            if (connection->flags & CONN_RECV_END)
-                connection->flags ^= CONN_SEND_END;
 
             this->event_on(conn,
                 [this]
@@ -533,6 +537,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
                 goto err;
 
             connection->t = rhs.unwrap();
+
+            if (connection->flags & CONN_SEND_END)
+                connection->flags ^= CONN_SEND_END;
+
+            if (connection->flags & CONN_RECV_END)
+                connection->flags ^= CONN_RECV_END;
 
             this->event_toggle(conn, true, ev::READ);
         }
@@ -765,7 +775,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     conn->top->send.deque = std::move(current->next);
 
                 ssize_t rhs;
-                if (conn->top->cur_send_size == conn->top->send_size)
+                if (conn->top->cur_send_size == conn->top->send_size && false)
                     rhs = conn->watcher->try_write(s, conn->top->cur_send_size);
                 else
                     rhs = 0;
@@ -835,6 +845,19 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         conn->worker->close_connection(connection, CLOSE_CONN_EOS);
                                         return;
                                     }
+
+
+                                    size_t written = 0;
+                                    size_t memory = 0;
+                                    auto bnext = b.get();
+                                    while (bnext) {
+                                        memory += bnext->buffer.size();
+                                        bnext = bnext->next.get();
+                                    }
+                                    for (int i = 0; i < nbuff; i++) {
+                                        written += s.get()[i].len;
+                                    }
+                                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "written=%zu used=%zu bytes on %p conn", written, memory, connection.get());
 
                                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "TCP:packets(%d) were sent %p. now=%d",
                                         nbuff, connection.get(), conn->top->send_size);

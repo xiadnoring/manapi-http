@@ -283,14 +283,15 @@ int main() {
             auto pool = manapi::json::object();
             auto version = manapi::json::array();
             version.push_back("1.1");
-            pool.insert("address", "0.0.0.0");
+            pool.insert("address", "10.241.1.226");
             pool.insert("http", std::move(version));
             pool.insert("transport", "tcp");
             pool.insert("port" ,"8888");
             pool.insert("tcp_no_delay", true);
             pool.insert("max_merge_buffer_stack", 0);
             pool.insert("buffer_size", 4096);
-            pool.insert("keep_alive", 0);
+            pool.insert("keep_alive", 5);
+            pool.insert("max_connections_by_ip", 10000);
             pools.push_back(std::move(pool));
 
             auto pconfig = manapi::json::object();
