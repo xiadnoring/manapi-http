@@ -29,7 +29,7 @@ enum conn_tls_flags  {
     CONN_TLS_EARLY_FINISHED = CONN_TLS_EARLY_DATA<<1
 };
 
-manapi::net::worker::TLS::TLS(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
+manapi::net::worker::TLS::TLS(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
 
 manapi::net::worker::TLS::~TLS() = default;
 

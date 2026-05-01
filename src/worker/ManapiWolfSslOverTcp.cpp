@@ -66,7 +66,7 @@ static std::string generate_alpn_ossltest (const std::vector<std::string_view> &
     return std::move(b);
 }
 
-manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
+manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = WOLFSSL_ERROR_NONE;
     this->ssl_error_syscall_ = WOLFSSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = WOLFSSL_ERROR_WANT_READ;
@@ -159,7 +159,7 @@ manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_
     co_return status_internal("openssl_tls:Failed");
 }
 
-std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
     auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }

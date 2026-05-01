@@ -43,7 +43,7 @@ struct manapi::net::wgrpc::server_ctx::data_t {
 };
 
 struct manapi::net::wgrpc::server::data_t {
-    server_ctx ctx;
+    std::shared_ptr<server_ctx> ctx;
     std::shared_ptr<multithread_storage::worker_t> worker;
     manapi::json data;
     std::unique_ptr<grpc::ServerBuilder> builder;
@@ -1463,8 +1463,8 @@ manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> man
 manapi::net::wgrpc::server_ctx::server_ctx() {
     std::function<void(void *ptr)> deleter = [] (void *ptr)
         -> void { delete static_cast<worker_data_t *>(ptr); };
-    this->data_ = std::make_shared<data_t>(multithread_storage (new worker_data_t(), std::move(deleter)));
-    //this->data_->ctx = manapi::async::current();
+    this->m_data = std::make_unique <data_t>(multithread_storage (new worker_data_t(), std::move(deleter)));
+    //this->m_data->ctx = manapi::async::current();
     try {
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
         ev->magic("MAGIC_MANAPI");
@@ -1472,12 +1472,13 @@ manapi::net::wgrpc::server_ctx::server_ctx() {
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "wgrpc:Set default event loop failed", e.what());
+        std::rethrow_exception(std::current_exception());
     }
 }
 
-manapi::status_or<manapi::net::wgrpc::server_ctx> manapi::net::wgrpc::server_ctx::create () MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::net::wgrpc::server_ctx>> manapi::net::wgrpc::server_ctx::create () MANAPIHTTP_NOEXCEPT {
     try {
-        return server_ctx{};
+        return std::shared_ptr<server_ctx>(new server_ctx());
     }
     catch (std::exception const &e) {
         manapi_log_error(e.what());
@@ -1486,20 +1487,20 @@ manapi::status_or<manapi::net::wgrpc::server_ctx> manapi::net::wgrpc::server_ctx
 }
 
 manapi::multithread_storage & manapi::net::wgrpc::server_ctx::storage() {
-    return this->data_->ms;
+    return this->m_data->ms;
 }
 
 manapi::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool status) MANAPIHTTP_NOEXCEPT {
-    if (this->data_) {
-        auto engine = grpc_event_engine::experimental::GetDefaultEventEngine();
-        if (engine) {
-            auto manapi_engine = std::dynamic_pointer_cast<event_engine_wrapper>(engine);
-            if (manapi_engine->magic() != "MAGIC_MANAPI") {
-                return manapi::status_internal("wgrpc:magic incorrect");
-            }
-            manapi_engine->enable_threadpool(status);
+
+    auto engine = grpc_event_engine::experimental::GetDefaultEventEngine();
+    if (engine) {
+        auto manapi_engine = std::dynamic_pointer_cast<event_engine_wrapper>(engine);
+        if (manapi_engine->magic() != "MAGIC_MANAPI") {
+            return manapi::status_internal("wgrpc:magic incorrect");
         }
+        manapi_engine->enable_threadpool(status);
     }
+
     return manapi::status_ok();
 }
 
@@ -1521,21 +1522,83 @@ void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
     }
 }
 
+static manapi::future<> wgrpc_server_stop( std::shared_ptr<manapi::net::wgrpc::server> p,  manapi::net::wgrpc::server::data_t * data) {
+    try {
+        if (data->worker)
+            co_await data->ctx->storage().unsubscribe(std::move(data->worker));
+
+        if (data->server) {
+            manapi::async::tmutex mx;
+            mx.try_to_lock();
+            manapi::async::current()->eventloop()->append_task([&mx, server = data->server.get()] (const manapi::ev::shared_work &w) -> void {
+                server->Shutdown();
+                mx.unlock();
+            }, nullptr);
+            co_await mx.lock_guard();
+            data->server.reset();
+        }
+
+        data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
+        data->flags ^= MANAPI_GRPC_SERVER_IS_RUNNING;
+    }
+    catch (std::exception const &e) {
+        manapi_log_ferror(e.what());
+        data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
+    }
+}
+
+static manapi::future<manapi::status> wgrpc_server_subscribe(std::shared_ptr<manapi::net::wgrpc::server> p,  manapi::net::wgrpc::server::data_t * data) {
+    try {
+        data->worker = co_await data->ctx->storage().subscribe(
+            [p, data] (const manapi::json &n) -> void {
+                data->data = n;
+        });
+        co_return manapi::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "wgrpc:Worker subscribe failed", e.what());
+    }
+
+    co_return manapi::status_internal("wgrpc:Worker subscribe failed");
+}
+
+static manapi::status wgrpc_server_setup_user_config(manapi::net::wgrpc::server::data_t * data) {
+    try {
+        data->config = std::make_shared<manapi::net::wgrpc::config>(data->data["grpc"]);
+        return manapi::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "grpc:setup_user_config failed", e.what());
+        return manapi::status_internal("grpc:setup_user_config failed");
+    }
+}
+
+static manapi::status wgrpc_server_setup_config (manapi::json data, manapi::json &n) {
+    try {
+        if (!data.is_object())
+            return manapi::status_invalid_argument("wgrpc:Grpc config isn't object");
+
+        n["grpc"] = std::move(data);
+
+        return manapi::status_ok();
+    }
+    catch (std::exception const &) {
+        return manapi::status_resource_exhausted();
+    }
+}
+
 // const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
-//     return this->data_->ctx;
+//     return this->m_data->ctx;
 // }
 
-manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
-    this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
+manapi::net::wgrpc::server::server(std::shared_ptr<wgrpc::server_ctx> ctx) {
+    this->m_data = std::make_unique <data_t>(std::move(ctx), nullptr);
 }
 
-manapi::net::wgrpc::server::server() {
-    this->data_ = nullptr;
-}
 
-manapi::status_or<manapi::net::wgrpc::server> manapi::net::wgrpc::server::create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::net::wgrpc::server>> manapi::net::wgrpc::server::create (std::shared_ptr<wgrpc::server_ctx> ctx) MANAPIHTTP_NOEXCEPT {
     try {
-        return server(std::move(ctx));
+        return std::shared_ptr<server>(new server(std::move(ctx)));
     }
     catch (std::exception const &e) {
         manapi_log_error(e.what());
@@ -1548,22 +1611,22 @@ manapi::net::wgrpc::server::~server() = default;
 manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string path) {
     manapi::status res = manapi::status_ok();
     try {
-        if (this->data_->finishid)
+        if (this->m_data->finishid)
             co_return status_already_exists("wgrpc:Config exists");
 
-        this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish(
-                -1, [data = this->data_] () -> manapi::future<> {
-            data->finishid = 0;
-            co_await server::stop_(data);
+        this->m_data->finishid = manapi::async::current()->eventloop()->subscribe_finish(
+                -1, [p = this->shared_from_this()] () -> manapi::future<> {
+            p->m_data->finishid = 0;
+            co_await wgrpc_server_stop(p, p->m_data.get());
             manapi_log_trace("grpc:Shutdown() finished");
             co_return;
         });
 
-        res = co_await this->subscribe_();
+        res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
         if (!res.ok())
             goto err;
 
-        res = co_await this->data_->ctx.storage().edit_async(this->data_->worker, [&] (manapi::json &n) -> manapi::future<bool> {
+        res = co_await this->m_data->ctx->storage().edit_async(this->m_data->worker, [&] (manapi::json &n) -> manapi::future<bool> {
             if (!n.is_object())
                 n = manapi::json::object();
 
@@ -1576,7 +1639,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
                 auto res_text = co_await manapi::fs::async_read(path);
                 if (res_text.ok()) {
                     auto text = res_text.unwrap();
-                    this->setup_config_(manapi::json::parse(text).unwrap(), n).unwrap();
+                    wgrpc_server_setup_config(manapi::json::parse(text).unwrap(), n).unwrap();
                     n["grpc_path"] = std::move(path);
                 }
                 else {
@@ -1587,14 +1650,14 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
                 update = true;
             }
 
-            this->data_->data = n;
+            this->m_data->data = n;
             co_return update;
         });
 
         if (!res)
             goto err;
 
-        res = this->setup_user_config_();
+        res = wgrpc_server_setup_user_config(this->m_data.get());
         if (!res)
             goto err;
 
@@ -1606,49 +1669,49 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
     }
 
 err:
-    if (this->data_->worker)
-        co_await this->data_->ctx.storage().unsubscribe(std::move(this->data_->worker));
-    manapi::async::eventloop()->unsubscribe_finish(std::exchange(this->data_->finishid, 0));
+    if (this->m_data->worker)
+        co_await this->m_data->ctx->storage().unsubscribe(std::move(this->m_data->worker));
+    manapi::async::eventloop()->unsubscribe_finish(std::exchange(this->m_data->finishid, 0));
     co_return std::move(res);
 }
 
 manapi::future<manapi::status> manapi::net::wgrpc::server::config_object(manapi::json config) {
     auto res = manapi::status_ok();
     try {
-        if (this->data_->finishid)
+        if (this->m_data->finishid)
             co_return status_already_exists("wgrpc:Config exists");
 
-        this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish(
-                -1, [data = this->data_] () -> manapi::future<> {
-            data->finishid = 0;
-            co_await server::stop_(data);
+        this->m_data->finishid = manapi::async::current()->eventloop()->subscribe_finish(
+                -1, [p = this->shared_from_this()] () -> manapi::future<> {
+            p->m_data->finishid = 0;
+            co_await wgrpc_server_stop(p, p->m_data.get());
             manapi_log_trace("grpc:Shutdown() finished");
             co_return;
         });
 
-        res = co_await this->subscribe_();
+        res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
         if (!res.ok())
             goto err;
 
-        res = co_await this->data_->ctx.storage().edit_async(this->data_->worker, [this, &config] (manapi::json &n) -> manapi::future<bool> {
+        res = co_await this->m_data->ctx->storage().edit_async(this->m_data->worker, [this, &config] (manapi::json &n) -> manapi::future<bool> {
             if (!n.is_object())
                 n = manapi::json::object();
 
             bool update = false;
 
             if (!n.contains("grpc")) {
-                this->setup_config_(std::move(config), n).unwrap();
+                wgrpc_server_setup_config(std::move(config), n).unwrap();
                 update = true;
             }
 
-            this->data_->data = n;
+            this->m_data->data = n;
             co_return update;
         });
 
         if (!res)
             goto err;
 
-        res = this->setup_user_config_();
+        res = wgrpc_server_setup_user_config(this->m_data.get());
         if (!res)
             goto err;
 
@@ -1659,9 +1722,9 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config_object(manapi:
         res = status_unknown("wgrpc:something gets wrong");
     }
 err:
-    if (this->data_->worker)
-        co_await this->data_->ctx.storage().unsubscribe(std::move(this->data_->worker));
-    manapi::async::eventloop()->unsubscribe_finish(std::exchange(this->data_->finishid, 0));
+    if (this->m_data->worker)
+        co_await this->m_data->ctx->storage().unsubscribe(std::move(this->m_data->worker));
+    manapi::async::eventloop()->unsubscribe_finish(std::exchange(this->m_data->finishid, 0));
     co_return std::move(res);
 }
 
@@ -1669,33 +1732,33 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
     using ci = manapi::internal::config_interface;
     auto res = manapi::status_ok();
     try {
-        if (this->data_->flags & MANAPI_GRPC_SERVER_IS_RUNNING) {
+        if (this->m_data->flags & MANAPI_GRPC_SERVER_IS_RUNNING) {
             co_return status_already_exists("grpc:Server is already running");
         }
 
-        if (!this->data_->finishid)
+        if (!this->m_data->finishid)
             co_return status_already_exists("wgrpc:Config doesn't exist");
 
-        this->data_->flags |= MANAPI_GRPC_SERVER_IS_RUNNING;
+        this->m_data->flags |= MANAPI_GRPC_SERVER_IS_RUNNING;
 
-        if (!this->data_->worker) {
-            res = co_await this->subscribe_();
+        if (!this->m_data->worker) {
+            res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
             if (!res)
                 goto err;
 
-            res = this->setup_user_config_();
+            res = wgrpc_server_setup_user_config(this->m_data.get());
             if (!res)
                 goto err;
         }
 
-        auto grpc_ = &this->data_->data["grpc"];
+        auto grpc_ = &this->m_data->data["grpc"];
         auto const ip = ci::get_config_param<std::string>(*grpc_, "address", "localhost");
         auto const port = ci::get_config_param<std::string>(*grpc_, "port", "8080");
         auto const ssl_it = grpc_->find("ssl");
 
         std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
 
-        this->data_->builder = std::make_unique<grpc::ServerBuilder>();
+        this->m_data->builder = std::make_unique<grpc::ServerBuilder>();
         //auto cq = builder.AddCompletionQueue();
 
         std::shared_ptr<grpc::ServerCredentials> creds;
@@ -1729,10 +1792,10 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
         }
 
         if (cb)
-            cb(*this->data_->builder).unwrap();
+            cb(*this->m_data->builder).unwrap();
 
-        this->data_->builder->AddListeningPort(server_address, std::move(creds));
-        this->data_->server = this->data_->builder->BuildAndStart();
+        this->m_data->builder->AddListeningPort(server_address, std::move(creds));
+        this->m_data->server = this->m_data->builder->BuildAndStart();
 
         manapi_log_trace("TCP PORT USED: %.*s. %.*s:%.*s (grpc)", port.size(), port.data(),
             ip.size(), ip.data(), port.size(), port.data());
@@ -1744,95 +1807,30 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
         res = status_internal("grpc:Start failed");
     }
 err:
-    this->data_->flags ^= MANAPI_GRPC_SERVER_IS_RUNNING;
+    this->m_data->flags ^= MANAPI_GRPC_SERVER_IS_RUNNING;
     co_return std::move(res);
 }
 
 manapi::status manapi::net::wgrpc::server::stop() {
     try {
-        if (this->data_->flags & MANAPI_GRPC_SERVER_IS_STOPPING)
+        if (this->m_data->flags & MANAPI_GRPC_SERVER_IS_STOPPING)
             return manapi::status_already_exists("wgrpc:Server is stopping already");
 
-        if (!(this->data_->flags & MANAPI_GRPC_SERVER_IS_RUNNING))
+        if (!(this->m_data->flags & MANAPI_GRPC_SERVER_IS_RUNNING))
             return manapi::status_not_found("wgrpc:Server isn't running");
 
-        this->data_->flags |= MANAPI_GRPC_SERVER_IS_STOPPING;
+        this->m_data->flags |= MANAPI_GRPC_SERVER_IS_STOPPING;
 
-        manapi::async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data_->finishid, 0));
-        manapi::async::run(server::stop_(this->data_));
+        manapi::async::current()->eventloop()->unsubscribe_finish(std::exchange(this->m_data->finishid, 0));
+        manapi::async::run(wgrpc_server_stop(this->shared_from_this(), this->m_data.get()));
 
         return status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "wgrpc stop:Something get wrong", e.what());
     }
-    this->data_->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
+    this->m_data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
     return status_internal("wgrpc stop:Something get wrong");
-}
-
-manapi::future<> manapi::net::wgrpc::server::stop_(std::shared_ptr<data_t> data) {
-    try {
-        if (data->worker)
-            co_await data->ctx.storage().unsubscribe(std::move(data->worker));
-
-        if (data->server) {
-            manapi::async::tmutex mx;
-            mx.try_to_lock();
-            manapi::async::current()->eventloop()->append_task([&mx, server = data->server.get()] (const ev::shared_work &w) -> void {
-                server->Shutdown();
-                mx.unlock();
-            }, nullptr);
-            co_await mx.lock_guard();
-            data->server.reset();
-        }
-
-        data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
-        data->flags ^= MANAPI_GRPC_SERVER_IS_RUNNING;
-    }
-    catch (std::exception const &e) {
-        manapi_log_ferror(e.what());
-        data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
-    }
-}
-
-manapi::future<manapi::status> manapi::net::wgrpc::server::subscribe_() {
-    try {
-        this->data_->worker = co_await this->data_->ctx.storage().subscribe(
-            [this] (const manapi::json &n) -> void {
-                this->data_->data = n;
-        });
-        co_return status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "wgrpc:Worker subscribe failed", e.what());
-    }
-
-    co_return status_internal("wgrpc:Worker subscribe failed");
-}
-
-manapi::status manapi::net::wgrpc::server::setup_user_config_() {
-    try {
-        this->data_->config = std::make_shared<wgrpc::config>(this->data_->data["grpc"]);
-        return status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "grpc:setup_user_config failed", e.what());
-        return status_internal("grpc:setup_user_config failed");
-    }
-}
-
-manapi::status manapi::net::wgrpc::server::setup_config_(manapi::json data, manapi::json &n) {
-    try {
-        if (!data.is_object())
-            return status_invalid_argument("wgrpc:Grpc config isn't object");
-
-        n["grpc"] = std::move(data);
-
-        return status_ok();
-    }
-    catch (std::exception const &) {
-        return status_resource_exhausted();
-    }
 }
 
 

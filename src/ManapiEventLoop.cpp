@@ -731,7 +731,7 @@ manapi::event_loop::event_loop() {
 }
 
 manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::create(std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger) {
-    auto ev = std::make_shared<manapi::event_loop>();
+    auto ev = std::shared_ptr<manapi::event_loop>(new manapi::event_loop());
     ev::status status;
     try {
         ev->m_loop = std::make_unique<uv_loop_t>();

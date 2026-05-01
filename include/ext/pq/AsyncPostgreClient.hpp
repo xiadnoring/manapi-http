@@ -30,14 +30,15 @@ namespace manapi::ext::pq {
         RESULT_STATUS_PIPELINE_ABORTED
     };
 
-    class connection {
+    class connection : public std::enable_shared_from_this<connection> {
         struct data_t;
-    public:
+
         connection ();
+    public:
 
         ~connection ();
 
-        static manapi::status_or<pq::connection> create () MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<pq::connection>> create () MANAPIHTTP_NOEXCEPT;
 
         manapi::future<manapi::ev::status> connect (std::string_view uri, manapi::ctoken token = nullptr);
 
@@ -129,6 +130,6 @@ namespace manapi::ext::pq {
 
         manapi::future<> receive_notifications ();
 
-        std::shared_ptr<data_t> data_;
+        std::unique_ptr <data_t> m_data;
     };
 };

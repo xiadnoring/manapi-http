@@ -4,11 +4,11 @@
 #include <functional>
 
 #include "../http/ManapiHttpConfig.hpp"
-#include "../http/ManapiSiteCtx.hpp"
+#include "../http/ManapiHttpCtx.hpp"
 #include "../std/ManapiCancellation.hpp"
 #include "../ManapiUtils.hpp"
 
-namespace manapi::net::http {
+namespace manapi::net::worker {
     class site;
 }
 
@@ -38,7 +38,8 @@ namespace manapi::net::worker {
         WORKER_BASE_FLAG_MULTISTREAM = 1,
         WORKER_BASE_FLAG_CLOSED = 2,
         WORKER_BASE_FLAG_RESERVED1 = 4,
-        WORKER_BASE_FLAG_RESERVED2 = 8
+        WORKER_BASE_FLAG_RESERVED2 = 8,
+        WORKER_BASE_FLAG_MAX = WORKER_BASE_FLAG_RESERVED2
     };
 
     enum close_flags_t {
@@ -233,7 +234,7 @@ namespace manapi::net::worker {
 
         virtual wrk_interface_global_t *wrk_global () = 0;
 
-        virtual const std::shared_ptr<http::site> &site() = 0;
+        virtual const std::shared_ptr<worker::site> &site() = 0;
 
         virtual http::config *config() = 0;
 

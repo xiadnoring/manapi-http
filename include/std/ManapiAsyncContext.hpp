@@ -201,7 +201,6 @@ namespace manapi::async {
     typedef std::shared_ptr<cthread> shared_async_thread;
 
     class context : public cthread, public std::enable_shared_from_this<context> {
-    public:
         /**
          * initialize the context
          * @param eventloop the event loop
@@ -210,6 +209,7 @@ namespace manapi::async {
          * @param logger the logger
          */
         context (shared_eventloop eventloop, std::shared_ptr<mthreadpool> taskpool, shared_timerpool timerpool, shared_logger logger);
+    public:
 
         /**
          * deconstructor
@@ -220,7 +220,6 @@ namespace manapi::async {
 
         /**
          * create a context and return it
-         * @param threadnum the additional threads
          * @return
          */
         static manapi::status_or<std::shared_ptr<context>> create () MANAPIHTTP_NOEXCEPT;

@@ -6,7 +6,7 @@
 #include "http/ManapiURLDecodeStream.hpp"
 
 #include "../include/http/ManapiHttp2.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp2Interface.hpp"
 

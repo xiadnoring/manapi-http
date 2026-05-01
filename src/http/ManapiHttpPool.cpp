@@ -10,20 +10,21 @@
 #include <fcntl.h>
 
 #include "http/ManapiHttpPool.hpp"
-#include "http/ManapiSite.hpp"
+#include "worker/ManapiSite.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp1.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<http::site> site, size_t id) : m_site(std::move(site)) {
+manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::site> site, size_t id) : m_site(std::move(site)) {
     this->m_config = std::make_shared <http::config> (config);
     this->m_id = id;
     this->m_worker_config = std::move(worker_config);
     this->m_mx = std::make_shared<async::mutex>();
 
     this->m_config->function_contains_compressor([this] (std::string_view name) -> bool {
-        return this->m_site->contains_compressor_for_file(name)
-            || this->m_site->contains_compressor_for_string(name);
+        auto server = manapi::net::http::server::cast(this->m_site.get());
+        return server->contains_compressor_for_file(name)
+            || server->contains_compressor_for_string(name);
     });
 }
 
@@ -84,9 +85,9 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
 
         auto implementation = this->m_config->implementation;
         auto transport = this->m_config->transport;
-        auto implementations = this->m_site->transport_protocol_worker(transport);
+        auto implementations = manapi::net::http::server::cast(this->m_site.get())->transport_protocol_worker(transport);
 
-        http::site::implemenet_http_cb const *implement_http_callback{nullptr};
+        http::server::implemenet_http_cb const *implement_http_callback{nullptr};
 
         if (implementations.contains(implementation))
         {
@@ -135,7 +136,8 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                             if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
                                 version = http::versions::HTTP_v1_1;
 
-                            auto &http_implementation = this->m_site->http_protocol_worker(static_cast<http::versions::http>(version));
+                            auto &http_implementation = manapi::net::http::server::cast(this->m_site.get())
+                                ->http_protocol_worker(static_cast<http::versions::http>(version));
                             std::string *http_impl_name{nullptr};
                             switch (version) {
                                 case http::versions::HTTP_v1_1: http_impl_name = &this->m_config->http1_implementation; break;
@@ -193,7 +195,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
     co_return status_internal("pool() failed");
 }
 
-const std::shared_ptr<manapi::net::http::site> &manapi::net::http_pool::site() const {
+const std::shared_ptr<manapi::net::worker::site> &manapi::net::http_pool::site() const {
     return this->m_site;
 }
 

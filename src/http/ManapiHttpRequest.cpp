@@ -11,7 +11,7 @@
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "../include/ManapiHttpStructs.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 
 static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::worker::base *worker, manapi::net::worker::shared_conn *conn, manapi::net::http::request_data_t *req, manapi::net::http::request::onrecv_async_cb handler);
 

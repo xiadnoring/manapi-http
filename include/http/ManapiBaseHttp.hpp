@@ -6,10 +6,15 @@
 #include "./ManapiHttpTypes.hpp"
 #include "./ManapiHttpUtils.hpp"
 #include "./ManapiHttpConfig.hpp"
-#include "./ManapiSite.hpp"
+#include "../worker/ManapiSite.hpp"
 #include "../fs/ManapiFileStream.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
 #include "../std/ManapiBuffer.hpp"
+
+namespace manapi::net::http {
+    struct http_handler_page;
+    class server;
+}
 
 namespace manapi::net::http::internal {
     typedef vbefore_delete<bool, false> cont_callback_cb_t;
@@ -20,7 +25,7 @@ namespace manapi::net::http::internal {
         worker::shared_worker worker;
         request_data_t * req_data;
         cont_callback_t cb;
-        std::unique_ptr<http_handler_page> router;
+        std::unique_ptr<http::http_handler_page> router;
     };
 
     typedef std::unique_ptr<handle_data_t> uq_handle_data_t;
@@ -58,5 +63,5 @@ namespace manapi::net::http::internal {
      * - filesystem - fs failed
      */
 
-    future<manapi::status_or<std::string>> compress_file(std::shared_ptr<net::http::site> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress = false);
+    future<manapi::status_or<std::string>> compress_file(std::shared_ptr<net::http::server> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress = false);
 }

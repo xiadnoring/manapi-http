@@ -4,7 +4,7 @@
 #include "http/ManapiHttpResponse.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 #include "../include/http/ManapiHttp1.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #define HTTP_ALL_SWITCH_CASE(namecb__, cb__, ver__, name__) \
@@ -450,7 +450,7 @@ exec:
             w->event_flags(conn, 0);
 
 
-            cdata->router = w->site()->handler(req_ptr);
+            cdata->router = manapi::net::http::server::cast(w->site().get())->handler(req_ptr);
             cdata->req_data->handler = cdata->router->handler;
 
 

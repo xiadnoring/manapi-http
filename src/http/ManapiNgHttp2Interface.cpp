@@ -11,7 +11,7 @@
 #include "http/ManapiHttpResponse.hpp"
 #include "http/ManapiURLDecodeStream.hpp"
 #include "http/ManapiBaseHttp.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 #include "../include/http/ManapiNgHttp2Interface.hpp"
 
 extern manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks;
@@ -368,7 +368,7 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
                                     // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                                     // this->event_flags(conn, 0);
 
-                                    cdata->router = sess->gctx->worker->site()->handler(req_ptr);
+                                    cdata->router = manapi::net::http::server::cast(sess->gctx->worker->site().get())->handler(req_ptr);
                                     manapi::net::http::internal::handle_income_request(std::move(cdata), status);
                                 }
                                 catch (std::exception const &e) {

@@ -40,8 +40,9 @@ namespace manapi::ext::pq {
         friend void item::release() MANAPIHTTP_NOEXCEPT;
 
         friend class db;
-    public:
+
         pool ();
+    public:
 
         ~pool ();
 
@@ -67,7 +68,7 @@ namespace manapi::ext::pq {
     private:
         uint8_t m_flags;
 
-        std::vector<pq::connection> m_clients;
+        std::vector<std::shared_ptr<pq::connection>> m_clients;
 
         std::stack<pq::connection *> m_available;
 
@@ -84,8 +85,9 @@ namespace manapi::ext::pq {
         friend class pool;
 
         friend class item;
-    public:
+
         db ();
+    public:
 
         ~db ();
 

@@ -105,8 +105,9 @@ namespace manapi {
     class event_loop : public std::enable_shared_from_this<event_loop> {
         friend async::context;
         friend timerpool;
-    public:
+
         event_loop();
+    public:
 
         static manapi::ev::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger);
 

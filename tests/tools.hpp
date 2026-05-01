@@ -23,8 +23,8 @@ int main(int argc, const char *const argv[]) { \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 30000) {
-    auto ctx = manapi::async::context::create(0).unwrap();
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 30000, int threads = 0) {
+    auto ctx = manapi::async::context::create(threads).unwrap();
     /* task killer */
     ctx->timerpool()->append_interval_sync(timout_in_ms, manapi::TIMER_DEFAULT,[utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {
         manapi_log_error("timeout in %zu ms was reached", timout_in_ms);
@@ -50,13 +50,13 @@ inline void wait_ctx (manapi::async::shared_ctx ctx) {
 }
 
 
-inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_function<manapi::future<>()> cb) {
+inline std::shared_ptr<manapi::net::http::server> init_router (manapi::json cnf, std::move_only_function<manapi::future<>()> cb) {
     using http = manapi::net::http::server;
 
     auto server = manapi::net::http::server_ctx::create();
     auto router = manapi::net::http::server::create(server.unwrap()).unwrap();
 
-    router.GET ("/", [] (http::req &req, http::uresp resp) -> void {
+    router->GET ("/", [] (http::req &req, http::uresp resp) -> void {
         resp->text("Hello, World!");
     }).unwrap();
 
@@ -145,10 +145,10 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                     config["pools"].as_array().back()[it.first] =  std::move(it.second);
             }
         }
-        auto res = co_await router.config_object (config);
+        auto res = co_await router->config_object (config);
         res.unwrap();
 
-        res = co_await router.start();
+        res = co_await router->start();
         res.unwrap();
 
         co_await cb();

@@ -33,6 +33,8 @@
 #ifndef SHEREDOM_UTEST_H_INCLUDED
 #define SHEREDOM_UTEST_H_INCLUDED
 
+#include "ManapiInitTools.hpp"
+
 #ifdef _MSC_VER
 /*
    Disable warning about not inlining 'inline' functions.
@@ -1720,6 +1722,8 @@ cleanup:
 #define UTEST_MAIN()                                                           \
   UTEST_STATE();                                                               \
   int main(int argc, const char *const argv[]) {                               \
+    manapi::init_tools::log_name_enable("manapihttp", true);                   \
+    manapi::init_tools::log_name_enable("manapihttp::fs", true);               \
     return utest_main(argc, argv);                                             \
   }
 

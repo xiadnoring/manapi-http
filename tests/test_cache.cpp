@@ -2,6 +2,7 @@
 
 #include "./utest.h"
 #include "cache/ManapiTL.hpp"
+#include "ManapiInitTools.hpp"
 
 UTEST(cache, lru1_put) {
     manapi::lru_cache<std::string, std::string> a (10000);

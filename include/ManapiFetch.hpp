@@ -110,25 +110,20 @@ namespace manapi::net {
     /**
      * Fetch API for C++. Based on cURL
      */
-    class fetch {
+    class fetch : public std::enable_shared_from_this <fetch> {
+        friend std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
+        friend std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
+        friend std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
+        friend manapi::future<manapi::status> curl_send_async_body (std::shared_ptr<manapi::net::fetch> parent, bool finish);
+
+        fetch(std::string url, manapi::ctoken cancellation = nullptr);
     public:
         struct data_t;
 
-        fetch();
-
-        fetch (const fetch &n);
-
-        fetch &operator=(const fetch &n);
 
         ~fetch();
 
-        /**
-         * Initialize Fetch API
-         *
-         * @param url the site URL
-         * @param cancellation the cancellation token
-         */
-        static manapi::status_or<fetch> create (std::string url, manapi::ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::status init (std::string url, manapi::ctoken cancellation = nullptr);
 
         /**
          * Initialize Fetch API
@@ -136,7 +131,7 @@ namespace manapi::net {
          * @param url the site URL
          * @param cancellation the cancellation token
          */
-        manapi::status init (std::string url, manapi::ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<fetch>> create (std::string url, manapi::ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the sync callback to recv body from the request
@@ -336,26 +331,9 @@ namespace manapi::net {
          */
         void clear ();
     private:
-        /**
-         * Internal clear()
-         */
-        void clear_ ();
+        // manapi::status mheader (std::string_view key, std::string_view value) MANAPIHTTP_NOEXCEPT;
 
-        static std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
-
-        static std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
-
-        static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
-
-        manapi::status setup_parallel_task () MANAPIHTTP_NOEXCEPT;
-
-        manapi::status header_ (std::string_view key, std::string_view value) MANAPIHTTP_NOEXCEPT;
-
-        void default_setup_curl_ ();
-
-        future<int> async_curl_perform ();
-
-        std::shared_ptr<data_t> data;
+        std::unique_ptr <data_t> m_data;
     };
 }
 

@@ -25,11 +25,11 @@ namespace manapi::net::worker {
 
         struct connection_stream_t;
 
-        explicit http_v3_cloudflare_quiche(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata,manapi::net::http::config * config);
+        explicit http_v3_cloudflare_quiche(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata,manapi::net::http::config * config);
 
         ~http_v3_cloudflare_quiche() override;
 
-        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
         manapi::future<manapi::status> init(std::size_t deep) override;
 

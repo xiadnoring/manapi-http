@@ -14,7 +14,7 @@
 #include "ManapiString.hpp"
 #include "ManapiVersions.hpp"
 #include "worker/ManapiBaseUtils.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 
 #define MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE 1350
 #define MANAPIHTTP_QUICHE_CONN_ID_SIZE 16
@@ -80,6 +80,33 @@ template<typename ...Args>
 requires(manapi::macros::version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) MANAPIHTTP_NOEXCEPT { /* skip */ return 0; }
 
+template<typename T>
+requires(manapi::macros::version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.25.0"))
+manapi::status_or<quiche_cc_algorithm> manapi_quiche_bbr_algo_check (const T &cc_algo) {
+#define QUICHE_CC_BBR 2
+#define QUICHE_CC_BBR2 3
+    if (manapi::string::equals("bbr", cc_algo, 0b10)) {
+        return static_cast<quiche_cc_algorithm>(QUICHE_CC_BBR);
+    }
+    if (manapi::string::equals("bbr2", cc_algo, 0b10)) {
+        return static_cast<quiche_cc_algorithm>(QUICHE_CC_BBR2);
+    }
+    return manapi::status_not_found();
+#undef QUICHE_CC_BBR
+#undef QUICHE_CC_BBR2
+}
+
+template<typename T>
+requires(manapi::macros::version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.25.0"))
+manapi::status_or<quiche_cc_algorithm> manapi_quiche_bbr_algo_check (const T &cc_algo) {
+#define QUICHE_CC_BBR2_GCONGESTION 4
+    if (manapi::string::equals("bbr2", cc_algo, 0b10)) {
+        return static_cast<quiche_cc_algorithm> (QUICHE_CC_BBR2_GCONGESTION);
+    }
+    return manapi::status_not_found();
+#undef QUICHE_CC_BBR2_GCONGESTION
+}
+
 struct udp_send_buff_deleter {
     void operator () (manapi::ev::buff_t *buff) {
         delete[] buff->base;
@@ -93,7 +120,7 @@ struct quiche_h3_event_deleter {
     }
 };
 
-manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(std::shared_ptr<net::http::site> site,
+manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(std::shared_ptr<net::worker::site> site,
     std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
     this->flags = 0;
     this->count = 0;
@@ -111,7 +138,7 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 }
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
-    std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata,
+    std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata,
     manapi::net::http::config *config) {
     auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config);
     return std::move(worker);
@@ -220,19 +247,24 @@ manapi::future<manapi::status> manapi::net::worker::http_v3_cloudflare_quiche::i
                 auto &cc_algo = it->second.as_string();
                 if (!cc_algo.empty()) {
                     quiche_cc_algorithm algo = QUICHE_CC_RENO;
+                    int find = 0;
 
-                    if (manapi::string::equals("cubic", cc_algo, 0b10))
+                    if (manapi::string::equals("cubic", cc_algo, 0b10)) {
                         algo = QUICHE_CC_CUBIC;
-
-                    else if (manapi::string::equals("reno", cc_algo, 0b10))
+                        find = 1;
+                    }
+                    else if (manapi::string::equals("reno", cc_algo, 0b10)) {
                         algo = QUICHE_CC_RENO;
+                        find = 1;
+                    }
 
-                    else if (manapi::string::equals("bbr", cc_algo, 0b10))
-                        algo = QUICHE_CC_BBR;
+                    auto res = manapi_quiche_bbr_algo_check (cc_algo);
+                    if (res.ok()) {
+                        find = 1;
+                        algo = res.unwrap();
+                    }
 
-                    else if (manapi::string::equals("bbr2", cc_algo, 0b10))
-                        algo = QUICHE_CC_BBR2;
-                    else
+                    if (!find)
                         co_return status_internal("cf quiche:Invalid cc_algo");
 
                     quiche_config_set_cc_algorithm (this->quiche_config_, algo);
@@ -930,7 +962,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                                 // this->event_flags(conn, 0);
 
-                                cdata->router = this->site()->handler(req_ptr);
+                                cdata->router = manapi::net::http::server::cast(this->site().get())->handler(req_ptr);
                                 net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
                             }
                             catch (std::exception const &e) {

@@ -4,7 +4,7 @@
 #include "../include/http/ManapiHttp2Interface.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 
 extern manapi::net::worker::http_v2_callbacks_t default_wrk_http2_callbacks;
 
@@ -137,7 +137,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                         // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                                         // this->event_flags(conn, 0);
 
-                                        cdata->router = w->site()->handler(req_ptr);
+                                        cdata->router = manapi::net::http::server::cast(w->site().get())->handler(req_ptr);
                                         manapi::net::http::internal::handle_income_request(std::move(cdata), status);
                                     }
                                     catch (std::exception const &e) {

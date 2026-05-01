@@ -17,17 +17,17 @@ namespace manapi::net::wgrpc {
 
     manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
 
-    class server_ctx {
+    class server_ctx : public std::enable_shared_from_this<server_ctx> {
         struct data_t;
+
+        server_ctx ();
 
     public:
         struct worker_data_t {
             std::atomic<ssize_t> cnt;
         };
 
-        server_ctx ();
-
-        static manapi::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<server_ctx>> create () MANAPIHTTP_NOEXCEPT;
 
         multithread_storage &storage ();
 
@@ -35,18 +35,16 @@ namespace manapi::net::wgrpc {
 
         static void clean () MANAPIHTTP_NOEXCEPT;
     private:
-        std::shared_ptr<data_t> data_;
+        std::unique_ptr<data_t> m_data;
     };
 
-    class server {
+    class server : public std::enable_shared_from_this<server> {
+    public:
         struct data_t;
 
-    public:
-        server ();
+        server (std::shared_ptr<wgrpc::server_ctx> ctx);
 
-        server (wgrpc::server_ctx ctx);
-
-        static manapi::status_or<server> create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<server>> create (std::shared_ptr<wgrpc::server_ctx> ctx) MANAPIHTTP_NOEXCEPT;
 
         ~server();
 
@@ -58,15 +56,8 @@ namespace manapi::net::wgrpc {
 
         manapi::status stop ();
     private:
-        static manapi::future<> stop_ (std::shared_ptr<data_t> data);
 
-        manapi::future<manapi::status> subscribe_ ();
-
-        manapi::status setup_user_config_ ();
-
-        status setup_config_ (manapi::json data, manapi::json &n);
-
-        std::shared_ptr<data_t> data_;
+        std::unique_ptr <data_t> m_data;
     };
 
 

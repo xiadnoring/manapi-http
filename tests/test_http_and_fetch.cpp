@@ -16,11 +16,11 @@ UTEST(http, http_router_exists) {
     auto server = manapi::net::http::server_ctx::create();
     auto router = manapi::net::http::server::create(server.unwrap()).unwrap();
 
-    router.GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
+    router->GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
         resp.finish();
     }).unwrap();
 
-    auto res = router.GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
+    auto res = router->GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
         resp.finish();
     });
 
@@ -42,10 +42,10 @@ UTEST(http_and_fetch, simple_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.text();
+        auto data_res = co_await fetch->text();
 #define return co_return
         ASSERT_TRUE_MSG((data_res.unwrap() == "Hello, World!"), "check response data");
 #undef return
@@ -69,16 +69,16 @@ UTEST(http_and_fetch, simple_post_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.text();
+        auto data_res = co_await fetch->text();
 #define return co_return
         ASSERT_TRUE_MSG((data_res.unwrap() == "OK"), "check response data");
 #undef return
     });
 
-    router.POST ("/post", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->POST ("/post", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          auto data = co_await req.text();
 #define return co_return
         ASSERT_TRUE_MSG((data.unwrap() == "Hello, World!"), "check post data");
@@ -104,10 +104,10 @@ UTEST(http_and_fetch, callback_sync_get_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+        auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
             for (ssize_t i =0 ; i < size; i++) {
                 if (buffer[i] != '2')
                     return -1;
@@ -119,7 +119,7 @@ UTEST(http_and_fetch, callback_sync_get_request) {
 #undef return
     });
 
-    router.GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "100000").unwrap();
          co_return resp.callback_sync([left = ssize_t(100000)] (char *buffer, ssize_t size, bool &fin) mutable -> ssize_t {
              auto const copy = std::min<ssize_t>(left, size);
@@ -149,14 +149,14 @@ UTEST(http_and_fetch, callback_async_get_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
         auto zz = manapi::string::fill(300000, '2');
         for (int i = 0; i < zz.size(); i+=100)
             zz[i] = '3';
         size_t read = 0;
-        auto data_res = co_await fetch.callback_async([&, f =int(0)] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
+        auto data_res = co_await fetch->callback_async([&, f =int(0)] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
             manapi::slice tt{};
             tt.resize(buffs.size()).unwrap();
             tt.copy_from(buffs, 0, 0, buffs.size()).unwrap();
@@ -193,7 +193,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
 #undef return
     });
 
-    router.GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "300000").unwrap();
          co_return resp.callback_async([left = ssize_t(300000), f = bool(false)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
              size_t res = 0;
@@ -244,16 +244,16 @@ UTEST(http_and_fetch, formdata_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.text();
+        auto data_res = co_await fetch->text();
 #define return co_return
         ASSERT_TRUE_MSG((data_res.unwrap() == "OK"), "check response data");
 #undef return
     });
 
-    router.POST ("/formdata", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->POST ("/formdata", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         std::string msg1, msg2, msg3;
         auto data = co_await req.form([&msg1, &msg2, &msg3] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
             std::string *s{nullptr};
@@ -311,10 +311,10 @@ UTEST(http_and_fetch, formdata_response) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+        auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
             /**
              * TODO: cURL FormData support with some tests
              */
@@ -322,7 +322,7 @@ UTEST(http_and_fetch, formdata_response) {
         });
     });
 
-    router.GET ("/formdata", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/formdata", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          manapi::net::formdata_send send;
          send.set_text("hello", "world").unwrap();
          send.set_text("hello2", "world2").unwrap();
@@ -352,10 +352,10 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+        auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
             /* skip */
             return size;
         });
@@ -366,7 +366,7 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
 
     });
 
-    router.GET ("/bad", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/bad", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "100000");
         co_return resp.callback_stream([] (auto cb) -> manapi::future<> {
             char tt[99999];
@@ -400,10 +400,10 @@ UTEST(http_and_fetch, formdata_bad_response) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+        auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
             /* skip */
             return size;
         });
@@ -433,10 +433,10 @@ UTEST(http_and_fetch, chunked_request) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.text();
+        auto data_res = co_await fetch->text();
         auto data = data_res.unwrap();
 
         for (int i = 0 ; i < data.size(); i++) {
@@ -451,7 +451,7 @@ UTEST(http_and_fetch, chunked_request) {
 
     });
 
-    router.GET ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         co_return resp.callback_stream([] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
             char zz[100000];
             for(int i = 0; i < sizeof (zz); i++) {
@@ -506,13 +506,13 @@ UTEST(http_and_fetch, chunked_response) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
 
     });
 
-    router.POST ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->POST ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         auto data_res = co_await req.text();
         auto data = data_res.unwrap();
         for (int i = 0 ; i < data.size(); i++) {
@@ -551,10 +551,10 @@ UTEST(http_and_fetch, user_data) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch.text();
+        auto data_res = co_await fetch->text();
         auto data = data_res.unwrap();
 #define return co_return
         ASSERT_TRUE_MSG((data == "OK"), "check response data");
@@ -562,7 +562,7 @@ UTEST(http_and_fetch, user_data) {
 
     });
 
-    router.GET ("/admin/+layer", [&] (http::req &req, http::uresp resp) -> void {
+    router->GET ("/admin/+layer", [&] (http::req &req, http::uresp resp) -> void {
         req.propagation(true);
         manapi::net::http::custom_data_t cd;
         auto s = new user_data_for_test_t ();
@@ -572,7 +572,7 @@ UTEST(http_and_fetch, user_data) {
         resp->custom_data(std::move(cd));
     }).unwrap();
 
-    router.GET ("/admin/test", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+    router->GET ("/admin/test", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         auto user_data = resp.custom_data_as<user_data_for_test_t>();
         co_return resp.text(std::move(user_data->msg)).unwrap();
     }).unwrap();

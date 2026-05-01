@@ -74,12 +74,24 @@ namespace manapi {
         void ask_cancel_callback () MANAPIHTTP_NOEXCEPT;
 
         /**
-         * Set a timeout in milliseconds
+         * Returns true if token was cancelled
+         */
+        MANAPIHTTP_NODISCARD bool is_cancelled () const MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * Set timeout in milliseconds
          *
          * @param timeout Timeout in milliseconds
          * @return Ok on succes, otherwise it returns InternalError, ResourceExhausted
          */
         manapi::status timeout (size_t timeout) MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * Set timeout in millseconds
+         * @param timeout Timeout in millseconds
+         * @return this
+         */
+        ctoken &tm (size_t timeout);
 
         /**
          * It will return a message stating that it asks

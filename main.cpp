@@ -1,308 +1,392 @@
-#include <iostream>
+#include "ManapiHttp.hpp"
+#include "include/ManapiFetch2.hpp"
+// #include "ext/pq/AsyncPostgreClient.hpp"
+#ifdef _WIN32
+#   define FOLDER ".\\data\\"
+#   define FOLDER2 ".\\data\\"
+#else
+#define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER2 "/home/Timur/Documents/http2priorities/"
+#endif
+#include <cstring>
 
-#include <manapihttp/ManapiHttp.hpp>
-#include <manapihttp/ManapiInitTools.hpp>
-#include <manapihttp/ManapiProcess.hpp>
-#include <manapihttp/ManapiString.hpp>
-#include <manapihttp/cache/ManapiTL.hpp>
-#include <manapihttp/ManapiFetch2.hpp>
-#include <manapihttp/ext/pq/AsyncPostgreClient.hpp>
+#include "handlers.hpp"
+#include "crypto/ManapiAEAD.hpp"
+#include "hash/ManapiSHA256.hpp"
+#include "ManapiInitTools.hpp"
+#include "ManapiMath.hpp"
+#include "ManapiProcess.hpp"
+#include "ManapiString.hpp"
+#include "std/ManapiAsyncTimer.hpp"
+#include "std/ManapiEasyCancellation.hpp"
+#include "ext/ManapiMustache.hpp"
 
-struct data_t {
-    std::mutex mx;
+#include "protobuf/helloworld.grpc.pb.h"
+#include "ManapiGrpc.hpp"
+
+#include "include/std/ManapiFunction.hpp"
+//
+#include "ext/pq/AsyncPostgreClient.hpp"
+#include "std/ManapiRef.hpp"
+
+static std::atomic<std::size_t> bbbb = 0;
+
+// Logic and data behind the server's behavior.
+class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
+    grpc::ServerUnaryReactor *SayHello(grpc::CallbackServerContext* context, const helloworld::HelloRequest* request,
+                    helloworld::HelloReply* reply) override {
+        grpc::ServerUnaryReactor* reactor = context->DefaultReactor();
+        manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
+            manapi::ctoken check_timeout;
+            check_timeout.cancel_callback([] () -> void {
+                std::cout << (size_t)bbbb <<  " IS TOO SLOW\n";
+            });
+            check_timeout.timeout(7000);
+            try {
+                bbbb.fetch_add(1);
+                auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8887/stat",{
+                    {"http", "1.1"},
+                    {"verify_peer", false},
+                    {"verify_host", false}
+                }, manapi::ctokens::timeout(2000));
+
+                if (status.ok()) {
+                    auto response = status.unwrap();
+                    if (response->ok()) {
+                        reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), (co_await response->text()).unwrap()));
+                    }
+                    else {
+                        reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response->status()));
+                    }
+                }
+                else {
+                    reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), status.message()));
+                }
+            }
+            catch (std::exception const &e) {
+                reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
+            }
+            bbbb.fetch_sub(1);
+            check_timeout.disable();
+            reactor->Finish(grpc::Status::OK);
+        });
+        return reactor;
+    }
 };
 
-static std::string zfrontend;
-static std::string zconfig;
+class GreeterClient {
+public:
+    GreeterClient(std::shared_ptr<grpc::Channel> channel)
+        : stub_(helloworld::Greeter::NewStub(channel)) {}
 
-static manapi::status setup_cors(manapi::net::http::request &req, manapi::net::http::response &resp) MANAPIHTTP_NOEXCEPT {
-    try {
-        auto const hv = req.http();
-        if (hv == manapi::net::http::versions::HTTP_v1_1) {
-            resp.header("Access-Control-Allow-Origin", "*").unwrap();
-            resp.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE").unwrap();
-            resp.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization").unwrap();
-            resp.header("Access-Control-Allow-Credentials", "True").unwrap();
-        }
-        return manapi::status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "http:setup_cors failed", e.what());
-        return manapi::status_internal("http:setup_cors failed");
-    }
-}
+    // Assembles the client's payload, sends it and presents the response back
+    // from the server.
+    manapi::future<manapi::status_or<std::string>> SayHello(const std::string& user) {
+        typedef manapi::async::promise_sync<manapi::status_or<std::string>> promise;
+        // Data we are sending to the server.
+        helloworld::HelloRequest request;
+        request.set_name(user);
 
-int main() {
-    manapi::init_tools::log_name_enable("manapihttp", true);
-    manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
-    zfrontend = manapi::process::get_env("CALCULATORAI_FRONTEND").unwrap();
-    zconfig = manapi::process::get_env("CALCULATORAI_CONFIG").unwrap();
-    /* creates 2 threads for blocking I/O syscalls */
-    manapi::async::context::threadpoolfs(2);
-    /* disable several signals */
-    manapi::async::context::gbs (manapi::async::context::blockedsignals());
-    /* creates 4 additional threads for 4 additional event loops */
-    auto ctx = manapi::async::context::create(4).unwrap();
-    /* HTTP context for multiple HTTP routers (threadsafe) */
-    auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
-    /* runs main event loop and 4 additional event loops */
-    ctx->run([router_ctx] (std::function<void()> bind) -> void {
-        using http = manapi::net::http::server;
+        // Container for the data we expect from the server.
+        helloworld::HelloReply reply;
 
-        manapi::json app;
-        auto router = manapi::net::http::server::create(router_ctx).unwrap();
-        auto db = manapi::ext::pq::connection::create().unwrap();
+        // Context for the client. It could be used to convey extra information to
+        // the server and/or tweak certain RPC behaviors.
+        grpc::ClientContext context;
 
-        router.GET("/", zfrontend).unwrap();
-
-        router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            co_return resp.file(manapi::fs::path::join(zfrontend, "index.html")).unwrap();
-        }).unwrap();
-
-        router.GET("/+layer", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            manapi::unwrap(setup_cors (req, resp));
-            co_return;
-        }).unwrap();
-
-        router.POST("/+layer", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            manapi::unwrap(setup_cors (req, resp));
-            co_return;
-        }).unwrap();
-
-        router.OPTIONS("/+error", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            resp.status(200);
-            manapi::unwrap(setup_cors (req, resp));
-            co_return;
-        }).unwrap();
-
-        router.GET("/api/create", [&app, db] (http::req &req, http::resp &resp) mutable  -> manapi::future<> {
-            while (true) {
-                auto api = manapi::string::random(78);
-                auto tv = 86400000;
-                auto content = manapi::json::array();
-                content.push_back({
-                    {"role", "system"},
-                    {"content", app["prompt"]}
-                });
-                auto result = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())"
-                        "INSERT INTO chats (id, chat, created_at, removed_at) VALUES ($1,$2,NOW(),NOW() + $3 * INTERVAL '1 millisecond');",
-                        req.cancellation().sub(), api, content.dump(), tv));
-                if (!result.affected_rows()) {
-                    continue;
-                }
-                co_return resp.json({{"ok", true}, {"api", api}, {"live_in", tv}}).unwrap();
-            }
-        }).unwrap();
-
-        router.POST ("/api/[api]/chat", [&app, db] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            auto api = std::string{req.param("api").unwrap()};
-            auto userdata = manapi::unwrap(co_await req.json());
-            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())"
-                                                        "UPDATE chats SET version = version + 1 RETURNING version, chat;", req.cancellation().sub()));
-            if (res.empty())
-                co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
-            auto data = manapi::json::parse(res[0]["chat"].as<std::string>()).unwrap();
-            auto version = res[0]["version"].as<int>();
-            auto usermsg = manapi::json::object();
-            usermsg.insert("role", "user");
-            usermsg.insert("content", std::move(userdata["content"]));
-            data.push_back(std::move(usermsg));
-            // auto b = manapi::string::random(100);
-            // for (int i = 0; i < 6; i++)
-            //     b = b + b;
-            // auto b2 = std::format("{}\n{}\n{}", b, api, b);
-            // data->content.push_back({
-            //     {"role", "assistant"},
-            //     {"content", b},
-            //     {"reasoning_details", b}
-            // });
-            // co_return resp.callback_async([b = std::move(b2), s = 0] (manapi::slice_view buffs, bool &f) mutable -> manapi::future<ssize_t> {
-            //     co_await manapi::async::delay{100};
-            //     auto size =  std::min<ssize_t>(100, b.size() - s);
-            //     buffs.copy_from(b.data() + s, 0,size);
-            //     s += size;
-            //     if (size==0)
-            //         f=true;
-            //     co_return size;
-            // }).unwrap();
-            auto headers = manapi::json::object();
-            headers.insert("Authorization", std::format("Bearer {}", app["api-key"].as_string()));
-            headers.insert("Content-Type", "application/json");
-            auto pfetch = manapi::json::object();
-            pfetch.insert("method", "POST");
-            pfetch.insert("headers", std::move(headers));
-            pfetch.insert("recv_nodelay", true);
-            auto body = manapi::json::object();
-            auto reasoning = manapi::json::object();
-            reasoning.insert("enabled", true);
-            body.insert("model", app["model"]);
-            body.insert("messages", data);
-            body.insert("stream", true);
-            body.insert("reasoning", std::move(reasoning));
-            auto response = manapi::unwrap(co_await manapi::net::fetch2::fetch ("https://openrouter.ai/api/v1/chat/completions", std::move(pfetch), body.dump()));
-
-            if (!response.ok()) {
-                auto text = manapi::unwrap(co_await response.text());
-                manapi_log_trace("/api/[api]/chat failed due to %d, %s", response.status(), text.data());
-                co_return resp.json({{"ok", false}, {"msg", "response failed"}}).unwrap();
-            }
-
-            co_return resp.callback_stream([db, version, data = std::move(data), response, api]
-                    (std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool)> send) mutable
-                        -> manapi::future<> {
-
-                std::string content;
-                std::string reasoning;
-                manapi::json_builder динислам_строит;
-                int ленар_считает = 0;
-                int modar_ali = 0;
-
-                manapi::unwrap(co_await response.callback_async([&modar_ali, &динислам_строит, &ленар_считает, &send, &reasoning, &content, &api] (manapi::slice_view sv, bool fin) -> manapi::future<ssize_t> {
-                    auto csize = content.size();
-                    auto rsize = reasoning.size();
-                    try {
-                        for (auto boss : sv) {
-                            for (size_t i = 0; i < boss.size(); i++) {
-                                if (boss[i]=='{' && !ленар_считает) {
-                                    ленар_считает=1;
-                                }
-                                if (ленар_считает) {
-                                    динислам_строит << boss[i];
-
-                                    if (boss[i] == '\n') {
-                                        if (ленар_считает==2) {
-                                            ленар_считает=0;
-                                            auto data = динислам_строит.get().unwrap();
-                                            динислам_строит.clear();
-                                            auto dr = data["choices"][0]["delta"]["reasoning"];
-                                            if (dr.is_string())
-                                                reasoning += dr.as_string();
-                                            auto dc = data["choices"][0]["delta"]["content"];
-                                            if (dc.is_string() && !dc.as_string().empty()) {
-                                                if (!modar_ali) {
-                                                    reasoning += std::format("\n{}\n", api);
-                                                    modar_ali = 1;
-                                                }
-                                                content += dc.as_string();
-                                            }
-                                        }
-                                        else
-                                            ленар_считает++;
-                                    }
-                                    else {
-                                        ленар_считает = 1;
-                                    }
-                                }
-                            }
+        co_return co_await promise ([&] (promise::resolve_t resolve) -> void {
+            try {
+                this->stub_->async()->SayHello(&context, &request, &reply, [ctx = manapi::async::current(), &reply, resolve = std::move(resolve)] (grpc::Status status) mutable {
+                    if (manapi::async::internal::current_() == ctx) {
+                        if (status.ok()) {
+                            resolve(reply.message());
+                            return;
                         }
-                    }
-                    catch (std::exception const &e) {
-                        std::cerr << e.what() << "\n";
-                        for (auto boss : sv)
-                            std::cerr << boss;
-                        std::cerr << "\n";
-                        std::rethrow_exception(std::current_exception());
-                    }
-                    if (reasoning.size() != rsize) {
-                        manapi::slice_part_t part{};
-                        part.buff.base = reasoning.data() + rsize;
-                        part.buff.len = reasoning.size() - rsize;
-                        manapi::slice_view b (&part);
-                        if (co_await send (b, fin && content.size() == csize) < 0)
-                            co_return -1;
-                    }
-                    if (content.size() != csize) {
-                        manapi::slice_part_t part{};
-                        part.buff.base = content.data() + csize;
-                        part.buff.len = content.size() - csize;
-                        manapi::slice_view b (&part);
-                        if (co_await send (b, fin) < 0)
-                            co_return -1;
-                    }
-                    else if (fin) {
-                        if (co_await send (manapi::slice_view (), fin) < 0)
-                            co_return -1;
-                    }
-                    co_return sv.size();
-                }));
 
-                manapi::string::replace(reasoning, api, "");
-                auto obj = manapi::json::object();
-                obj.insert("role", "assistant");
-                obj.insert("content", std::move(content));
-                obj.insert("reasoning_details", std::move(reasoning));
-                data.push_back(std::move(obj));
+                        auto msg = status.error_message();
+                        manapi_log_debug("grpc client failed due to %s", msg.data());
+                        resolve(manapi::status_internal("grpc client: something gets wrong"));
+                    }
+                    else {
+                        ctx->eventloop()->custom_callback([resolve = std::move(resolve), status = std::move(status), &reply] (manapi::event_loop *ev) -> void {
+                            if (status.ok()) {
+                                resolve(reply.message());
+                                return;
+                            }
 
-                manapi::async::run ([db, api, data = std::move(data), version] () mutable -> manapi::future<> {
-                    manapi::unwrap(co_await db.execl("UPDATE chats SET chat = $2 WHERE id = $1 AND version = $3;",
-                        manapi::ctokens::timeout(5000), api, data.dump(), version));
+                            auto msg = status.error_message();
+                            manapi_log_debug("grpc client failed due to %s", msg.data());
+                            resolve(manapi::status_internal("grpc client: something gets wrong"));
+                        }).unwrap();
+                    }
                 });
+            }
+            catch (std::exception const &e) {
+                manapi_log_error(e.what());
+                resolve(manapi::status_internal("sayhello failed"));
+            }
+        });
+    }
 
+private:
+    std::unique_ptr<helloworld::Greeter::Stub> stub_;
+};
+
+
+int main () {
+    manapi::init_tools::log_name_enable("manapihttp", true);
+    manapi::init_tools::log_name_enable("manapihttp::fs", true);
+
+    int logtrace = 4;
+    try { logtrace = std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()); }
+    catch (...) {  }
+
+    manapi::init_tools::log_trace_init((manapi::debug::trace_level)logtrace);
+
+    int threads = 4;
+    try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
+    catch (...) {  }
+
+    manapi::async::context::threadpoolfs(threads);
+    manapi::async::context::gbs(manapi::async::context::blockedsignals());
+
+    int loops = 0;
+    try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
+    catch (...) {  }
+
+    auto ctx = manapi::async::context::create(loops + 1).unwrap();
+
+    std::atomic<int> a = 0;
+    std::atomic<int> thrcnt = 0;
+
+
+    auto grpc_server_ctx = manapi::net::wgrpc::server_ctx::create().unwrap();
+    auto server_ctx = manapi::net::http::server_ctx::create().unwrap();
+
+    grpc_server_ctx->enable_threadpool(true);
+
+    grpc::EnableDefaultHealthCheckService(true);
+    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+
+    ctx->run(loops, [&thrcnt, &a, server_ctx,grpc_server_ctx] (const std::function<void()> &bind) -> void {
+        using http = manapi::net::http::server;
+       // auto db = manapi::ext::pq::connection::create().unwrap();
+
+        // /**
+        //  * grpc
+        //  */
+        //
+        // auto thrcntind = thrcnt.fetch_add(1);
+        //
+        // auto service = std::make_shared<GreeterServiceImpl>();
+        //
+        // auto grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
+        // manapi::async::run([grpc_server, service, thrcntind] () mutable -> manapi::future<> {
+        //     auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
+        //
+        //     res.log();
+        //
+        //     res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::status {
+        //         builder.RegisterService(service.get());
+        //         return manapi::status_ok();
+        //     });
+        //
+        //     res.log();
+        //     assert(res.ok());
+        //     if (res.ok()) {
+        //         auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+        //         if (!creds.ok()) {
+        //             creds.err().log();
+        //             co_return;
+        //         }
+        //         auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #1";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #2";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client #2=" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #3";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client #3=" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #4";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client #4=" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #5";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client #5=" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+        //             std::string user = "Xiadnoring Client #6";
+        //             auto res = co_await greeter->SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << "Xiadnoring Client #6=" << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //     }
+        //
+        // }, [] (std::exception_ptr err) -> void {
+        //     if (err)
+        //         std::rethrow_exception(err);
+        // });
+
+        /**
+         * http
+         */
+
+        auto folder_env = manapi::process::get_env("MANAPIHTTP_FOLDER");
+        std::string const folder = folder_env ? FOLDER : FOLDER2;
+        auto router = manapi::net::http::server::create (server_ctx).unwrap();
+
+        router->GET("/+layer", [] (http::req &req, http::uresp resp) -> void {
+            resp->header(std::string{"alt-svc"}, R"(h3=":8888"; ma=86400)");
+            resp.finish();
+        }).unwrap();
+
+        router->GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
+            co_return resp.text(std::format("ip: {} port: {} online: {} requests: {}",
+                req.ip_data().ip,
+                req.ip_data().port,
+                server_ctx->storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
+                a.load())).unwrap();
+        }).unwrap();
+
+        router->GET("/timeout/[sec]", [] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
+            auto tmsec = std::atoi(req.param("sec").unwrap().data());
+            co_await manapi::async::delay (tmsec * 1000, req.cancellation().sub());
+            co_return resp.text(std::format("Wait {} seconds", tmsec)).unwrap();
+        }).unwrap();
+
+        router->GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
+            -> void {
+            a.fetch_add(1);
+            resp->text("");
+
+            resp.finish();
+        }).unwrap();
+
+        router->POST("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
+            auto data = (co_await req.text()).unwrap();
+            auto trailers = (co_await req.trailers()).unwrap();
+            for (auto &trailer : trailers)
+                printf("%.*s\n", trailer.second.size(), trailer.second.data());
+            resp.text("hello");
+        }, {
+            {"trailers", manapi::json::array({"test", "HMMM"})},
+            {"trailers_size", 500}
+        });
+
+        router->GET ("/fetch/+custom", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+
+            auto path = std::vector<std::string> (std::next(req.path().begin()), req.path().end());
+            std::string url = "";
+            for (auto &p : path) {
+                url += '/';
+                url += p;
+            }
+
+            auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url), {
+                {"verify_peer", false},
+                {"verify_host", false},
+                {"verbose", true},
+                {"http", "2"},
+                {"headers", {
+                    {"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}
+                }}
+            }, req.cancellation().sub().tm(3000))).unwrap();
+            if (!response->ok()) {
+                co_return resp.text(std::string{manapi::net::http::status_to_string(response->status()).unwrap()}).unwrap();
+            }
+
+            co_return resp.text((co_await response->text()).unwrap()).unwrap();
+        }).unwrap();
+
+        router->GET ("/stop", [] (http::req &req, manapi::net::http::uresponse resp) mutable -> void {
+            resp->text("OK");
+
+            manapi::async::run (manapi::async::current()->stop());
+
+            resp.finish();
+        }).unwrap();
+
+        router->GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
+            -> void {
+            manapi::async::current()->timerpool()->append_timer_sync(1500,
+                [resp = std::move(resp)] (manapi::timer t) mutable  -> void {
+                    resp.finish();
             }).unwrap();
         }).unwrap();
 
-        router.POST("/api/+error", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            co_return resp.json({{"ok", false}, {"msg", "something gets wrong"}}).unwrap();
+        // router->GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
+        //     auto msg = req.param("id").unwrap();
+        //     char *end;
+        //     auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
+        //     if (!res1) {
+        //         if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
+        //             res1.err().log();
+        //     }
+        //
+        //     auto res = co_await db.exec("SELECT * FROM for_test;");
+        //     if (res) {
+        //         std::string content = "b";
+        //         for (const auto &row: res.unwrap()) {
+        //             content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        //         }
+        //
+        //         co_return resp.text(std::move(content)).unwrap();
+        //     }
+        //
+        //     co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
+        // }).unwrap();
+
+        router->GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            manapi::init_tools::ev_library_init();
+            manapi::async::current()->memory_fabric().clear();
+            resp.compress_enabled(false);
+            co_return resp.text(std::format("requests: {}; active: {}", a.load(),
+                resp.connection_data()->worker->worker_data()->as<manapi::net::http::server_ctx::worker_data_t>()->count.load())).unwrap();
         }).unwrap();
 
-        router.POST ("/api/[api]/alive", [db] (http::req &req, http::resp &resp) mutable  -> manapi::future<> {
-            auto api = std::string{req.param("api").unwrap()};
-            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT id FROM chats WHERE id = $1;", req.cancellation().sub(), api));
-            if (res.empty())
-                co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
-            co_return resp.json({{"ok", true}}).unwrap();
-        }).unwrap();
+        init_http_server (router, folder);
 
-        router.POST ("/api/[api]/remove", [db](http::req &req, http::resp &resp) mutable  -> manapi::future<> {
-            auto api = std::string{req.param("api").unwrap()};
-            auto res = manapi::unwrap(co_await db.execl("DELETE FROM chats WHERE id = $1", req.cancellation().sub(), api));
-            co_return resp.json({{"ok", true}}).unwrap();
-        }).unwrap();
+        manapi::async::run([router/*, db*/] () mutable -> manapi::future<> {
+            //(co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
-        router.POST ("/api/[api]/history", [db](http::req &req, http::resp &resp) mutable  -> manapi::future<> {
-            auto api = std::string{req.param("api").unwrap()};
-            auto res = manapi::unwrap(co_await db.execl("WITH cln AS (DELETE FROM chats WHERE removed_at < NOW())SELECT chat FROM chats WHERE id = $1;", req.cancellation().sub(), api));
-            if (res.empty())
-                co_return resp.json({{"ok", false}, {"msg", "not found"}}).unwrap();
-            auto data = manapi::json::parse(res[0]["chat"].as<std::string>()).unwrap();
-            manapi::json z = manapi::json::array();
-            for (int i = 1; i < data.size(); i++) {
-                z.push_back(data[i]);
-            }
-            co_return resp.json({{"ok", true}, {"data", std::move(z)}}).unwrap();
-        }).unwrap();
+            (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
+            (co_await router->start()).unwrap();
 
-        manapi::async::run([&app, router, db] () mutable  -> manapi::future<> {
-            app = manapi::json::parse(manapi::unwrap(co_await manapi::fs::async_read(zconfig))).unwrap();
-
-            auto &dbapp = app["db"];
-
-            manapi::unwrap(co_await db.connect(dbapp["host"].as_string(), dbapp["port"].as_string(), dbapp["user"].as_string(), dbapp["password"].as_string(), dbapp["db"].as_string()));
-
-            auto pools = manapi::json::array();
-            auto pool = manapi::json::object();
-            auto version = manapi::json::array();
-            version.push_back("1.1");
-            pool.insert("address", "10.241.1.226");
-            pool.insert("http", std::move(version));
-            pool.insert("transport", "tcp");
-            pool.insert("port" ,"8888");
-            pool.insert("tcp_no_delay", true);
-            pool.insert("max_merge_buffer_stack", 0);
-            pool.insert("buffer_size", 4096);
-            pool.insert("keep_alive", 5);
-            pool.insert("max_connections_by_ip", 10000);
-            pools.push_back(std::move(pool));
-
-            auto pconfig = manapi::json::object();
-            pconfig.insert("pools", std::move(pools));
-            pconfig.insert("save_config" , false);
-            manapi::unwrap(co_await router.config_object(std::move(pconfig)));
-            manapi::unwrap(co_await router.start());
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
         });
 
-        bind ();
-    });
+        bind();
+    }).unwrap();
 
     manapi::clear_tools::curl_library_clear();
     manapi::clear_tools::ev_library_clear();

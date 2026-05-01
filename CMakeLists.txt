@@ -600,7 +600,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiTimerPool.hpp
         include/http/ManapiHttpPool.hpp
         include/json/ManapiJsonMask.hpp
-        include/http/ManapiSite.hpp
+        include/worker/ManapiSite.hpp
         include/http/ManapiHttpConfig.hpp
         include/ext/ManapiJsonWebTokenTraits.hpp
         include/ext/ManapiJsonWebTokenDefaults.hpp
@@ -635,7 +635,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/ManapiHttpPool.cpp
         include/cache/ManapiLRU.hpp
         src/ManapiTimerPool.cpp
-        src/http/ManapiSite.cpp
+        src/worker/ManapiSite.cpp
         src/http/ManapiHttpConfig.cpp
         src/ManapiUnicode.cpp
         src/json/ManapiJsonBuilder.cpp
@@ -728,8 +728,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiDefaultErrors.hpp
         include/ManapiProcess.hpp
         src/ManapiProcess.cpp
-        include/http/ManapiSiteCtx.hpp
-        src/http/ManapiSiteCtx.cpp
+        include/http/ManapiHttpCtx.hpp
+        src/http/ManapiHttpCtx.cpp
         include/std/ManapiAsyncThreadsMutex.hpp
         src/std/ManapiAsyncThreadsMutex.cpp
         include/std/ManapiEasyCancellation.hpp
@@ -766,7 +766,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiDebug.cpp
         src/include/ManapiEventStructuresInternal.hpp
         include/ext/ManapiMustache.hpp
-        src/include/ManapiSiteInternal.hpp
+        src/include/ManapiHttpInternal.hpp
         src/include/worker/ManapiQuicOpenSsl.hpp
         src/worker/ManapiQuicOpenSsl.cpp
         include/worker/ManapiBaseUtils.hpp

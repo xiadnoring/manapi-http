@@ -2,6 +2,7 @@
 #   include "json/ManapiJson.hpp"
 #   include "json/ManapiJsonMask.hpp"
 #   include "json/ManapiJsonBuilder.hpp"
+#include "ManapiInitTools.hpp"
 // #else
 // #   include <manapihttp/json/ManapiJson.hpp>
 // #   include <manapihttp/json/ManapiJsonMask.hpp>

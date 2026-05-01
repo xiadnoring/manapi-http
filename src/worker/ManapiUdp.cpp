@@ -10,7 +10,7 @@
 #include "std/ManapiEasyCancellation.hpp"
 #include "../include/ManapiUtils.hpp"
 
-manapi::net::worker::udp::udp(std::shared_ptr<net::http::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : worker::interface_worker(std::move(site), std::move(wdata), config) {
+manapi::net::worker::udp::udp(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : worker::interface_worker(std::move(site), std::move(wdata), config) {
     this->local = nullptr;
 }
 

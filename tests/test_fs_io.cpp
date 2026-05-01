@@ -3,5 +3,6 @@
 //
 
 #include "./utest.h"
+#include "ManapiInitTools.hpp"
 
 UTEST_MAIN();

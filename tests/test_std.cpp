@@ -2,10 +2,12 @@
 #include "std/ManapiChain.hpp"
 #include "ManapiMath.hpp"
 #include "ManapiErrors.hpp"
+#include "ManapiInitTools.hpp"
 
 #include <deque>
 
 #include "./utest.h"
+#include "tools.hpp"
 
 UTEST(std_string, str_replace_1) {
     std::string a = "Hello$2!";
@@ -150,6 +152,158 @@ UTEST(std_exception, exception_fmt) {
     catch (manapi::exception const &e) {
         ASSERT_TRUE(std::string_view{e.what()} == "YOU ARE LUCKY");
     }
+}
+
+UTEST(std_mutex, mutex_cancel) {
+    auto ctx = init_ctx(utest_result, 5000);
+
+    bool finished = false;
+
+    manapi::async::run([&finished] () -> manapi::future<> {
+        manapi::async::mutex mx;
+        auto lk = co_await mx.lock_guard();
+        finished = !(co_await mx.lock(manapi::ctokens::timeout(20)));
+    });
+
+    manapi::async::current()->timerpool()->append_timer_sync(500,
+        manapi::TIMER_DEFAULT, [&ctx] (const manapi::timer &t) -> void {
+        manapi::async::run(ctx->stop());
+    });
+
+
+    wait_ctx(ctx);
+
+    ASSERT_TRUE(finished == true);
+}
+
+UTEST(std_mutex, mutex_cancel2) {
+    auto ctx = init_ctx(utest_result, 5000);
+
+    bool finished = false;
+
+    manapi::async::run([&finished] () -> manapi::future<> {
+        manapi::async::mutex mx;
+        auto lk = co_await mx.lock_guard();
+        auto res = (co_await mx.lock_guard(manapi::ctokens::timeout(20)));
+        finished = !res;
+    });
+
+    manapi::async::current()->timerpool()->append_timer_sync(500,
+        manapi::TIMER_DEFAULT, [&ctx] (const manapi::timer &t) -> void {
+        manapi::async::run(ctx->stop());
+    });
+
+
+    wait_ctx(ctx);
+
+    ASSERT_TRUE(finished == true);
+}
+
+UTEST(std_mutex, tmutex_cancel) {
+    auto ctx = init_ctx(utest_result, 5000);
+
+    bool finished = false;
+
+    manapi::async::run([&finished] () -> manapi::future<> {
+        manapi::async::tmutex mx;
+        auto lk = co_await mx.lock_guard();
+        finished = !(co_await mx.lock(manapi::ctokens::timeout(20)));
+        manapi::async::run(manapi::async::current()->stop());
+    });
+
+    manapi::async::current()->timerpool()->append_timer_sync(500,
+        manapi::TIMER_DEFAULT, [] (const manapi::timer &t) -> void {
+        manapi::async::run(manapi::async::current()->stop());
+    });
+
+
+    wait_ctx(ctx);
+
+    ASSERT_TRUE(finished == true);
+}
+
+UTEST(std_mutex, tmutex_cancel2) {
+    auto ctx = init_ctx(utest_result, 5000);
+
+    bool finished = false;
+
+    manapi::async::run([&finished] () -> manapi::future<> {
+        manapi::async::tmutex mx;
+        auto lk = co_await mx.lock_guard();
+        auto res = (co_await mx.lock_guard(manapi::ctokens::timeout(20)));
+        finished = !res;
+        manapi::async::run(manapi::async::current()->stop());
+    });
+
+    manapi::async::current()->timerpool()->append_timer_sync(500,
+        manapi::TIMER_DEFAULT, [] (const manapi::timer &t) -> void {
+        manapi::async::run(manapi::async::current()->stop());
+    });
+
+
+    wait_ctx(ctx);
+
+    ASSERT_TRUE(finished == true);
+}
+
+UTEST(std_mutex, tmutex_cancel3) {
+    auto ctx = init_ctx(utest_result, 5000, 15);
+
+    std::atomic<int> finished{0};
+    bool z = false;
+    manapi::async::tmutex mx;
+    ctx->run(15, [&finished, &z, &mx] (std::function<void()> bind) -> void {
+        manapi::async::run([&finished, &z, &mx] () -> manapi::future<> {
+
+            auto lk = co_await mx.lock_guard();
+            if (z)
+                finished.fetch_add(1);
+            z = true;
+            if (!(co_await mx.lock(manapi::ctokens::timeout(20))))
+                finished.fetch_add(1);
+            manapi::async::run(manapi::async::current()->stop());
+            z = false;
+        });
+
+        manapi::async::current()->timerpool()->append_timer_sync(500,
+            manapi::TIMER_DEFAULT, [] (const manapi::timer &t) -> void {
+            manapi::async::run(manapi::async::current()->stop());
+        });
+
+        bind();
+    });
+
+    ASSERT_TRUE(finished == 16);
+}
+
+UTEST(std_mutex, tmutex_cancel4) {
+    auto ctx = init_ctx(utest_result, 5000, 15);
+
+    std::atomic<int> finished{0};
+    bool z{false};
+    manapi::async::tmutex mx;
+    ctx->run(15, [&finished,&z,&mx] (std::function<void()> bind) -> void {
+        manapi::async::run([&finished,&z,&mx] () -> manapi::future<> {
+            auto lk = co_await mx.lock_guard();
+            if (z)
+                finished.fetch_add(1);
+            z = true;
+            auto res = co_await mx.lock_guard(manapi::ctokens::timeout(20));
+            if (!(res.ok()))
+                finished.fetch_add(1);
+            manapi::async::run(manapi::async::current()->stop());
+            z = false;
+        });
+
+        manapi::async::current()->timerpool()->append_timer_sync(500,
+            manapi::TIMER_DEFAULT, [] (const manapi::timer &t) -> void {
+            manapi::async::run(manapi::async::current()->stop());
+        });
+
+        bind();
+    });
+
+    ASSERT_TRUE(finished == 16);
 }
 
 UTEST_MAIN();

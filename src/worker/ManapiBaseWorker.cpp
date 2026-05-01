@@ -100,8 +100,8 @@ manapi::future<ssize_t> write_internal (manapi::net::worker::base *w, ssize_t rh
             //     resolve(0);
             //     return;
             // }
-            auto top = (*write_data.conn)->as<connection_prepared_t>()->top.get();
-            assert(top->cur_send_size != top->send_size);
+            //auto top = (*write_data.conn)->as<connection_prepared_t>()->top.get();
+            //assert(top->cur_send_size != top->send_size);
             write_data.resolve=std::move(resolve);
             write_data.prev_cb = write_data.w->event_on(*write_data.conn, [&write_data]
                 (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {

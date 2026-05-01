@@ -11,7 +11,7 @@
 #include "http/ManapiBaseHttp.hpp"
 #include "../include/ManapiHttpStructs.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 
 static void free_response_data (uint8_t m_type, void *m_data) MANAPIHTTP_NOEXCEPT {
     switch (m_type) {

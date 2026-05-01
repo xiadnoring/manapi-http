@@ -1,74 +1,116 @@
 #include "ManapiEventLoop.hpp"
 #include "std/ManapiAsyncThreadsMutex.hpp"
 
-struct tmutex_promise {
-    manapi::chain <manapi::ev::shared_async> &waiters;
-    bool &locked_;
-    std::mutex &mx;
+struct manapi::async::tmutex::tmutex_promise {
+    tmutex *parent;
+    manapi::ctoken *token;
+    std::size_t pos;
+    ev::shared_async w;
+    std::coroutine_handle<> handle;
 
     bool await_ready () MANAPIHTTP_NOEXCEPT;
+
     void await_resume () MANAPIHTTP_NOEXCEPT;
+
     void await_suspend (std::coroutine_handle<> handle);
 };
 
-bool tmutex_promise::await_ready() MANAPIHTTP_NOEXCEPT {
+bool manapi::async::tmutex::tmutex_promise::await_ready() MANAPIHTTP_NOEXCEPT {
     return false;
 }
 
-void tmutex_promise::await_resume() MANAPIHTTP_NOEXCEPT {}
+void manapi::async::tmutex::tmutex_promise::await_resume() MANAPIHTTP_NOEXCEPT {
+    if (this->token) {
+        this->token->disable();
+    }
+}
 
-void tmutex_promise::await_suspend(std::coroutine_handle<> handle) {
-    std::unique_lock<std::mutex> lk (this->mx);
+void manapi::async::tmutex::tmutex_promise::await_suspend(std::coroutine_handle<> handle) {
+    std::unique_lock<std::mutex> lk (this->parent->m_mx);
 
-    if (this->locked_) {
-        auto watcher = manapi::async::current()->eventloop()->create_watcher_async([handle] (const manapi::ev::shared_async &w) -> void {
-            auto handle_ = handle;
-            manapi::async::current()->eventloop()->stop_watcher(w);
+    if (this->parent->m_locked) {
+        this->handle = handle;
 
-            handle_.resume();
-        });
+        if (this->token) {
+            this->token->cancel_callback([this] () -> void {
+                std::unique_lock<std::mutex> lk (this->parent->m_mx);
 
-        this->waiters.push_back(std::move(watcher.unwrap()));
+                if (this->pos == std::numeric_limits<std::size_t>::max()) {
+                    return;
+                }
+
+                assert(!this->parent->m_waiters.empty());
+                std::swap(this->parent->m_waiters[this->pos], this->parent->m_waiters.back());
+                std::swap(this->parent->m_waiters[this->pos]->pos, this->parent->m_waiters.back()->pos);
+
+                this->parent->m_waiters.pop_back();
+                manapi::async::current()->eventloop()->stop_watcher(this->w);
+
+                lk.unlock();
+
+                this->handle.resume();
+            });
+        }
+
+        this->w = manapi::async::eventloop()->create_watcher_async(
+            [z = this] (const manapi::ev::shared_async &w) -> void {
+            auto p = z;
+            assert(p->w == w);
+            manapi::async::current()->eventloop()->stop_watcher(p->w);
+            if (p->token)
+                p->token->disable();
+            p->handle.resume();
+        }).unwrap();
+
+        this->pos = this->parent->m_waiters.size();
+        this->parent->m_waiters.push_back(this);
     }
     else {
-        this->locked_ = true;
+        this->parent->m_locked = true;
         lk.unlock();
+
         handle.resume();
     }
 }
 
 manapi::async::tmutex::tmutex() {
-    this->locked_ = false;
+    this->m_locked = false;
 }
 
 manapi::future<void> manapi::async::tmutex::lock(){
-    co_await tmutex_promise {this->waiters, this->locked_, this->mx};
+    co_await tmutex_promise {this, nullptr};
     co_return;
 }
 
+manapi::future<bool> manapi::async::tmutex::lock(ctoken cancellation) {
+    co_await tmutex_promise {this, &cancellation};
+    co_return !cancellation.is_cancelled();
+}
+
 bool manapi::async::tmutex::try_to_lock() {
-    std::lock_guard<std::mutex> lk (this->mx);
-    if (this->locked_) { return false; }
-    this->locked_ = true;
+    std::lock_guard<std::mutex> lk (this->m_mx);
+    if (this->m_locked) { return false; }
+    this->m_locked = true;
     return true;
 }
 
 void manapi::async::tmutex::unlock()  {
-    std::lock_guard<std::mutex> lk (this->mx);
+    std::lock_guard<std::mutex> lk (this->m_mx);
 
-    if (!this->locked_) {
+    if (!this->m_locked) {
         return;
     }
 
-    if (this->waiters.empty()) {
-        this->locked_ = false;
+    if (this->m_waiters.empty()) {
+        this->m_locked = false;
         return;
     }
 
-    auto handle = std::move(this->waiters.front());
-    this->waiters.pop_front();
-
-    handle->send();
+    auto handle = this->m_waiters.back();
+    this->m_waiters.pop_back();
+    handle->pos = std::numeric_limits<std::size_t>::max();
+    if (auto rhs = handle->w->send())
+        manapi_log_ferror("%s failed due to %s", "send()", ev::strerror(rhs));
 }
 
 manapi::future<manapi::sbefore_delete> manapi::async::tmutex::lock_guard()  {
@@ -78,9 +120,18 @@ manapi::future<manapi::sbefore_delete> manapi::async::tmutex::lock_guard()  {
     });
 }
 
+manapi::future<manapi::status_or<manapi::sbefore_delete>> manapi::async::tmutex::lock_guard(manapi::ctoken cancellation) {
+    if (co_await this->lock(std::move(cancellation))) {
+        co_return sbefore_delete([this] () -> void {
+            this->unlock();
+        });
+    }
+    co_return manapi::status_cancelled("tmutex:lock_guard cancelled");
+}
+
 manapi::async::tmutex::~tmutex() {
     /* unlock everything ! */
-    if (!this->waiters.empty()) {
+    if (!this->m_waiters.empty()) {
         this->unlock();
     }
 }

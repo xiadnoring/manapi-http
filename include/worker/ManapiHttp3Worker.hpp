@@ -68,7 +68,7 @@ namespace manapi::net::worker {
 
         http::config *config() MANAPIHTTP_NOEXCEPT override;
 
-        const std::shared_ptr<http::site> &site() MANAPIHTTP_NOEXCEPT override;
+        const std::shared_ptr<worker::site> &site() MANAPIHTTP_NOEXCEPT override;
 
         void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT override;
 

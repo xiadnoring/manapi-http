@@ -1,5 +1,6 @@
 //#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiBigint.hpp"
+#   include "ManapiInitTools.hpp"
 // #else
 // #   include <manapihttp/ManapiBigint.hpp>
 // #endif

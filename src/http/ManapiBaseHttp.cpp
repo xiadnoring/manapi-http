@@ -4,6 +4,7 @@
 
 #include "ManapiFetch.hpp"
 #include "ManapiString.hpp"
+#include "ManapiHttp.hpp"
 #include "ManapiTime.hpp"
 #include "http/ManapiHttpMime.hpp"
 #include "http/ManapiBaseHttp.hpp"
@@ -16,7 +17,7 @@
 #include "ext/ManapiMustache.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "../include/ManapiSiteInternal.hpp"
+#include "../include/ManapiHttpInternal.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "../include/ManapiHttpStructs.hpp"
 #include "std/ManapiAsyncTimer.hpp"
@@ -26,7 +27,7 @@ static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 struct response_proxy_data_t {
     ssize_t content_length;
-    manapi::net::fetch fetch;
+    std::shared_ptr<manapi::net::fetch> fetch;
     std::unique_ptr<manapi::net::http::response> resp;
 };
 #endif
@@ -56,11 +57,12 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
         auto const cdata = res->connection_data();
 
         if (!features.compress.empty() && !res->partial_enabled()) {
+            auto pool = http::server::cast(cdata->worker->site().get());
             if (res->is_text()) {
-                features.compressor_for_string = cdata->worker->site()->compressor_for_string(features.compress);
+                features.compressor_for_string = pool->compressor_for_string(features.compress);
             }
             else if (res->is_file()) {
-                features.compressor_for_file = cdata->worker->site()->compressor_for_file(features.compress);
+                features.compressor_for_file = pool->compressor_for_file(features.compress);
             }
 
             if (features.compressor_for_file || features.compressor_for_string) {
@@ -151,7 +153,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 bool rst_compress = false;
 
                 try {
-                    auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site()->config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+                    auto rhs = co_await internal::compress_file(std::dynamic_pointer_cast<manapi::net::http::server>(cdata->worker->site()), resfile,
+                        http::server::cast(cdata->worker->site().get())->config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
                     if (!rhs.ok()) {
                         if (rhs.code() == manapi::ERR_UNAVAILABLE)
                             rst_compress = true;
@@ -435,13 +438,13 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             proxy_setup->operator()(proxy_data->fetch);
         }
 
-        proxy_data->fetch.headers({{"ranges", "0-"}});
+        proxy_data->fetch->headers({{"ranges", "0-"}});
 
-        proxy_data->fetch.handle_async_headers (
+        proxy_data->fetch->handle_async_headers (
             [p = proxy_data.get()](std::map<std::string, std::string, std::less<>> headers) mutable
             -> manapi::future<bool> {
                 try {
-                    p->resp->status_code(p->fetch.status_code());
+                    p->resp->status_code(p->fetch->status_code());
 
                     auto it = headers.find(H_CONTENT_LENGTH);
                     if (it != headers.end()) {
@@ -465,7 +468,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 co_return false;
         }).unwrap();
 
-        proxy_data->fetch.handle_async_body(
+        proxy_data->fetch->handle_async_body(
             [p = proxy_data.get()](slice_view buffs, bool fin) mutable
                 -> manapi::future<ssize_t> {
             if (p->content_length > 0 && p->content_length <= buffs.size())
@@ -482,7 +485,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             co_return rhs;
         }).unwrap();
 
-        auto task = proxy_data->fetch.async_doit();
+        auto task = proxy_data->fetch->async_doit();
         manapi::async::run<manapi::status> (std::move(task), [proxy_data = std::move(proxy_data)]
                 (std::exception_ptr err, manapi::status *status) mutable -> void {
                 if (status && !status->ok()) {
@@ -1347,7 +1350,7 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(std::shared_ptr<net::http::site> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
+manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(std::shared_ptr<net::http::server> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
     std::string filepath;
     std::string cached;
 

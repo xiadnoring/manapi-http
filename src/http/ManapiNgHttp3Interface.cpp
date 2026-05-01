@@ -13,7 +13,7 @@
 #   include "http/ManapiURLDecodeStream.hpp"
 #   include "http/ManapiBaseHttp.hpp"
 #   include "../include/http/ManapiNgHttp3Interface.hpp"
-#   include "../include/ManapiSiteInternal.hpp"
+#   include "../include/ManapiHttpInternal.hpp"
 
 static_assert(MANAPIHTTP_NGHTTP3_DEPENDENCY && NGHTTP3_VERSION_NUM >= 0x010000, "libnghttp3 version must be greater than v1.0.0");
 
@@ -654,7 +654,7 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
                     // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                     // this->event_flags(conn, 0);
 
-                    cdata->router = s->ctx->gctx->worker->site()->handler(req_ptr);
+                    cdata->router = manapi::net::http::server::cast(s->ctx->gctx->worker->site().get())->handler(req_ptr);
                     manapi::net::http::internal::handle_income_request(std::move(cdata), status);
                 }
                 catch (std::exception const &e) {

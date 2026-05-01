@@ -33,7 +33,7 @@ namespace manapi::net::http {
         using resp_stream_cb = std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool)>;
         using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
+        using resp_proxy_setup_cb = std::move_only_function<void(const std::shared_ptr<manapi::net::fetch> &)>;
 #endif
 
         response (internal::handle_data_t* cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req);
@@ -186,7 +186,7 @@ namespace manapi::net::http {
         std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> m_finish_cb;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> m_proxy_setup;
+        std::unique_ptr<std::move_only_function<void(const std::shared_ptr<manapi::net::fetch> &)>> m_proxy_setup;
 #endif
 
         void *m_data;

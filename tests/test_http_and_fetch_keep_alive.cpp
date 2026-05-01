@@ -37,10 +37,10 @@ UTEST (http_and_fetch, keep_alive_1) {
 
             auto fetch = fetch_res.unwrap();
 #define return co_return
-            ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+            ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-            auto text_res = co_await fetch.text();
+            auto text_res = co_await fetch->text();
             auto text = text_res.unwrap();
 
 #define return co_return
@@ -50,7 +50,7 @@ UTEST (http_and_fetch, keep_alive_1) {
 
     });
 
-    router.GET("keep_alive", [] (http::req &req, http::uresp resp) -> void {
+    router->GET("keep_alive", [] (http::req &req, http::uresp resp) -> void {
         resp->text("OK").unwrap();
     }).unwrap();
 

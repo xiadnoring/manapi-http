@@ -220,6 +220,10 @@ void manapi::ctoken::ask_cancel_callback() MANAPIHTTP_NOEXCEPT {
     }
 }
 
+bool manapi::ctoken::is_cancelled() const MANAPIHTTP_NOEXCEPT {
+    return this->m_data && (this->m_data->status_ & FLAG_CANCEL);
+}
+
 manapi::status manapi::ctoken::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
     if (this->m_data) {
         this->m_data->timeout_ = timeout;
@@ -258,6 +262,11 @@ manapi::status manapi::ctoken::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
     }
 
     return status_ok();
+}
+
+manapi::ctoken & manapi::ctoken::tm(size_t timeout) {
+    this->timeout(timeout).unwrap();
+    return *this;
 }
 
 bool manapi::ctoken::contains_cancel_callback() const {
