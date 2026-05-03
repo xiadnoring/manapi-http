@@ -9,7 +9,7 @@
 #   include <openssl/evp.h>
 #endif
 
-#if MANAPIHTTP_WOLFSSL_DEPENDENCY
+#if MANAPIHTTP_WOLFSSL_DEPENDENCY && !MANAPIHTTP_OPENSSL_DEPENDENCY
 #   include <wolfssl/openssl/ssl.h>
 #   include <wolfssl/openssl/evp.h>
 #endif
@@ -65,7 +65,7 @@ void manapi::crypto::evp_cipher_deleter::operator()(void *ptr) {
 }
 #endif
 
-#if MANAPIHTTP_WOLFSSL_DEPENDENCY
+#if MANAPIHTTP_WOLFSSL_DEPENDENCY && !MANAPIHTTP_OPENSSL_DEPENDENCY
 void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
     wolfSSL_EVP_CIPHER_CTX_free(static_cast<WOLFSSL_EVP_CIPHER_CTX *>(ptr));
 }
