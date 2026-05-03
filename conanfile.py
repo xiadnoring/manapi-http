@@ -92,7 +92,7 @@ class ManapiHttpConan(ConanFile):
             self.options["brotli"].shared = True
             self.options["zstd"].shared = self.settings.compiler != 'msvc'
             self.options["grpc"].shared = True
-            self.options["nghttp2"].shared = True
+            self.options["libnghttp2"].shared = True
             self.options["nghttp3"].shared = True
             self.options["kainjow_mustache"].shared = True
 
