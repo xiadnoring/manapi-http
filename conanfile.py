@@ -96,7 +96,9 @@ class ManapiHttpConan(ConanFile):
             self.options["nghttp3"].shared = True
             self.options["kainjow_mustache"].shared = True
 
-        self.options["libcurl"].with_nghttp2 = True
+        if self.settings.os != 'Windows':
+            self.options["libcurl"].with_nghttp2 = True
+
         self.options["quiche"].shared = True
         self.options["grpc"].secure = True
 
