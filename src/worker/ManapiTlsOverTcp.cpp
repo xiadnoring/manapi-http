@@ -343,12 +343,10 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
 }
 
 void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *ptr) MANAPIHTTP_NOEXCEPT {
-    auto uptr = std::unique_ptr<worker::connection> (ptr);
-    auto connection = std::unique_ptr<tls_connection_t> (uptr->as<tls_connection_t>());
+    auto connection = std::unique_ptr<tls_connection_t> (ptr->as<tls_connection_t>());
     auto w = (dynamic_cast<TLS*>(connection->worker));
 
-    if (connection->accept_timer)
-        connection->accept_timer.stop();
+    prepared::timer_clear(std::move(connection->accept_timer));
 
     if (connection->watcher) {
         if (connection->watcher->is_active()) {
@@ -390,13 +388,9 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
         return;
     }
 
-    if (s->accept_timer) {
-        s->accept_timer.stop();
-        s->accept_timer = nullptr;
-    }
-
-    auto accept_timer_res = manapi::async::current()->timerpool()->append_timer_sync(this->config_->tls_shutdown_timeout, [wconn = std::weak_ptr (conn)] (manapi::timer t)
-        -> void { auto conn = wconn.lock(); if (conn) { auto w = conn->as<tcp_connection_t>(); w->worker->close_connection(conn, CLOSE_CONN_ERR); } });
+    prepared::timer_clear(std::move(s->accept_timer));
+    auto accept_timer_res = manapi::async::current()->timerpool()->append_timer_sync(this->config_->tls_shutdown_timeout, [conn = conn.get()] (manapi::timer t)
+        -> void { auto w = conn->as<tcp_connection_t>(); w->worker->close_connection(conn, CLOSE_CONN_ERR); });
     if (accept_timer_res)
         s->accept_timer = accept_timer_res.unwrap();
     else {
@@ -664,7 +658,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
     auto const w = static_cast<TLS *> (user_data);
     try {
         auto p = std::make_unique<tls_connection_t>();
-        auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
+        auto ms = manapi::reference <worker::connection> (new worker::connection(p.release(), connection_interface_eraser));
 
         auto connection = ms->as<tls_connection_t>();
 
@@ -677,19 +671,16 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
             return nullptr;
 
         auto rhs = manapi::async::current()->timerpool()->append_timer_sync(w->config_->tls_accept_timeout,
-            [ms_w = std::weak_ptr (ms)] (const manapi::timer &t) mutable
+            [ms = ms.get()] (const manapi::timer &t) mutable
             -> void {
-                auto ms = ms_w.lock();
-                if (!ms)
-                    return;
                 auto w = ms->as<tcp_connection_t>();
-                auto conn = std::move(ms);
-                w->worker->close_connection(std::move(conn), CLOSE_CONN_ERR);
+                w->worker->close_connection(manapi::reference (ms), CLOSE_CONN_ERR);
         });
 
         if (!rhs.ok())
             return nullptr;
 
+        prepared::timer_clear(std::move(connection->accept_timer));
         connection->accept_timer = rhs.unwrap();
 
         return std::move(ms);
@@ -849,11 +840,7 @@ int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, tls_
         if (data->flags & CONN_TLS_EARLY_DATA)
             data->flags ^= CONN_TLS_EARLY_DATA;
 
-        if (data->accept_timer) {
-            data->accept_timer.stop();
-            data->accept_timer.clear();
-            data->accept_timer = nullptr;
-        }
+        prepared::timer_clear(std::move(data->accept_timer));
 
         if (data->flags & CONN_TLS_SHUTDOWN)
             this->shutdown_async_(conn);

@@ -7,6 +7,7 @@
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
 #include "ManapiDns.hpp"
+#include "http/ManapiHttpUtils.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "std/ManapiAsyncSocket.hpp"
 #include "std/ManapiEasyCancellation.hpp"
@@ -102,6 +103,8 @@ manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::sit
     this->deep_worker_id_ = 0;
     this->wbio = nullptr;
     this->rbio = nullptr;
+    this->current_poll_id = 0;
+    this->current_poll = nullptr;
 }
 
 manapi::net::worker::openssl_quic::~openssl_quic() {
@@ -874,7 +877,7 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::openssl_quic::i
     return base::ipdata(s->parent);
 }
 
-manapi::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
     try {
         if (!conn)
             goto args;
@@ -1285,8 +1288,7 @@ void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connecti
     if (!n)
         return;
 
-    auto uptr = std::unique_ptr<worker::connection> (n);
-    auto connection = std::unique_ptr<quic_stream_t> (uptr->as<quic_stream_t>());
+    auto connection = std::unique_ptr<quic_stream_t> (n->as<quic_stream_t>());
 
     auto conn_data = connection->parent->as<quic_conn_t>();
     auto const conn_ptr = static_cast<shared_conn *>(SSL_get_app_data(conn_data->conn));
@@ -1327,8 +1329,7 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
     if (!n)
         return;
 
-    auto uptr = std::unique_ptr<worker::connection> (n);
-    auto connection = std::unique_ptr<quic_conn_t> (uptr->as<quic_conn_t>());
+    auto connection = std::unique_ptr<quic_conn_t> (n->as<quic_conn_t>());
 
     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p conn", "openssl_quic", connection.get());
 
@@ -1409,17 +1410,18 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
     rhs = SSL_poll(this->polls_.data(), this->polls_.size(), sizeof (SSL_POLL_ITEM), &poll_tv, SSL_POLL_FLAG_NO_HANDLE_EVENTS, &result);
     if (rhs) {
+        auto &it = this->current_poll;
         if (result) {
-            std::size_t i = 0;
+            this->current_poll_id = 0;
             assert(!(this->flags_ & CONN_QUIC_WORKER_POLL_LOOP));
             this->flags_ |= CONN_QUIC_WORKER_POLL_LOOP;
             while (true) {
                 repeat:
 
-                if (i >= this->polls_.size())
+                if (this->current_poll_id >= this->polls_.size())
                     break;
 
-                auto it = &this->polls_[i];
+                this->current_poll = &this->polls_[this->current_poll_id];
 
                 uint64_t processed_event = 0;
 
@@ -1436,7 +1438,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                             );
                             if (client) {
                                 auto res = this->conn_accept(client, addr);
-                                assert (this->polls_[i].desc.value.ssl == MANAPI_AS_SSL(this->listener));
+                                assert (this->polls_[this->current_poll_id].desc.value.ssl == MANAPI_AS_SSL(this->listener));
 
                                 if (!res.ok()) {
                                     /* who cares */
@@ -1606,7 +1608,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                 if (!it->desc.value.ssl) {
                     auto const prev = this->flags_;
                     this->flags_ ^= CONN_QUIC_WORKER_POLL_LOOP;
-                    this->remove_poll_id(i);
+                    this->remove_poll_id(this->current_poll_id);
                     this->flags_ = prev;
                     continue;
                 }
@@ -1614,7 +1616,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                 // nullify processed events
                 it->revents ^= processed_event;
 
-                i++;
+                this->current_poll_id++;
             }
             this->flags_ ^= CONN_QUIC_WORKER_POLL_LOOP;
         }
@@ -1690,8 +1692,8 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
         p->cur_speed_lim = std::max<std::size_t>(SPEED_LIMIT_INIT, this->config_->speed_stream_check_bytes
             / this->config_->speed_stream_check_delay);
 
-        stream_conn = std::shared_ptr<worker::connection> (
-                new worker::connection{p.release()}, stream_interface_eraser);
+        stream_conn = reference (
+                new worker::connection(p.release(), stream_interface_eraser));
 
         if (flags & CONN_STREAM_FLAG_CTRL)
             stream_conn->wrk.flags |= WRK_INTERFACE_IS_CTRL;
@@ -1723,6 +1725,10 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
         poll_item.events = SSL_POLL_EVENT_R|SSL_POLL_EVENT_W|SSL_POLL_EVENT_ER|SSL_POLL_EVENT_EW|SSL_POLL_EVENT_F;
         poll_item.revents = 0;
         this->polls_.push_back(poll_item);
+        if (this->flags_ & CONN_QUIC_WORKER_POLL_LOOP) {
+            assert(this->polls_.size() > this->current_poll_id);
+            this->current_poll = &this->polls_[this->current_poll_id];
+        }
         stream_data->poll_id = this->polls_.size() - 1;
 
 
@@ -1843,8 +1849,8 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
 
 
         sn = p.get();
-        conn = std::shared_ptr<worker::connection> (
-            new worker::connection{p.release()}, connection_interface_eraser);
+        conn = reference (
+            new worker::connection(p.release(), connection_interface_eraser));
 
         conn->ipdata = std::move(ipstorage);
         conn->ipdata->len = 0;
@@ -1889,6 +1895,10 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
             SSL_POLL_EVENT_ISU|SSL_POLL_EVENT_OSB|SSL_POLL_EVENT_OSU;
         poll_item.revents = 0;
         this->polls_.push_back(poll_item);
+        if (this->flags_ & CONN_QUIC_WORKER_POLL_LOOP) {
+            assert(this->polls_.size() > this->current_poll_id);
+            this->current_poll = &this->polls_[this->current_poll_id];
+        }
         sn->poll_id = this->polls_.size() - 1;
 
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new connection %p", "openssl_quic", client);

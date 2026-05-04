@@ -209,7 +209,7 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
         auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
         auto global_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
-        wrk_ctx->ctx->conn = conn;
+        wrk_ctx->ctx->conn = conn.get();
         wrk_ctx->ctx->worker = w;
         wrk_ctx->ctx->http_v2_worker = global_ctx->worker.get();
         wrk_ctx->gctx = global_ctx;

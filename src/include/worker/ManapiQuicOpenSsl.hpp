@@ -121,6 +121,8 @@ namespace manapi::net::worker {
         std::string alpn_ossltest_;
         void *ctx;
         void *listener;
+        SSL_POLL_ITEM* current_poll;
+        std::size_t current_poll_id;
     };
 }
 #   endif

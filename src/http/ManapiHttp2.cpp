@@ -670,10 +670,7 @@ int manapi::net::http::http_v2_on_closing(http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::net::http::http_v2_on_close (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
-    if (ctx->timeout) {
-        ctx->timeout.stop();
-        ctx->timeout = nullptr;
-    }
+    manapi::net::worker::prepared::timer_clear(std::move(ctx->timeout));
 
     for (auto it = ctx->streams.begin(); it != ctx->streams.end(); ++it) {
         if (!it->second)
@@ -685,6 +682,7 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
         }
         else {
             it->second = nullptr;
+            ctx->streams_size--;
         }
     }
 
@@ -840,8 +838,7 @@ void http_v2_setup_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t &
 }
 
 void connection_interface_eraser (manapi::net::worker::connection *ptr) MANAPIHTTP_NOEXCEPT {
-    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
-    delete uptr->as<manapi::net::http::http_v2_stream_t>();
+    delete ptr->as<manapi::net::http::http_v2_stream_t>();
 }
 
 int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT {
@@ -1435,9 +1432,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 p->id = ctx->frame_stream_id;
                                 p->ctx = ctx;
 
-                                auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
+                                auto sconn = worker::shared_conn (new worker::connection(p.release(), connection_interface_eraser));
 
-                                s = ctx->streams.insert({ctx->frame_stream_id, std::move(sconn)}).first;
+                                auto sres = ctx->streams.insert({ctx->frame_stream_id, std::move(sconn)});
+                                assert(sres.second);
+                                s = sres.first;
                                 ctx->concurrent_streams_size++;
                                 ctx->streams_size++;
                                 sdata = s->second->as<http_v2_stream_t>();
@@ -2116,13 +2115,7 @@ header_skip:
                                 }
                                 /* ack server settings */
                                 ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                                if (ctx->timeout) {
-                                    ctx->timeout.stop();
-                                    ctx->timeout = nullptr;
-                                }
-                                else {
-
-                                }
+                                manapi::net::worker::prepared::timer_clear(std::move(ctx->timeout));
                             }
                             else {
                                 /* NodeJS can send empty settings */

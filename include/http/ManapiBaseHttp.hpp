@@ -21,7 +21,7 @@ namespace manapi::net::http::internal {
     typedef std::unique_ptr<vbefore_delete<bool, false>> cont_callback_t;
 
     struct handle_data_t {
-        std::shared_ptr<worker::connection> conn;
+        reference <worker::connection> conn;
         worker::shared_worker worker;
         request_data_t * req_data;
         cont_callback_t cb;

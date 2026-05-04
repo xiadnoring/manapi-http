@@ -6,6 +6,7 @@
 #include "../http/ManapiHttpConfig.hpp"
 #include "../http/ManapiHttpCtx.hpp"
 #include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiRef.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
@@ -67,7 +68,9 @@ namespace manapi::net::worker {
             socklen_t len{};
         };
 
-        connection (void *ptr);
+        connection (void *ptr, void (*deleter)(connection *data) = nullptr);
+
+        ~connection();
 
         template <typename T>
         T *as () {
@@ -81,11 +84,13 @@ namespace manapi::net::worker {
         std::unique_ptr<ipdata_t> ipdata;
         int version = http::versions::HTTP_v1_1;
         wrk_interface_t wrk;
+        int refcnt;
     private:
         void *ptr;
+        void (*deleter)(connection *data);
     };
 
-    using shared_conn = std::shared_ptr<worker::connection>;
+    using shared_conn = reference <worker::connection>;
     using ibuffpool_t = bytebuffer;
     using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
 

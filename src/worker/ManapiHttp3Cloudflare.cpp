@@ -46,7 +46,7 @@ struct manapi::net::worker::http_v3_cloudflare_quiche::connection_t {
     http_v3_cloudflare_quiche *worker;
     quiche_conn *conn;
     quiche_h3_conn *http3_conn;
-    std::map <int64_t, std::shared_ptr<worker::connection>> streams;
+    std::map <int64_t, reference<worker::connection>> streams;
     manapi::timer timeout;
     shared_conn self;
     uint32_t queue_send_size;
@@ -610,15 +610,16 @@ void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(conne
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::connection_interface_eraser(connection *ptr) MANAPIHTTP_NOEXCEPT {
-    auto const uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
-    auto const p = uptr->as<connection_t>();
+    auto const p = ptr->as<connection_t>();
+    prepared::timer_clear(std::move(p->timeout));
     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "quiche: close %p conn", p);
     delete p;
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stream_interface_eraser(worker::connection *ptr) MANAPIHTTP_NOEXCEPT {
-    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
-    delete uptr->as<connection_stream_t>();
+    auto const p = ptr->as<connection_stream_t>();
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "quiche: close %p stream on %p conn", p, p->conn);
+    delete ptr->as<connection_stream_t>();
 }
 
 void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::string_view value) MANAPIHTTP_NOEXCEPT {
@@ -767,16 +768,16 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             std::string conn_id{dcid, dcid_len};
 
             auto p = std::make_unique<connection_t>(conn_id, 0, this, quiche_conn_, nullptr, std::map<int64_t, shared_conn>{});
-            connection = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
+            connection = reference (new worker::connection(p.release(), connection_interface_eraser));
 
             conn_data = connection->as<connection_t>();
 
-            conn_data->timeout = manapi::async::current()->timerpool()->append_timer_sync (1000, [connection = std::weak_ptr (connection)] (manapi::timer t)
-                -> void { http_v3_cloudflare_quiche::quiche_timeout_(std::move(t), connection.lock()); }).unwrap();
+            conn_data->timeout = manapi::async::current()->timerpool()->append_timer_sync (1000, [connection = connection.get()] (manapi::timer t)
+                -> void { http_v3_cloudflare_quiche::quiche_timeout_(std::move(t), connection); }).unwrap();
 
             conn_data->self = connection;
 
-            connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
+            connection->ipdata = std::make_unique<worker::connection::ipdata_t>();
             memcpy (connection->ipdata->client.data, sockaddr_src, sockaddr_len);
             connection->ipdata->len = sockaddr_len;
 
@@ -890,7 +891,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 p->id = stream_id;
                                 p->conn = conn_data;
 
-                                stream_conn = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, stream_interface_eraser);
+                                stream_conn = reference (new worker::connection(p.release(), stream_interface_eraser));
 
                                 auto s = stream_conn->as<connection_stream_t>();
 

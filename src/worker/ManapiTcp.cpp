@@ -244,7 +244,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         return nullptr;
     }
 
-    std::shared_ptr<worker::connection> connection;
+    reference <worker::connection> connection;
     std::array<char, 17> arr;
     arr.fill('\0');
 
@@ -255,16 +255,16 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             return connection;
 
         auto wres = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
-            [this, weak = std::weak_ptr(connection)] (const std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
+            [this, conn_ptr = connection.get()] (const std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
             -> void {
                 try {
                     bytebuffer object;
-                    auto const connection = weak.lock();
+                    auto connection = reference (conn_ptr);
 
                     if (buf->base)
                         object = this->bufferpool().buffer(buf->base, buf->len);
 
-                    if (!nread || !connection)
+                    if (!nread)
                         return;
 
                     if (nread < 0) {
@@ -327,7 +327,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         this->count++;
         this->worker_data_->as<http::server_ctx::worker_data_t>()->count.fetch_add(1);
 
-        connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
+        connection->ipdata = std::make_unique<worker::connection::ipdata_t>();
         connection->ipdata->len = 0;
 
         int addrlen = sizeof (connection->ipdata->client.data);
@@ -989,8 +989,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::connection_init_cb(vo
     try {
         auto p = std::make_unique<tcp_connection_t>();
 
-        return std::shared_ptr<worker::connection> (new worker::connection{p.release()},
-            connection_interface_eraser);
+        return reference (new worker::connection(p.release(),
+            connection_interface_eraser));
     }
     catch (std::exception const &) {
         return nullptr;
@@ -1001,14 +1001,14 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     if (!ptr)
         return;
 
-    auto uptr = std::unique_ptr<worker::connection> (ptr);
-    auto connection = std::unique_ptr<tcp_connection_t> (uptr->as<tcp_connection_t>());
+    auto connection = std::unique_ptr<tcp_connection_t> (ptr->as<tcp_connection_t>());
 
     if (connection->watcher) {
         if (connection->watcher->is_active()) {
             manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", connection.get());
             connection->watcher->read_stop();
         }
+
         manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 

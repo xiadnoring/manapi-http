@@ -16,7 +16,12 @@ struct wb_write_ctx_t {
     promise::resolve_t resolve;
 };
 
-manapi::net::worker::connection::connection(void *ptr): ptr (ptr), wrk(), version(), ipdata(), cancellation() {}
+manapi::net::worker::connection::connection(void *ptr, void (*deleter)(connection *data)): refcnt(0), ptr (ptr), wrk(), version(), deleter(deleter), ipdata(), cancellation() {}
+
+manapi::net::worker::connection::~connection() {
+    if (this->deleter)
+        this->deleter(this);
+}
 
 manapi::net::worker::base::base() = default;
 
@@ -350,7 +355,7 @@ std::size_t manapi::net::worker::base::streams_size(const shared_conn &conn) con
     return 0;
 }
 
-manapi::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::reference<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
     return status_unimplemented("worker:Streams not supported");
 }
 
