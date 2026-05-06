@@ -57,7 +57,7 @@ namespace manapi::net::worker {
     };
 
     struct wrk_interface_t {
-        uint8_t flags;
+        uint32_t flags;
         void *data;
     };
 
@@ -92,7 +92,7 @@ namespace manapi::net::worker {
 
     using shared_conn = reference <worker::connection>;
     using ibuffpool_t = bytebuffer;
-    using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
+    using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, std::size_t nsize, ibuffpool_t *p)>;
 
     /**
      * provides API callbacks to workers
@@ -139,12 +139,12 @@ namespace manapi::net::worker {
         /**
          * required
          */
-        int (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
+        int (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
 
         /**
          * required if the worker interface asks for a custom read callback
          */
-        void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
+        void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
 
         /**
          * required if the worker interface asks for a custom limit rate callback
@@ -171,18 +171,18 @@ namespace manapi::net::worker {
     };
 
     struct connection_io_part {
-        int deque_current;
-        int deque_cursor;
+        uint32_t deque_current;
+        uint32_t deque_cursor;
         std::unique_ptr<buffer_deque> deque;
         buffer_deque *last_deque;
     };
 
     struct connection_io {
         connection_io_part send;
-        int send_size;
-        int cur_send_size;
+        uint32_t send_size;
+        uint32_t cur_send_size;
         connection_io_part recv;
-        int recv_size;
+        uint32_t recv_size;
     };
 
     struct connection_base_t;
@@ -249,33 +249,33 @@ namespace manapi::net::worker {
 
         virtual void close_connection (shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT = 0;
+        virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual ssize_t sync_write_ex (const shared_conn &conn, manapi::slice_view buffs, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT;
 
         virtual ssize_t sync_write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT = 0;
 
-        ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT;
+        ssize_t sync_write_ex (const shared_conn &conn, const void *buff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT;
 
         ssize_t sync_write (const shared_conn &conn, slice_view buffs, bool finish) MANAPIHTTP_NOEXCEPT;
 
-        ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish) MANAPIHTTP_NOEXCEPT;
+        ssize_t sync_write (const shared_conn &conn, const void *buff, std::size_t size, bool finish) MANAPIHTTP_NOEXCEPT;
 
         virtual bool is_writable (const shared_conn &conn) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void waiting (const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT = 0;
 
-        manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
+        manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, std::size_t size, bool finish);
 
         manapi::future<ssize_t> write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish);
 
         manapi::future<ssize_t> write (const shared_conn &conn, manapi::slice_view buffs, bool finish);
 
-        manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
+        manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, std::size_t size, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
-        manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice &slice, ssize_t size, bool finish);
+        manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice &slice, std::size_t size, bool finish);
 
         MANAPIHTTP_NODISCARD virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT = 0;
 
@@ -289,7 +289,7 @@ namespace manapi::net::worker {
 
         virtual int event_flags (const shared_conn & conn) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT = 0;
 
         // virtual bool is_send_pending (const shared_conn & conn) const MANAPIHTTP_NOEXCEPT = 0;
 
@@ -336,21 +336,21 @@ namespace manapi::net::worker {
          */
         virtual status_or<shared_conn> new_stream (const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT;
 
-        static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT;
+        static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, uint32_t *dest_cnt, uint32_t *src_cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, ssize_t size, int *cnt) MANAPIHTTP_NOEXCEPT;
+        static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, std::size_t size, int *cnt) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, uint32_t buffer_size, int *cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT;
+        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, std::size_t size, object_pool *bufferpool, uint32_t buffer_size, uint32_t *cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT;
 
-        static int connection_io_send_start (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, uint32_t buffer_size, ibuffpool_t *buff, int *cnt) MANAPIHTTP_NOEXCEPT;
+        static int connection_io_send_start (struct connection_io_part *top, const char *buffer, std::size_t size, object_pool *bufferpool, uint32_t buffer_size, ibuffpool_t *buff, uint32_t *cnt) MANAPIHTTP_NOEXCEPT;
 
-        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt) MANAPIHTTP_NOEXCEPT;
+        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, uint32_t *cnt) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, ssize_t limit_size, bool &fin) MANAPIHTTP_NOEXCEPT;
+        static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, std::size_t limit_size, bool &fin) MANAPIHTTP_NOEXCEPT;
 
-        static int call_user_callback (worker_watcher_cb *cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        static int call_user_callback (worker_watcher_cb *cb, const shared_conn & conn, int flags, const char *buffer, std::size_t nsize, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
 
-        void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, uint32_t *recv_size, int conn_flags, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
     protected:
         template<typename Derived>
         std::shared_ptr<Derived> get_shared () {

@@ -66,7 +66,7 @@ namespace manapi::macros {
     constexpr int static_string_compare(
         const static_string<Size1>& str1,
         const static_string<Size2>& str2,
-        int index = 0) {
+        uint32_t index = 0) {
         return index >= Size1 && index >= Size2 ? 0 :
             index >= Size1 ? -1 :
                 index >= Size2 ? 1 :
@@ -84,7 +84,7 @@ namespace manapi::macros {
     constexpr int version_compare_job_(
         const static_string<Size1>& str1,
         const static_string<Size2>& str2,
-        int index, int major1, int major2, int minor1,
+        uint32_t index, int major1, int major2, int minor1,
         int minor2, int patch1, int patch2, int i1,int i2) {
         return index == std::max(Size1, Size2) ? (major1 == major2 ?
             (
@@ -164,7 +164,7 @@ namespace manapi::macros {
     constexpr int version_compare_(
         const static_string<Size1>& str1,
         const static_string<Size2>& str2,
-        int index = 0, int major1 = 0, int major2 = 0, int minor1=0,
+        uint32_t index = 0, int major1 = 0, int major2 = 0, int minor1=0,
         int minor2=0, int patch1=0, int patch2=0, int i1=0,int i2=0) {
         return version_compare_job_(str1, str2, index, major1, major2, minor1, minor2, patch1, patch2, i1, i2);
     }

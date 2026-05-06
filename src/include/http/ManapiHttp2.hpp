@@ -70,7 +70,7 @@ namespace manapi::net::http {
         std::unique_ptr<http_v2_settings_t> client;
         std::unique_ptr<http_v2_settings_t> server;
 
-        std::map<uint32_t, worker::shared_conn> streams;
+        std::map<int, worker::shared_conn> streams;
         std::size_t streams_size;
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;
@@ -129,7 +129,7 @@ namespace manapi::net::http {
 
     int http_v2_on_read_stream (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-    int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT;
+    int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, std::size_t *nsize) MANAPIHTTP_NOEXCEPT;
 
     ssize_t http_v2_write (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT;
 

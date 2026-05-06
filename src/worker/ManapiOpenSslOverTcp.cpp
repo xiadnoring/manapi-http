@@ -50,7 +50,7 @@ struct manapi_bio_data_t {
 int manapi_bio_write(BIO *bio, const char *buf, int size) {
     auto d = static_cast<manapi_bio_data_t *>(BIO_get_data(bio));
     if (!d || size < 0) return -1;
-    auto err = d->s.push_back(buf, size);
+    auto err = d->s.push_back(buf, static_cast<std::size_t>(size));
     if (!err.ok()) {
         manapi_log_error("openssl: slice:push_back() failed: %s", err.msg().data());
         return -1;
@@ -61,7 +61,7 @@ int manapi_bio_write(BIO *bio, const char *buf, int size) {
 int manapi_bio_read(BIO *bio, char *buf, int size) {
     auto d = static_cast<manapi_bio_data_t *>(BIO_get_data(bio));
     if (!d || size < 0) return -1;
-    auto copy = std::min<std::size_t>(size, d->s.size());
+    auto copy = std::min<std::size_t>(static_cast<std::size_t>(size), d->s.size());
     auto err =d->s.copy_to(buf, 0, copy);
     if (!err.ok()) {
         manapi_log_error("openssl: slice:copy_to() failed: %s", err.msg().data());
@@ -256,7 +256,7 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
 
         if (!ctx_data->ctx) {
             auto strtls = this->config_->get_config_param<std::string> (this->config_->ssl, "tls", "1.3");
-            int tls_version = http::versions::TLS_v1_3;
+            std::size_t tls_version = http::versions::TLS_v1_3;
             if (strtls == "1.3") tls_version = http::versions::TLS_v1_3;
             else if (strtls == "1.2") tls_version = http::versions::TLS_v1_2;
             else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
@@ -668,8 +668,8 @@ err:
     bio.reset(BIO_new(BIO_s_mem()));
     ERR_print_errors(bio.get());
     char *buf;
-    size_t len = BIO_get_mem_data(bio.get(), &buf);
-
+    ssize_t len = BIO_get_mem_data(bio.get(), &buf);
+    assert(len >= 0);
     manapi_log_error("%s due to %.*s", "openssl_tls:create context failed", len, buf);
     return status_internal("openssl_tls:create context failed");
 }

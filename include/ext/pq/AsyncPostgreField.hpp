@@ -45,7 +45,7 @@ namespace manapi::ext::pq {
         }
 
         MANAPIHTTP_NODISCARD size_t size () const MANAPIHTTP_NOEXCEPT {
-            return PQgetlength(this->res_, this->row_, this->col_);
+            return static_cast<std::size_t>(PQgetlength(this->res_, this->row_, this->col_));
         }
 
         MANAPIHTTP_NODISCARD char *c_str () const MANAPIHTTP_NOEXCEPT {

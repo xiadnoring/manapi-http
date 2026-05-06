@@ -44,7 +44,7 @@ static void wrk_close_conn2 ( manapi::net::worker::shared_conn conn, manapi::net
     // MANAPIHTTP_MUST_ALLOC_END
 }
 
-int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+static int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
     auto http_v2_ctx = wrk_ctx->ctx.get();
 
@@ -216,7 +216,7 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
 
         w->event_on(conn,
             [w, global]
-            (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p)
+            (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p)
             -> void {
             default_wrk_http2(conn, flags, buffer, nsize, p, global, w);
         });

@@ -76,11 +76,11 @@ struct wgrpc_current_ctx_deleter_t {
 };
 
 std::map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_tasks_exists.find(keys[1]);
+    return wgrpc_storage.wgrpc_tasks_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
 std::map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_connect_exists.find(keys[1]);
+    return wgrpc_storage.wgrpc_connect_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
 void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
@@ -274,7 +274,7 @@ absl::StatusOr<int> manapi::net::wgrpc::net_listener::Bind(const grpc_event_engi
     if (!this->connection)
         return absl::InternalError("wgrpc:Tcp wasn't configured");
 
-    int bind_flags = 0;
+    uint32_t bind_flags = 0;
 #if defined(__unix__) && !defined(__APPLE__)
     bind_flags |= ev::TCP_REUSEPORT;
 #endif
@@ -545,7 +545,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
 
             std::size_t cursor = 0;
             while (cursor != nread) {
-                auto const copy = std::min<std::size_t>(nread - cursor, 4096);
+                auto const copy = std::min<std::size_t>(static_cast<std::size_t>(nread) - cursor, 4096);
                 grpc_event_engine::experimental::Slice slice (this->memory_allocator.MakeSlice(copy));
                 memcpy ((char*)slice.data(), buf->base + cursor, copy);
                 this->buffer.Append(std::move(slice));
@@ -562,7 +562,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
                     this->on_read(absl::OkStatus());
                 }
                 else
-                    this->on_read_hints_bytes -= nread;
+                    this->on_read_hints_bytes -= static_cast<std::size_t>(nread);
 
             }
             else {
@@ -574,13 +574,13 @@ void manapi::net::wgrpc::net_endpoint::init_() {
     ctx->eventloop()->alloc_callback(this->conn,
         [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf) MANAPIHTTP_NOEXCEPT
         -> void {
-            auto size = static_cast<ssize_t>(suggested_size);
+            auto size = suggested_size;
             if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
-                size = std::min<ssize_t>(65536L - this->buffer.Length(), 65536);
-                if (size <= 0)
+                if (this->buffer.Length() >= 65536)
                     return;
-            }
 
+                size = 65536 - this->buffer.Length();
+            }
             auto bufres = manapi::async::current()->memory_fabric().buffer(size);
             if (bufres.ok()) {
                 auto buffer = bufres.unwrap();
@@ -661,10 +661,10 @@ const ReadArgs *args
 
             if (!want_more)
                 return true;
-
+            assert(read_hint_bytes >= 0);
             this->on_read_buffer = buffer;
             this->on_read = std::move(on_read);
-            this->on_read_hints_bytes = read_hint_bytes - already;
+            this->on_read_hints_bytes = static_cast<std::size_t>(read_hint_bytes) - already;
             assert(this->on_read);
             this->flags |= MANAPI_GRPC_ENDPOINT_WANT_READ;
         }
@@ -744,13 +744,13 @@ const WriteArgs *args
         }
 
         std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> store;
-        auto const nbuff = data->Count() - carret;
+        auto const nbuff = static_cast<uint32_t>(data->Count() - carret);
         store.reset(new manapi::ev::buff_t[nbuff]);
 
         for (std::size_t i = 0; carret < data->Count(); ++carret, ++i) {
             auto &c = store.get()[i];
             c.base = (char*)((data)->operator[](carret).data()) + rhs;
-            c.len = data->operator[](carret).size() - rhs;
+            c.len = data->operator[](carret).size() - static_cast<std::size_t>(rhs);
 
             rhs = 0;
         }
@@ -900,7 +900,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
                     sock_len = sizeof (sock_addr);
                     /* think about it */
-                    memset(&sock_addr, '\0', sock_len);
+                    memset(&sock_addr, '\0', static_cast<std::size_t>(sock_len));
                     w->getsockname(reinterpret_cast<sockaddr*>(&sock_addr), &sock_len);
 
                     auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress>(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
@@ -964,7 +964,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         data->timer = std::move(timer);
 
         while (true) {
-            std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
+            auto const time = static_cast<std::size_t>(std::chrono::steady_clock::now().time_since_epoch().count());
             std::size_t indx = (static_cast<std::size_t>(wgrpc_storage.current_connect_index++) << 32) | (time & 0x0000FFFF);
             if (wgrpc_storage.current_connect_index == std::numeric_limits<uint32_t>::max()) {
                 wgrpc_storage.current_connect_index = 0;
@@ -1188,7 +1188,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
         int sock_len = sizeof (sock_addr);
         b->conn()->getsockname(reinterpret_cast<sockaddr*>(&sock_addr), &sock_len);
 
-        *local_addr = grpc_event_engine::experimental::EventEngine::ResolvedAddress(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
+        *local_addr = grpc_event_engine::experimental::EventEngine::ResolvedAddress(reinterpret_cast<sockaddr*>(&sock_addr), static_cast<socklen_t>(sock_len));
 
         return std::move(b);
     }
@@ -1268,7 +1268,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         *timer = rhs.unwrap();
 
         while (true) {
-            std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
+            auto const time = static_cast<std::size_t>(std::chrono::steady_clock::now().time_since_epoch().count());
             td->index = (static_cast<std::size_t>(wgrpc_storage.current_task_index++) << 32) | (time & 0x0000FFFF);
 
             if (wgrpc_storage.current_task_index == std::numeric_limits<uint32_t>::max()) {

@@ -17,6 +17,13 @@
 # include "./std/ManapiCancellation.hpp"
 
 namespace manapi::net {
+   class fetch;
+
+   std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
+   std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
+   std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
+   manapi::future<manapi::status> curl_send_async_body (std::shared_ptr<manapi::net::fetch> parent, bool finish);
+
     /**
      * A Fetch FormData interface to work with the Fetch and Fetch2 API.
      * Based on the curl formdata
@@ -25,7 +32,7 @@ namespace manapi::net {
     public:
         struct multipart_param_value_file {
             std::move_only_function<size_t (void *buff, size_t size)> callback;
-            long long filesize;
+            std::size_t filesize;
         };
 
         enum multipart_param_type {
@@ -79,7 +86,7 @@ namespace manapi::net {
          * @param size the data size
          * @param cb the callback
          */
-        manapi::status set_callback (std::string name, ssize_t size, std::move_only_function<size_t (void *buff, size_t buff_size)> cb) MANAPIHTTP_NOEXCEPT;
+        manapi::status set_callback (std::string name, std::size_t size, std::move_only_function<size_t (void *buff, size_t buff_size)> cb) MANAPIHTTP_NOEXCEPT;
 
         /**
          * clear current state
@@ -138,7 +145,7 @@ namespace manapi::net {
          *
          * @param handler the callback
          */
-        manapi::status handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler) MANAPIHTTP_NOEXCEPT;
+        manapi::status handle_body(std::move_only_function<ssize_t(char *, std::size_t)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the async callback to recv body from the request
@@ -231,7 +238,7 @@ namespace manapi::net {
          *
          * @param handler the sync callback
          */
-        manapi::status body (std::move_only_function<ssize_t(char *, ssize_t)> handler) MANAPIHTTP_NOEXCEPT;
+        manapi::status body (std::move_only_function<ssize_t(char *, std::size_t)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the headers for the response

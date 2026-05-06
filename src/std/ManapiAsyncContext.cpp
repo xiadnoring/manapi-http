@@ -102,10 +102,10 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 //     }
 // }
 
-manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsigned int threadnum) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(std::size_t threadnum) MANAPIHTTP_NOEXCEPT {
     try {
         auto logger_ = std::make_shared<manapi::logger>();
-        auto taskpool_ = std::make_shared<manapi::mthreadpool>(logger_, threadnum);
+        auto taskpool_ = std::make_shared<manapi::mthreadpool>(threadnum);
 
         /* Main Event Loop */
         auto watcher_ = manapi::event_loop::create(taskpool_, logger_).unwrap();
@@ -123,7 +123,7 @@ manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsi
     }
 }
 
-manapi::status manapi::async::context::run(uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::async::context::run(std::size_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
     try {
         auto ctx = this->shared_from_this();
 
@@ -143,7 +143,7 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
         ctx->loops_.resize(loops);
 
         try {
-            for (int i = 0; i < loops; ++i) {
+            for (std::size_t i = 0; i < loops; ++i) {
                 auto watcher_ = manapi::event_loop::create(ctx->taskpool_, ctx->logger_).unwrap();
                 auto timerpool_ = manapi::timerpool::create(watcher_).unwrap();
 
@@ -166,7 +166,7 @@ manapi::status manapi::async::context::run(uint32_t loops, std::function<void(st
         manapi::init_tools::ev_library_init();
         manapi::init_tools::curl_library_init();
 
-        for (int i = 0; i < loops; ++i) {
+        for (std::size_t i = 0; i < loops; ++i) {
             mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
                 -> void {
                 manapi::init_tools::ssl_library_init();
@@ -298,7 +298,7 @@ const std::shared_ptr<manapi::threadpool> & manapi::async::etaskpool() MANAPIHTT
     return manapi::async::current()->etaskpool();
 }
 
-const std::shared_ptr<manapi::threadpool> & manapi::async::mtaskpool() MANAPIHTTP_NOEXCEPT {
+const manapi::async::shared_mthreadpool & manapi::async::mtaskpool() MANAPIHTTP_NOEXCEPT {
     return manapi::async::current()->threadpool();
 }
 

@@ -171,8 +171,8 @@ manapi::future<manapi::ev::status_or<std::chrono::system_clock::time_point>> man
             -> void {
             assert(stat);
             if (stat) {
-                mtime.tv_nsec = stat->st_mtim.tv_nsec;
-                mtime.tv_sec = stat->st_mtim.tv_sec;
+                mtime.tv_nsec = static_cast<decltype(mtime.tv_nsec)>(stat->st_mtim.tv_nsec);
+                mtime.tv_sec = static_cast<decltype(mtime.tv_sec)>(stat->st_mtim.tv_sec);
             }
         }, std::move(cancellation));
 
@@ -282,7 +282,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken
         -> void {
             if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
                 manapi_log_error("fs:fd %d close failed due to %s",
-                    file, ev::strerror(w->result()));
+                    file, ev::strerror(static_cast<int>(w->result())));
                 return;
             }
             manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d finished", file);
@@ -290,10 +290,10 @@ manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file file, const void *data, ssize_t size, int64_t offset, manapi::ctoken cancellation) {
+manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file file, const void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
     buff.base = (char *)(data);
-    buff.len = static_cast<std::size_t>(size);
+    buff.len = (size);
     co_return co_await async_write(file, &buff, 1,  offset, std::move(cancellation));
 }
 
@@ -360,7 +360,7 @@ struct fileno_deleter {
     }
 };
 
-manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, void *data, ssize_t size, int64_t offset, manapi::ctoken cancellation) {
+manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
     buff.base = static_cast<char*>(data);
     buff.len = size;
@@ -377,7 +377,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
     }
     fileno_deleter deleter (fileno);
     auto res = co_await async_write(fileno, data.data(),
-        static_cast<ssize_t>(data.size()), offset, manapi::ctoken::unit(cancellation));
+        (data.size()), offset, manapi::ctoken::unit(cancellation));
     if (!res.ok())
         co_return std::move(res.err());
     auto rhs = res.unwrap();
@@ -389,7 +389,8 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
 manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::string path, int flags, int64_t offset, manapi::ctoken cancellation) {
     ev::file fileno;
     std::string data;
-    ssize_t len = 0;
+    std::size_t len = 0;
+    bool failed{false};
 
     {
         auto fileno_res = co_await async_open(path, flags, 0, manapi::ctoken::unit(cancellation));
@@ -400,15 +401,16 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
 
     fileno_deleter deleter (fileno);
 
-    auto res = co_await async_fstat(fileno, [&len] (ev::stat_t *stat)
+    auto res = co_await async_fstat(fileno, [&len, &failed] (ev::stat_t *stat)
         -> void {
-        len = stat ? static_cast<ssize_t>(stat->st_size) : -1;
+        if (stat) len = (stat->st_size);
+        else failed = true;
     }, manapi::ctoken::unit(cancellation));
 
     if (!res.ok())
         co_return std::move(res);
 
-    if (len == -1)
+    if (failed)
         co_return ev::status_not_found("not found");
 
     data.resize(len);
@@ -453,7 +455,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
             offset += rhs;
 
         res += rhs;
-        shift += rhs;
+        shift += static_cast<std::size_t>(rhs);
 
         if (shift == buff[0].len) {
             nbuff--;
@@ -501,10 +503,10 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
 
             while (dd.nbuff
                 && rhs >= dd.buff->len) {
-                rhs -= dd.buff->len;
+                rhs -= static_cast<ssize_t>(dd.buff->len);
                 dd.buff++;
                 dd.nbuff--;
-                }
+            }
 
             if (dd.nbuff) {
                 /* retry */
@@ -522,7 +524,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 auto w1 = wres.unwrap();
 
                 dd.buff->base += rhs;
-                dd.buff->len -= rhs;
+                dd.buff->len -= static_cast<std::size_t>(rhs);
 
                 if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
@@ -589,7 +591,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
         if (offset >= 0)
             offset += rhs;
 
-        shift += rhs;
+        shift += static_cast<std::size_t>(rhs);
         res += rhs;
 
         if (shift == buff->len) {
@@ -638,10 +640,10 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
 
             while (dd.nbuff
                 && rhs >= dd.buff->len) {
-                rhs -= dd.buff->len;
+                rhs -= static_cast<ssize_t>(dd.buff->len);
                 dd.nbuff--;
                 dd.buff++;
-                }
+            }
 
             if (dd.nbuff && rhs) {
                 /* retry */
@@ -659,7 +661,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
                 auto w = wres.unwrap();
 
                 dd.buff->base += rhs;
-                dd.buff->len -= rhs;
+                dd.buff->len -= static_cast<std::size_t>(rhs);
 
                 if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
@@ -709,21 +711,25 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
     co_return co_await async_read(file, buffs.get(), slice.slices_size(), offset, std::move(cancellation));
 }
 
-manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_file_size(std::string path, manapi::ctoken cancellation) {
-    ssize_t size;
+manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_file_size(std::string path, manapi::ctoken cancellation) {
+    std::size_t size;
+    bool failed = false;
 
-    co_await fs::async_stat(std::move(path), [&size] (ev::stat_t *stat)
+    auto res = co_await fs::async_stat(std::move(path), [&size, &failed] (ev::stat_t *stat)
         -> void {
         if (stat) {
-            size = static_cast<ssize_t>(stat->st_size);
+            size = stat->st_size;
         }
         else {
-            size = -1;
+            failed = true;
         }
     }, std::move(cancellation));
 
-    if (size == -1)
-        co_return ev::status_not_found("file not found");
+    if (!res)
+        co_return std::move(res);
+
+    if (failed)
+        co_return ev::status_not_found("async_file_size():file not found");
 
     co_return size;
 }
@@ -739,7 +745,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_stat(std::string path, std:
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_stat failed", w->result()));
+                resolve(ev::status_internal("async_stat failed", static_cast<int>(w->result())));
                 return;
             }
 
@@ -761,7 +767,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_fstat(ev::file file, std::m
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_fstat failed", w->result()));
+                resolve(ev::status_internal("async_fstat failed", static_cast<int>(w->result())));
                 return;
             }
 
@@ -900,7 +906,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_statfs (std::string path, s
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_statfs failed", w->result()));
+                resolve(ev::status_internal("async_statfs failed", static_cast<int>(w->result())));
                 return;
             }
 
@@ -941,7 +947,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_access (std::string path, i
         -> void {
             cancel.disable();
             if (w->result())
-                resolve(ev::status_internal("access failed", w->result()));
+                resolve(ev::status_internal("access failed", static_cast<int>(w->result())));
             else
                 resolve(ev::status_ok());
         }, std::move(cancellation));
@@ -1078,8 +1084,8 @@ manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_scandir (st
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
-            callback(ptr, w->result());
-            resolve(w->result());
+            callback(ptr, static_cast<std::size_t>(w->result()));
+            resolve(static_cast<std::size_t>(w->result()));
         }, std::move(cancellation));
 }
 
@@ -1096,7 +1102,7 @@ manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_readdir (ev
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
-            callback(ptr, w->result());
-            resolve(w->result());
+            callback(ptr, static_cast<std::size_t>(w->result()));
+            resolve(static_cast<std::size_t>(w->result()));
         }, std::move(cancellation));
 }

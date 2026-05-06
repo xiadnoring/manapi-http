@@ -11,7 +11,7 @@ namespace manapi::unicode {
      * @param c octets
      * @return number of octets
      */
-    int count_of_octet (unsigned char c);
+    uint32_t count_of_octet (unsigned char c);
 
     /**
      * Get information about the provided char

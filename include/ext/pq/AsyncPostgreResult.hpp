@@ -106,7 +106,8 @@ namespace manapi::ext::pq {
             size_t cnt = 0;
             while (s && *s!='\0') {
                 cnt *= 10;
-                cnt += *(s++)-'0';
+                assert((*s >= '0'));
+                cnt += static_cast<uint32_t>(*(s++)-'0');
             }
             this->affected_rows_ = cnt;
             return cnt;

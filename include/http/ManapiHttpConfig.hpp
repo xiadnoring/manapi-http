@@ -167,7 +167,7 @@ namespace manapi::net::http {
          * The number of the buffers stack 'max_merge_buffer_stack' is required for
          * sending buffers to endpoints
          */
-        int max_merge_buffer_stack;
+        uint32_t max_merge_buffer_stack;
 
         /**
          * Connects in advance if 'simultaneous_accepts' is true
@@ -188,12 +188,12 @@ namespace manapi::net::http {
         /**
          * Max size of the header key
          */
-        uint16_t max_header_key_size;
+        uint32_t max_header_key_size;
 
         /**
          * Max size of the header value
          */
-        uint16_t max_header_value_size;
+        uint32_t max_header_value_size;
 
         /**
          * Minimal requirements to use partitial methods
@@ -250,12 +250,12 @@ namespace manapi::net::http {
          * If the size of connections reaches the limit, the server sends an error page
          * If the size of connections reaches the double limit, the server doesn't accept new connections
          */
-        int max_connections;
+        uint32_t max_connections;
 
         /**
          * It's the same as 'max_connections'
          */
-        int max_connections_by_ip;
+        uint32_t max_connections_by_ip;
 
         /**
          * Tcp backlog option
@@ -270,34 +270,34 @@ namespace manapi::net::http {
         /**
          * max count of reset streams when connected
          */
-        int max_rst_cnt;
+        uint32_t max_rst_cnt;
 
         /**
          * time limit for shutdown actions
          */
-        int max_shutdown_time;
+        uint32_t max_shutdown_time;
 
         /**
          * Sets the speed check delay interval
          */
-        int speed_check_delay;
+        uint32_t speed_check_delay;
         /**
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
-        int speed_check_bytes;
+        std::size_t speed_check_bytes;
         /**
          * Sets the speed check delay interval
          */
-        int speed_stream_check_delay;
+        uint32_t speed_stream_check_delay;
         /**
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
-        int speed_stream_check_bytes;
+        std::size_t speed_stream_check_bytes;
 
         /**
          * Sets the maximum limit rate every second
          */
-        ssize_t speed_limit_rate;
+        std::size_t speed_limit_rate;
 
         /**
          * Tcp no_delay option

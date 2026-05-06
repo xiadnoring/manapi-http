@@ -90,8 +90,8 @@ std::vector<std::string_view> manapi::string::split(std::string_view s, char c) 
 
 bool manapi::string::equals(std::string_view lhs, std::string_view rhs, int flags) {
     bool res = true;
-    ssize_t i = 0;
-    ssize_t const size = lhs.size();
+    std::size_t i = 0;
+    std::size_t const size = lhs.size();
 
     if (lhs.size() != rhs.size()) {
         return false;
@@ -158,9 +158,19 @@ std::size_t manapi::string::count(char c, std::string_view str) MANAPIHTTP_NOEXC
     return res;
 }
 
-ssize_t manapi::string::replace(std::string &s, std::string_view from, std::string_view to, ssize_t cnt) {
-    ssize_t res = 0;
-    ssize_t const shift = static_cast<ssize_t>(to.size()) - static_cast<ssize_t>(from.size());
+std::size_t manapi::string::replace(std::string &s, std::string_view from, std::string_view to, ssize_t cnt) {
+    std::size_t res = 0;
+    std::size_t shift;
+    bool flg;
+
+    if (to.size() > from.size()) {
+        flg = false;
+        shift = to.size() - from.size();
+    }
+    else {
+        flg = true;
+        shift = from.size() - to.size();
+    }
 
     while (cnt != 0) {
         auto it = s.find(from);
@@ -168,11 +178,11 @@ ssize_t manapi::string::replace(std::string &s, std::string_view from, std::stri
             break;
         }
 
-        if (shift <= 0) {
+        if (flg) {
             memmove(s.data() + it + to.size(), s.data() + it + from.size(), s.size() - it - to.size());
             memcpy(s.data() + it, to.data(), to.size());
 
-            s.resize(s.size() + shift);
+            s.resize(s.size() - shift);
         }
         else {
             s.resize(s.size() + shift);

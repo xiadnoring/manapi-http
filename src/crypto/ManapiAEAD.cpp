@@ -84,13 +84,13 @@ manapi::status_or<std::string> manapi::crypto::aead_decrypt(std::string_view cip
 
     std::string last;
     int last_len = EVP_CIPHER_CTX_block_size(ctx);
-    last.resize(last_len);
+    last.resize(static_cast<std::size_t>(last_len));
     int rhs = EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(last.data()), &len);
     if (1 != rhs)
         return status_invalid_argument("EVP_DecryptFinal_ex() failure");
 
-    last.resize(len);
-    plaintext.resize(outlen);
+    last.resize(static_cast<std::size_t>(len));
+    plaintext.resize(static_cast<std::size_t>(outlen));
 
     plaintext += last;
 #elif MANAPIHTTP_CRYPTO_LIBRARY == 2 /*wolfssl*/
@@ -215,13 +215,13 @@ manapi::status_or<std::string> manapi::crypto::aead_encrypt(std::string_view dat
     outlen += len;
 
     std::string last;
-    last.resize(EVP_CIPHER_CTX_block_size(ctx));
+    last.resize(static_cast<std::size_t>(EVP_CIPHER_CTX_block_size(ctx)));
     int rhs = EVP_EncryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(last.data()), &len);
     if (1 != rhs)
         return status_invalid_argument("EVP_EncryptFinal_ex() failure");
 
-    last.resize(len);
-    plaintext.resize(outlen);
+    last.resize(static_cast<std::size_t>(len));
+    plaintext.resize(static_cast<std::size_t>(outlen));
 
     constexpr int taglen = 16;
     tag.resize(taglen);

@@ -38,10 +38,10 @@ bool manapi::net::http::http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXC
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
 }
 
-int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, std::size_t *nsize) MANAPIHTTP_NOEXCEPT {
             // ctx->request_data->buffer = site->bufferpool()->get();
     try {
-        ssize_t pos = 0;
+        std::size_t pos = 0;
 
         auto &buffer = *nbuffer;
         auto &size = *nsize;
@@ -176,7 +176,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, htt
                                 /* insert */
                                 auto it = req->headers.find(ctx->s1);
                                 if (it == req->headers.end()) {
-                                    int value_start = 0;
+                                    std::size_t value_start = 0;
                                     if (!ctx->s2.empty() && ctx->s2[0] == ' ')
                                         /**
                                          * RFC7230 (3.2) Header Fields
@@ -566,8 +566,8 @@ enum http_v1_1_chunked_flags {
     HTTP_V1_1_CHUNK_ERR,
 };
 
-int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
-    ssize_t pos = 0;
+int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT {
+    std::size_t pos = 0;
     while (pos != size) {
         repeat:switch (ctx->state) {
             case HTTP_V1_1_CHUNK_NUM_GRAB:
@@ -591,18 +591,18 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                 }
 
                 ctx->left = (ctx->left * 16);
-                int n;
+                uint32_t n;
                 /**
                  * RFC9112 (1.2) Syntax Notation
                  *
                  * HEXDIG (hexadecimal 0-9/A-F/a-f)
                  */
                 if (isdigit(buffer[pos]))
-                    n = buffer[pos] - '0';
+                    n = static_cast<uint32_t>(buffer[pos] - '0');
                 else if (buffer[pos] >= 'a' && buffer[pos] <= 'f')
-                    n = static_cast<int>(buffer[pos] - 'a' + 10);
+                    n = static_cast<uint32_t>(buffer[pos] - 'a' + 10);
                 else if (buffer[pos] >= 'A' && buffer[pos] <= 'F')
-                    n = static_cast<int>(buffer[pos] - 'A' + 10);
+                    n = static_cast<uint32_t>(buffer[pos] - 'A' + 10);
                 else
                     return EHTTP_V1_1_CHUNKED_ERR;
 
@@ -642,20 +642,20 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
 
                 break;
             case HTTP_V1_1_CHUNK_BODY: {
-                auto const copy = std::min(size - pos, static_cast<ssize_t>(ctx->left));
+                auto const copy = std::min<std::size_t>(size - pos, ctx->left);
                 if (copy) {
                     if (!ctx->top.last_deque && (worker->event_flags(conn) & ev::READ)) {
                         worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {
                         if (copy != worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
-                            &worker->bufferpool(), static_cast<int>(config->buffer_size), nullptr, 0)) {
+                            &worker->bufferpool(), config->buffer_size, nullptr, 0)) {
                             return EHTTP_V1_1_CHUNKED_ERR;
                         }
                     }
 
                     pos += copy;
-                    ctx->left -= static_cast<int>(copy);
+                    ctx->left -= copy;
                 }
 
                 if (!ctx->left) {
@@ -723,7 +723,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
 
                             pos++;
 
-                            if (((*trailers_size) += ctx->s1.size()) > config->max_headers_size) {
+                            if (((*trailers_size) += static_cast<uint32_t>(ctx->s1.size())) > config->max_headers_size) {
                                 ctx->s1.clear();
                                 return EHTTP_V1_1_CHUNKED_ERR;
                             }
@@ -781,7 +781,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                                     ctx->s2.pop_back();
                                 }
 
-                                if (((*trailers_size) += ctx->s2.size()) > config->max_headers_size) {
+                                if (((*trailers_size) += static_cast<uint32_t>(ctx->s2.size())) > config->max_headers_size) {
                                     ctx->s2.clear();
                                     ctx->s1.clear();
                                     return EHTTP_V1_1_CHUNKED_ERR;
@@ -790,7 +790,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                                 /* insert */
                                 auto it = trailers->find(ctx->s1);
                                 if (it == trailers->end()) {
-                                    int value_start = 0;
+                                    std::size_t value_start = 0;
                                     if (!ctx->s2.empty() && ctx->s2[0] == ' ')
                                         /**
                                          * RFC7230 (3.2) Header Fields

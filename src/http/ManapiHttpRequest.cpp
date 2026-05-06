@@ -24,8 +24,8 @@ static manapi::json_error::status http_req_prepare_get_params (std::unique_ptr<s
         if (!params) {
             params = std::make_unique<std::map<std::string, std::string, std::less<>>>();
 
-            if (req_data->divided != -1) {
-                *params = manapi::net::http::parse_get_params (req_data->path[req_data->divided]);
+            if (req_data->divided >= 0) {
+                *params = manapi::net::http::parse_get_params (req_data->path[static_cast<std::size_t>(req_data->divided)]);
             }
 
             // verify params
@@ -103,22 +103,22 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::request::text(
 
 
         if (this->m_request_data->body_size >= 0) {
-            body.resize(this->m_request_data->body_size);
+            body.resize(static_cast<std::size_t>(this->m_request_data->body_size));
 
             size_t j = 0;
 
-            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body, &j] (const char *data, ssize_t size, bool fin) -> ssize_t {
+            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body, &j] (const char *data, std::size_t size, bool fin) -> ssize_t {
                 memcpy (body.data() + j, data, size);
                 j += size;
-                return size;
+                return static_cast<ssize_t>(size);
             });
 
             if (!rhs.ok())
                 co_return std::move(rhs);
         }
         else {
-            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body] (const char *data, ssize_t size, bool fin)
-                -> ssize_t { body.append(data, size); return size; });
+            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body] (const char *data, std::size_t size, bool fin)
+                -> ssize_t { body.append(data, size); return static_cast<ssize_t>(size); });
 
             if (!rhs.ok())
                 co_return std::move(rhs);
@@ -152,13 +152,13 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::r
             data_callback.status_ = &status;
 
             auto res = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,
-                [&data_callback] (const char *data, ssize_t size, bool fin)
+                [&data_callback] (const char *data, std::size_t size, bool fin)
                 -> ssize_t {
                 *data_callback.status_ = data_callback.builder_->parse(std::string_view (data, size));
                 if (!*data_callback.status_)
                     return -1;
 
-                return size;
+                return static_cast<ssize_t>(size);
             });
 
             if (!status)
@@ -179,13 +179,13 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::r
             data_callback.status_ = &status;
 
             auto res = co_await http_req_read_body_( this->m_worker.get(), this->m_conn, this->m_request_data,
-                [&data_callback] (const char *data, ssize_t size, bool fin)
+                [&data_callback] (const char *data, std::size_t size, bool fin)
             -> ssize_t {
                 *data_callback.status_ = data_callback.builder_->parse(std::string_view (data, size));
                 if (!*data_callback.status_)
                     return -1;
 
-                return size;
+                return static_cast<ssize_t>(size);
             });
             if (!status)
                 co_return std::move(status);
@@ -414,25 +414,25 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
 
             worker::worker_watcher_cb cb =
                 [&ctx_cb] (
-                const worker::shared_conn & conn, int m_flags, const char *buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
+                const worker::shared_conn & conn, int m_flags, const char *buffer, std::size_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (m_flags & ev::DISCONNECT) {
                         ctx_cb.resolve (manapi::status_aborted("read_body:Connection was closed"));
                         goto finish;
                     }
                     if (m_flags & ev::READ) {
                         try {
-                            ssize_t size;
+                            std::size_t size;
                             bool flg = false;
 
                             if (ctx_cb.req->body_size >= 0) {
-                                size = std::min(ctx_cb.req->body_size, static_cast<ssize_t> (nsize));
+                                size = std::min(static_cast<std::size_t>(ctx_cb.req->body_size), (nsize));
                                 if (ctx_cb.req->body_size == size)
                                     flg = true;
                             }
                             else
-                                size = static_cast<ssize_t> (nsize);
+                                size = (nsize);
 
-                            ssize_t rhs = 0;
+                            std::size_t rhs = 0;
                             while (rhs < size) {
                                 auto const copy = size - rhs;
 
@@ -443,8 +443,7 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
                                         goto finish;
                                     }
 
-                                    rhs += res;
-
+                                    rhs += static_cast<std::size_t>(res);
                                     ctx_cb.req->body_size -= res;
 
                                     continue;
@@ -454,7 +453,7 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
                             }
 
                             if (!ctx_cb.req->body_size) {
-                                auto const copy = static_cast<int>(nsize - rhs);
+                                auto const copy = (nsize - rhs);
                                 if (ctx_cb.req->flags & http::internal::REQ_DATA_FLAG_BODY_LIMITED) {
                                     if (copy) {
                                         ctx_cb.resolve(manapi::status_out_of_range("read_body:Too much data"));
@@ -550,7 +549,7 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
 
             worker::worker_watcher_cb cb =
                 [&ctx_cb] (
-                const worker::shared_conn & conn, int m_flags, const char * buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
+                const worker::shared_conn & conn, int m_flags, const char * buffer, std::size_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (m_flags & ev::DISCONNECT) {
                         ctx_cb.resolve(manapi::status_aborted("read_async_body:Connection was closed"));
                         goto finish;
@@ -573,21 +572,21 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                             [] (const worker::shared_conn & conn, manapi::slice buffs, ctx_cb_t_ *ctx_cb, int m_flags) -> manapi::future<> {
                                 try {
 
-                                    ssize_t size;
+                                    std::size_t size;
                                     bool flg = false;
                                     if (ctx_cb->req->body_size >= 0) {
-                                        size = std::min(ctx_cb->req->body_size, static_cast<ssize_t> (buffs.size()));
+                                        size = std::min(static_cast<std::size_t>(ctx_cb->req->body_size),  (buffs.size()));
 
                                         if (ctx_cb->req->body_size == size)
                                             flg = true;
                                     }
                                     else {
-                                        size = static_cast<ssize_t> (buffs.size());
+                                        size = (buffs.size());
                                     }
 
                                     auto buffsview = buffs.subslice(0, size).unwrap();
 
-                                    ssize_t rhs = 0;
+                                    std::size_t rhs = 0;
                                     while (rhs < size) {
                                         auto const copy = size - rhs;
 
@@ -598,11 +597,10 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                                                 goto finish;
                                             }
 
-                                            rhs += res;
-
+                                            rhs += static_cast<std::size_t>(res);
                                             ctx_cb->req->body_size -= res;
 
-                                            buffsview = buffs.subslice(res).unwrap();
+                                            buffsview = buffs.subslice(static_cast<std::size_t>(res)).unwrap();
 
                                             continue;
                                         }
@@ -612,7 +610,7 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                                     }
 
                                     if (ctx_cb->req->body_size <= 0) {
-                                        auto const copy = static_cast<int>(buffs.size() - rhs);
+                                        auto const copy = (buffs.size() - rhs);
 
                                         if (ctx_cb->req->flags & http::internal::REQ_DATA_FLAG_BODY_LIMITED) {
                                             if (copy) {

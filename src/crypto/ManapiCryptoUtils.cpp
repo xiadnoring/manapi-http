@@ -139,10 +139,10 @@ manapi::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view in
         static const char hex_digits[] = "0123456789ABCDEF";
         std::string output;
         output.reserve(input.length() * 2);
-        for (unsigned char c : input)
+        for (char c : input)
         {
-            output.push_back(hex_digits[c >> 4]);
-            output.push_back(hex_digits[c & 15]);
+            output.push_back(hex_digits[static_cast<uint8_t>(c) >> 4]);
+            output.push_back(hex_digits[static_cast<uint8_t>(c) & 15]);
         }
         return std::move(output);
     }

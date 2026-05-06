@@ -131,7 +131,7 @@ manapi::fs::fstream::~fstream() {
     }
 }
 
-manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_size) {
     while (true) {
         ssize_t rhs;
 
@@ -157,7 +157,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, ssize_t buff_size)
     co_return -1;
 }
 
-manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t buff_size) {
     while (true) {
         ssize_t rhs;
 
@@ -179,8 +179,8 @@ manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, ssize_t buf
     co_return -1;
 }
 
-manapi::future<ssize_t> manapi::fs::fstream::fwrite(const void *buff, ssize_t buff_size) {
-    ssize_t res = 0;
+manapi::future<ssize_t> manapi::fs::fstream::fwrite(const void *buff, std::size_t buff_size) {
+    std::size_t res = 0;
     while (res != buff_size) {
         auto const rhs = co_await this->write(static_cast<const char *>(buff) + res, buff_size - res);
 
@@ -188,13 +188,13 @@ manapi::future<ssize_t> manapi::fs::fstream::fwrite(const void *buff, ssize_t bu
             co_return -1;
         }
 
-        res += rhs;
+        res += static_cast<std::size_t>(rhs);
     }
-    co_return res;
+    co_return static_cast<ssize_t>(res);
 }
 
-manapi::future<ssize_t> manapi::fs::fstream::fread(void *buff, ssize_t buff_size) {
-    ssize_t total = 0;
+manapi::future<ssize_t> manapi::fs::fstream::fread(void *buff, std::size_t buff_size) {
+    std::size_t total = 0;
 
     while (total < buff_size) {
         auto rhs = co_await this->read(static_cast<uint8_t *>(buff) + total, buff_size - total);
@@ -204,10 +204,10 @@ manapi::future<ssize_t> manapi::fs::fstream::fread(void *buff, ssize_t buff_size
         if (rhs == 0 && this->eof()) {
             break;
         }
-        total += rhs;
+        total += static_cast<std::size_t>(rhs);
     }
 
-    co_return total;
+    co_return static_cast<ssize_t>(total);
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
@@ -258,7 +258,7 @@ manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::fread(manapi::slice_view slice) {
-    ssize_t total = 0;
+    std::size_t total = 0;
 
     while (total != slice.size()) {
         auto rhs = co_await this->read(slice.subslice(total).unwrap());
@@ -269,10 +269,10 @@ manapi::future<ssize_t> manapi::fs::fstream::fread(manapi::slice_view slice) {
             && this->eof())
             break;
 
-        total += rhs;
+        total += static_cast<std::size_t>(rhs);
     }
 
-    co_return total;
+    co_return static_cast<ssize_t>(total);
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::fwrite(manapi::slice_view slice) {
@@ -283,7 +283,7 @@ manapi::future<ssize_t> manapi::fs::fstream::fwrite(manapi::slice_view slice) {
         if (rhs <= 0)
             co_return -1;
 
-        if (!slice.shift_add(rhs).ok())
+        if (!slice.shift_add(static_cast<std::size_t>(rhs)).ok())
             co_return -1;
 
         res += rhs;
@@ -312,12 +312,20 @@ ssize_t manapi::fs::fstream::seekg(ssize_t pos, seek_flag_t flag) {
     return ::m_fstream_seekg_(this->m_data.get(), pos, flag);
 }
 
-manapi::future<ssize_t> manapi::fs::fstream::size() const {
-    ssize_t size;
-    co_await manapi::fs::async_fstat(this->m_data->file, [&size] (ev::stat_t *data)
+manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::fstream::size() const {
+    std::size_t size;
+    bool failed{false};
+    auto res = co_await manapi::fs::async_fstat(this->m_data->file, [&size, &failed] (ev::stat_t *data)
         -> void {
-        size = static_cast<ssize_t>(data->st_size);
+        if (data)
+            size = data->st_size;
+        else
+            failed = true;
     }, ctoken::unit(this->m_data->cancellation));
+    if (!res)
+        co_return std::move(res);
+    if (failed)
+        co_return manapi::ev::status_not_found("fstream::size(): file not found");
     co_return size;
 }
 

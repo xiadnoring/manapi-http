@@ -182,7 +182,7 @@ manapi::json_error::status manapi::json_builder::_parse(std::string_view plain_t
 manapi::json_error::status manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); this->i++, j++)
     {
-        const unsigned char &c = plain_text.at(j);
+        const char c = plain_text.at(j);
 
         // skip \t \n \s and etc
         if (unicode::is_space_symbol(c))
@@ -234,7 +234,7 @@ manapi::json_error::status manapi::json_builder::_build_string(std::string_view 
         if (!res.ok())
             return std::move(res);
 
-        unsigned char c = plain_text.at(j);
+        char c = plain_text.at(j);
         if (_valid_utf_char(plain_text, j, this->wchar_left))
         {
             // nothing
@@ -280,7 +280,7 @@ manapi::json_error::status manapi::json_builder::_build_string(std::string_view 
             {
                 if (this->utf_escaped_status != -1) {
                     // we grab ascii chars for utf char
-                    c = std::tolower(c);
+                    c = static_cast<char>(std::tolower(c));
                     if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
                         // U+0000 - U+007F -> 0yyyzzzz
                         // U+0080 - U+07FF -> 110xxxyy10yyzzzz
@@ -353,7 +353,7 @@ manapi::json_error::status manapi::json_builder::_build_string(std::string_view 
 
         if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
-            this->buffer.push_back(static_cast<char> (c));
+            this->buffer.push_back(c);
         }
         else {
             if (!unicode::is_space_symbol(c))
@@ -391,14 +391,14 @@ manapi::json_error::status manapi::json_builder::_build_string(std::string_view 
 manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, this->i++)
     {
-        unsigned char c = plain_text[j];
+        char c = plain_text[j];
 
         if (this->buffer.empty())
         {
             this->flags |= JSON_FLAG_OPERATE_ALREADY;
 
             if (c == '-' || c == '+') {
-                this->buffer += static_cast<char> (c);
+                this->buffer += c;
                 continue;
             }
         }
@@ -410,7 +410,7 @@ manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view
                 // it can't be
                 return json_invalid_char(plain_text, j);
             }
-            this->buffer += static_cast<char> (c);
+            this->buffer += c;
         }
         else {
             if (this->buffer.empty())
@@ -438,7 +438,7 @@ manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view
                         return json_invalid_char(plain_text, j);
                     }
                     this->flags |= JSON_FLAG_OPERATE_ALREADY;
-                    this->buffer += static_cast<char> (c);
+                    this->buffer += (c);
                 break;
                 case 'e':
                 case 'E':
@@ -449,7 +449,7 @@ manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view
                     if (this->type != json::type_decimal) {
                         this->type = json::type_decimal;
                     }
-                    this->buffer += static_cast<char> (c);
+                    this->buffer += (c);
                     if (this->flags & JSON_FLAG_OPERATE_ALREADY)
                         this->flags ^= JSON_FLAG_OPERATE_ALREADY;
                 break;
@@ -461,7 +461,7 @@ manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view
 
                     // its decimal
                     this->type = json::type_decimal;
-                    this->buffer += static_cast<char> (c);
+                    this->buffer += (c);
                     break;
                 case '}':
                 case ']':
@@ -531,14 +531,14 @@ manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view
 manapi::json_error::status manapi::json_builder::_build_numeric_string(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); this->i++, j++)
     {
-        unsigned char c = plain_text[j];
+        char c = plain_text[j];
 
         if (unicode::is_space_symbol(c) || c == '}' ||
             c == ',' || c == ']') {
             goto finish;
         }
 
-        this->buffer += static_cast<char> (c);
+        this->buffer += (c);
     }
 
     finish:
@@ -614,7 +614,7 @@ manapi::json_error::status manapi::json_builder::_build_object(std::string_view 
 
     for (; j < plain_text.size(); j++, i++)
     {
-        unsigned char c = plain_text[j];
+        char c = plain_text[j];
 
         if (unicode::is_space_symbol(c))
         {
@@ -736,7 +736,7 @@ manapi::json_error::status manapi::json_builder::_build_array(std::string_view p
 
     for (; j < plain_text.size(); j++, i++)
     {
-        unsigned char c = plain_text[j];
+        char c = plain_text[j];
 
         if (unicode::is_space_symbol(c))
         {
@@ -1171,11 +1171,11 @@ const manapi::json & manapi::json_builder::get_current_type() {
 }
 
 bool manapi::json_builder::_valid_utf_char(std::string_view plain_text, size_t i, size_t &left) {
-    const unsigned char &c = plain_text[i];
+    const char c = plain_text[i];
     if (left > 0 || c > 127) {
         if (left == 0)
         {
-            const size_t octet = manapi::unicode::count_of_octet(c);
+            const size_t octet = manapi::unicode::count_of_octet(static_cast<uint8_t>(c));
             if (octet == 1) {
                 // char cant be equal 10xxxxxx
                 json::error_invalid_char(plain_text, i);
@@ -1186,7 +1186,7 @@ bool manapi::json_builder::_valid_utf_char(std::string_view plain_text, size_t i
         else
         {
             // if c != 10xxxxxx
-            if (manapi::unicode::count_of_octet(c) != 1)
+            if (manapi::unicode::count_of_octet(static_cast<uint8_t>(c)) != 1)
             {
                 json::error_invalid_char(plain_text, i);
             }

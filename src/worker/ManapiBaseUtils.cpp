@@ -36,26 +36,30 @@ manapi::bytebuffer manapi::net::worker::prepared::recv_first_buffer(const shared
 ssize_t manapi::net::worker::prepared::sync_write(interface_worker *w, const shared_conn &conn, ev::buff_t *buff,uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
     auto const connection = conn->as<connection_prepared_base_t>();
     auto const config = w->config();
-    ssize_t const limit_size = config->speed_limit_rate - connection->transfered;
+    if (config->speed_limit_rate < connection->transfered)
+        return 0;
 
+    auto const limit_size = config->speed_limit_rate - connection->transfered;
     auto const size = base::buffs_cut_by_size (buff, nbuff, limit_size, finish);
 
     if (!size)
         return 0;
 
-    return w->sync_write_ex(conn, buff, nbuff, size, finish, config->max_buffer_stack);
+    return w->sync_write_ex(conn, buff, nbuff, static_cast<std::size_t>(size), finish, config->max_buffer_stack);
 }
 
 ssize_t manapi::net::worker::prepared::sync_write(interface_worker *w, const shared_conn &conn, connection_prepared_base_t *connection, ev::buff_t *buff, uint32_t nbuff, std::size_t limit_rate, bool finish) MANAPIHTTP_NOEXCEPT {
     auto const config = w->config();
-    ssize_t const limit_size = std::min<ssize_t>(limit_rate, config->speed_limit_rate) - connection->transfered;
-
+    limit_rate = std::min<std::size_t>(limit_rate, config->speed_limit_rate);
+    if (limit_rate < connection->transfered)
+        return 0;
+    auto const limit_size = limit_rate - connection->transfered;
     auto const size = base::buffs_cut_by_size (buff, nbuff, limit_size, finish);
 
     if (!size)
         return 0;
 
-    return w->sync_write_ex(conn, buff, nbuff, size, finish, config->max_buffer_stack);
+    return w->sync_write_ex(conn, buff, nbuff, static_cast<std::size_t>(size), finish, config->max_buffer_stack);
 }
 
 void manapi::net::worker::prepared::waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT {
@@ -84,8 +88,7 @@ void manapi::net::worker::prepared::flush_read_(worker::base *w, const shared_co
                 if (data->flags & base::CONN_RECV_END && !data->top->recv_size)
                     flags |= base::CONN_RECV_END;
 
-                if (worker::base::call_user_callback(&data->ev_callback, conn, flags, object.data(),
-                    static_cast<int>(object.size()), &object))
+                if (worker::base::call_user_callback(&data->ev_callback, conn, flags, object.data(), object.size(), &object))
                     w->close_connection(conn, CLOSE_CONN_ERR);
             }
         }
@@ -98,7 +101,6 @@ int manapi::net::worker::prepared::flush_read2_(http::config *config, const shar
         && (force || data->top->recv_size >= config->max_merge_buffer_stack || (data->flags & base::CONN_RECV_END))) {
 
         auto b = std::move(s->recv.deque->buffer);
-        ssize_t sz;
 
         s->recv.deque = std::move(s->recv.deque->next);
         s->recv_size--;
@@ -116,12 +118,11 @@ int manapi::net::worker::prepared::flush_read2_(http::config *config, const shar
             s->recv.deque_current = 0;
         }
 
-        sz = static_cast<ssize_t>(b.size());
-        if (sz) {
+        if (!b.empty()) {
             int flags = manapi::ev::READ;
             if ((data->flags & manapi::net::worker::base::CONN_RECV_END) && !s->recv_size)
                 flags |= manapi::net::worker::base::CONN_RECV_END;
-            if (worker::base::call_user_callback(&data->ev_callback, conn, flags, b.data(), sz, &b))
+            if (worker::base::call_user_callback(&data->ev_callback, conn, flags, b.data(), b.size(), &b))
                 return ERR_ABORTED;
         }
     }
@@ -180,7 +181,7 @@ void manapi::net::worker::prepared::timer_clear(manapi::timer t) MANAPIHTTP_NOEX
     }
 }
 
-void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     if (flags & base::CONN_RECV_END)
         data->flags |= base::CONN_RECV_END;
     if (flags & base::CONN_SEND_END)
@@ -202,12 +203,12 @@ void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_con
     }
 }
 
-void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, int flags,const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, int flags,const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<connection_prepared_t>();
     return feed_event(w, conn, data, flags, buff, size, p);
 }
 
-void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, ssize_t speed_check_delay, ssize_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, uint32_t speed_check_delay, std::size_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
     if (data->transfered >= config->speed_limit_rate
         && data->ev_callback) {
         data->transfered = 0;
@@ -235,7 +236,7 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
                 }
             }
             else
-                data->speed_min_delay = static_cast<int>(speed_check_delay);
+                data->speed_min_delay = (speed_check_delay);
 
             data->transfered_k = 0;
         }

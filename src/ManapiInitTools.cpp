@@ -5,6 +5,7 @@
 #include "ManapiEventLoop.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiProcess.hpp"
+#include "./include/ManapiDebug.hpp"
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
 #   include "ManapiGrpc.hpp"
@@ -111,11 +112,11 @@ void manapi::init_tools::curl_library_init() {
 }
 
 void manapi::init_tools::log_trace_init(manapi::debug::trace_level lvl) {
-    debug::set_log_trace_enabled(static_cast<int> (lvl));
+    manapi::debug::set_log_trace_enabled(static_cast<int> (lvl));
 }
 
 void manapi::init_tools::log_name_enable(const char *name, bool enable) {
-    debug::set_log_name_enabled(name, enable);
+    manapi::debug::set_log_name_enabled(name, enable);
 }
 
 void manapi::clear_tools::grpc_clear() MANAPIHTTP_NOEXCEPT {

@@ -48,8 +48,8 @@ int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
             this->hex_symbols[this->hex_index] = c;
 
             if (this->hex_index == 1) {
-                char x = static_cast<char> (manapi::unicode::onehex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::onehex2dec(
-                                     this->hex_symbols[1]));
+                char x = static_cast<char> (manapi::unicode::onehex2dec(static_cast<uint8_t>(this->hex_symbols[0])) << 4 | manapi::unicode::onehex2dec(
+                                     static_cast<uint8_t>(this->hex_symbols[1])));
 
                 if (isalnum(this->hex_symbols[0]) && isalnum(this->hex_symbols[1])) {
                     this->result_.back() += x;
@@ -98,7 +98,10 @@ int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
 
 void manapi::net::http::url_decode_stream::cleanup_uri_() {
     if (this->divided_ != -1) { return; }
-    for (ssize_t i = static_cast<ssize_t>(this->result_.size()) - 1; i >= 0; i--) {
+    std::size_t i = this->result_.size();
+    while (i) {
+        i--;
+
         if (this->result_.operator[](i).empty()) {
             this->result_.pop_back();
         }

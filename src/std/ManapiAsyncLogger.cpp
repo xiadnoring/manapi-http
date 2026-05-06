@@ -86,11 +86,12 @@ void manapi::logger::fcallback(logger_type type, std::string_view service, int e
         if (this->m_data) {
             va_list args_copy;
             va_copy(args_copy, args);
-            std::size_t size = vsnprintf(nullptr, 0, fmt, args_copy);
+            int size = vsnprintf(nullptr, 0, fmt, args_copy);
+            assert(size >= 0);
             std::string buffer;
             va_end(args_copy);
 
-            buffer.resize(size);
+            buffer.resize(static_cast<std::size_t>(size));
             vsnprintf(buffer.data(), buffer.size() + 1, fmt, args);
 
             this->callback(type, service, error_code, std::move(buffer));

@@ -272,7 +272,7 @@ manapi::status manapi::ext::pq::pool::connected(bool active) MANAPIHTTP_NOEXCEPT
                         }
                     }
                     else {
-                        t.again(t.interval().count()).unwrap();
+                        t.again(static_cast<std::size_t>(t.interval().count())).unwrap();
                     }
                 }
             }).unwrap();
@@ -386,7 +386,7 @@ bool manapi::ext::pq::db::has_slaves() const {
     return !!this->m_slaves.size();
 }
 
-manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, ctoken token) {
+manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, ctoken token) {
     while (true) {
         auto wrk_res = type == kMaster ? (co_await this->master()) :(co_await this->slave());
         if (!wrk_res) {
@@ -537,7 +537,7 @@ manapi::future<manapi::status> manapi::ext::pq::connection::connect(const char *
 }
 
 manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::connection::pexec(
-    const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,
+    const char *command, std::size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,
     const int *paramFormats, int resultFormat, manapi::ctoken token) {
     pq::status status = this->check_conn_();
     if (!status)
@@ -550,7 +550,7 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
             manapi::unwrap(co_await this->connect_psql_(token));
         }
 
-        if (!PQsendQueryParams(this->m_data->conn.get(), command, nParams, paramTypes, paramValues, paramLengths, paramFormats, 1)) {
+        if (!PQsendQueryParams(this->m_data->conn.get(), command, static_cast<int>(nParams), paramTypes, paramValues, paramLengths, paramFormats, 1)) {
             status = pq::status{status_internal("pq:send query failed")};
             goto fin;
         }

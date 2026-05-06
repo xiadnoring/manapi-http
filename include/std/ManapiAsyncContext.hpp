@@ -7,6 +7,8 @@
 #include "../ManapiMemoryPool.hpp"
 
 namespace manapi {
+    class threadpool;
+
     class logger;
 }
 
@@ -229,14 +231,14 @@ namespace manapi::async {
          * @param threadnum the additional threads
          * @return
          */
-        static manapi::status_or<std::shared_ptr<context>> create (unsigned int threadnum) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<context>> create (std::size_t threadnum) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in all contexts
          * @param loops the count of copies of the context
          * @param callback the callback
          */
-        manapi::status run (uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
+        manapi::status run (std::size_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in the context

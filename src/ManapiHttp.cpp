@@ -1160,7 +1160,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server:
     try
     {
         const http_uri_part *cur = &this->m_data->handlers;
-        const size_t path_size = request_data->divided == -1 ? request_data->path.size() : request_data->divided;
+        const size_t path_size = request_data->divided < 0 ? request_data->path.size() : static_cast<std::size_t>(request_data->divided);
         for (size_t i = 0; i <= path_size; i++) {
             if (cur->statics)
             {

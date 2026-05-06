@@ -11,6 +11,7 @@
 
 #include "http/ManapiHttpPool.hpp"
 #include "worker/ManapiSite.hpp"
+#include "ManapiHttp.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp1.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"

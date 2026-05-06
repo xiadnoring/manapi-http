@@ -149,14 +149,14 @@ namespace manapi {
          * @param oth the power
          * @return the result
          */
-        MANAPIHTTP_NODISCARD bigint root (ssize_t oth) const;
+        MANAPIHTTP_NODISCARD bigint root (uint32_t oth) const;
 
         /**
          * Do sqrt operation with bigint
          * @param oth the power
          * @return the result
          */
-        MANAPIHTTP_NODISCARD bigint sqrt (ssize_t oth) const;
+        MANAPIHTTP_NODISCARD bigint sqrt (uint32_t oth) const;
 
         bigint operator+ (ssize_t oth) const;
 

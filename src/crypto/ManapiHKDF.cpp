@@ -37,7 +37,7 @@ manapi::status_or<std::string> manapi::crypto::hmac_digest(std::string_view key,
             key.data(),
             static_cast<int>(key.size()),
             reinterpret_cast<unsigned char const *> (data.data()),
-            static_cast<int>(data.size()),
+            data.size(),
             hash.data(),
             &hashLen
         );
@@ -84,7 +84,7 @@ manapi::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk,
             t = res.unwrap();
             okm += t;
         }
-        okm.resize(length);
+        okm.resize(static_cast<std::size_t>(length));
         return std::move(okm);
     }
     catch (std::bad_alloc const &) {

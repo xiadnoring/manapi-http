@@ -121,5 +121,5 @@ namespace manapi::string {
      * @param cnt maximum number of substitutions. -1 is infinity
      * @return number of substitutions
      */
-    ssize_t replace (std::string &s, std::string_view from, std::string_view to, ssize_t cnt = -1);
+    std::size_t replace (std::string &s, std::string_view from, std::string_view to, ssize_t cnt = -1);
 }

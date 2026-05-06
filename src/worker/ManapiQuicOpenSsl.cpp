@@ -137,7 +137,7 @@ static void ssl_dump_error_ (int err, const char *msg) {
     bio.reset(BIO_new(BIO_s_mem()));
     ERR_print_errors(bio.get());
     char *buf;
-    size_t len = BIO_get_mem_data(bio.get(), &buf);
+    ssize_t len = BIO_get_mem_data(bio.get(), &buf); assert(len >= 0);
     if (len && buf[len-1] == '\n')
         len--;
 
@@ -309,8 +309,8 @@ err:
     bio.reset(BIO_new(BIO_s_mem()));
     ERR_print_errors(bio.get());
     char *buf;
-    size_t len = BIO_get_mem_data(bio.get(), &buf);
-
+    ssize_t len = BIO_get_mem_data(bio.get(), &buf);
+    assert(len >= 0);
     manapi_log_error("%s due to %.*s", "openssl_tls:create context failed", len, buf);
     return status_internal("openssl_tls:create context failed");
 }
@@ -650,7 +650,7 @@ manapi::net::worker::worker_watcher_cb manapi::net::worker::openssl_quic::event_
     return prepared::event_on(conn, std::move(callback));
 }
 
-void manapi::net::worker::openssl_quic::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::openssl_quic::feed_event(const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
@@ -672,7 +672,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write(const shared_conn &conn, e
     return prepared::sync_write(this, conn, p, buff, nbuff, p->cur_speed_lim, finish);
 }
 
-ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     auto const s = conn->as<quic_stream_t>();
     ssize_t res = 0;
 
@@ -688,7 +688,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         return 0;
 
     while (nbuff) {
-        int flags = 0;
+        std::size_t flags = 0;
 
         if (finish && nbuff == 1)
             flags |= SSL_WRITE_FLAG_CONCLUDE;
@@ -714,7 +714,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
                 break;
                 default: {
                     auto bioerr = ERR_peek_error();
-                    if (bioerr && !BIO_err_is_non_fatal(bioerr)) {
+                    if (bioerr && !BIO_err_is_non_fatal(static_cast<uint32_t>(bioerr))) {
                         ssl_dump_error_(err, "SSL_write_ex2");
                         ERR_clear_error();
                         return -1;
@@ -729,7 +729,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         s->transfered += written;
 
         if (!written) {
-            auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
+            auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, (buff->len),
                 &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, maxcnt);
 
             if (sent < 0)
@@ -888,7 +888,7 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
             goto args;
 
 
-        int openssl_flags = 0;
+        std::size_t openssl_flags = 0;
 
         if (flags & CONN_STREAM_FLAG_UNI)
             openssl_flags |= SSL_STREAM_FLAG_UNI;
@@ -958,7 +958,7 @@ void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
             auto rhs = BIO_recvmmsg(this->wbio, msg, sizeof (BIO_MSG), num_msgs, 0, &msgs_processed);
             if (rhs != 1) {
                 auto err = ERR_peek_error();
-                if (err && !BIO_err_is_non_fatal(err))
+                if (err && !BIO_err_is_non_fatal(static_cast<uint32_t>(err)))
                     ssl_dump_error_(SSL_get_error(MANAPI_AS_SSL(this->listener), rhs), "BIO_recvmmsg");
                 ERR_clear_error();
                 break;
@@ -1092,7 +1092,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
         return;
 
     while (data->top->send.last_deque) {
-        int flags = 0;
+        std::size_t flags = 0;
         bool const last = data->top->send.deque.get() == data->top->send.last_deque;
 
         if (data->flags & CONN_SEND_END && last)
@@ -1126,7 +1126,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                     break;
                     default: {
                         auto bioerr = ERR_peek_error();
-                        if (bioerr && !BIO_err_is_non_fatal(bioerr))
+                        if (bioerr && !BIO_err_is_non_fatal(static_cast<uint32_t>(bioerr)))
                             ssl_dump_error_(err, "SSL_write_ex2");
                         ERR_clear_error();
 
@@ -1157,7 +1157,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
             continue;
         }
 
-        data->top->send.deque_current += static_cast<int>(written);
+        data->top->send.deque_current += static_cast<uint32_t>(written);
         assert(data->top->send.deque_current <= buffer.size());
 
         break;
@@ -1249,7 +1249,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                         }
                     }
                     else
-                        data->speed_min_delay = static_cast<int>(config->speed_stream_check_delay);
+                        data->speed_min_delay = (config->speed_stream_check_delay);
                     data->transfered_k = 0;
                 }
                 data->transfered = 0;
@@ -1379,8 +1379,8 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
     while (addr) {
         std::size_t msgs_processed;
         BIO_MSG msg{};
-        msg.data = buff;
-        msg.data_len = size;
+        msg.data = buff; assert(size >= 0);
+        msg.data_len = static_cast<std::size_t>(size);
         msg.peer = MANAPI_AS_BIO_ADDR(&this->config_->server_addr);
         msg.local = MANAPI_AS_BIO_ADDR(addr);
         rhs = BIO_sendmmsg(this->rbio, &msg, sizeof (BIO_MSG), 1, 0, &msgs_processed);
@@ -1423,7 +1423,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
                 this->current_poll = &this->polls_[this->current_poll_id];
 
-                uint64_t processed_event = 0;
+                std::size_t processed_event = 0;
 
                 if (it->revents != SSL_POLL_EVENT_NONE) {
                     assert(it->desc.value.ssl);
@@ -1646,7 +1646,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
     }
 
     if (SSL_get_event_timeout(MANAPI_AS_SSL(this->listener), &tv, &isinfinite) && !isinfinite) {
-        std::size_t const mil = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+        std::size_t const mil = static_cast<std::size_t>(tv.tv_sec) * 1000 + static_cast<std::size_t>(tv.tv_usec) / 1000;
         rhs = this->t_->start(mil, 0, timeout_event_cb);
 
         if (rhs)
@@ -1747,7 +1747,7 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
         else {
             this->event_on(stream_conn,
                 [this]
-                (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
+                (const worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, ibuffpool_t *p) mutable
                 -> void {
                     auto const wrk = this;
                     if (wrk->global_.accept_cb (conn, flags, buffer, nsize, p, &this->global_, this))
@@ -1796,7 +1796,7 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
                 this->global_.flush_custom_read_cb(s, &this->global_, this);
             else
                 this->feed_event(s, ev::READ, buffer,
-                    static_cast<ssize_t>(readbytes), nullptr);
+                    (readbytes), nullptr);
 
             if (sn->flags & ev::DISCONNECT)
                 return;
@@ -1813,7 +1813,7 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
                 if (!(sn->flags & CONN_RECV_END)) {
                     sn->flags |= CONN_RECV_END;
                     this->feed_event(s, CONN_RECV_END, buffer,
-                                static_cast<ssize_t>(readbytes), nullptr);
+                                (readbytes), nullptr);
                     if (sn->flags & ev::DISCONNECT)
                         return;
                 }

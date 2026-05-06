@@ -53,7 +53,7 @@ manapi::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data
 
         std::string out;
         int out_len = 0;
-        out.resize(EVP_CIPHER_CTX_block_size(n) + data.size());
+        out.resize(static_cast<std::size_t>(EVP_CIPHER_CTX_block_size(n)) + data.size());
 
         int len;
         if (1==EVP_EncryptUpdate(n, reinterpret_cast<unsigned char*>(out.data()+out_len), &len, reinterpret_cast<const unsigned char*>(data.data()), static_cast<int>(data.size()))) {
@@ -61,12 +61,12 @@ manapi::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data
         }
 
         std::string last;
-        last.resize(EVP_CIPHER_CTX_block_size(n));
+        last.resize(static_cast<std::size_t>(EVP_CIPHER_CTX_block_size(n)));
         if (!EVP_EncryptFinal_ex(n, reinterpret_cast<unsigned char*>(last.data()), &len))
             return status_invalid_argument("EVP_EncryptFinal_ex() failed");
 
-        last.resize(len);
-        out.resize(out_len);
+        last.resize(static_cast<std::size_t>(len));
+        out.resize(static_cast<std::size_t>(out_len));
         out += last;
 
         return std::move(out);
@@ -126,7 +126,7 @@ manapi::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data
 
         std::string out;
         int out_len = 0;
-        out.resize(data.size() + EVP_CIPHER_CTX_block_size(ctx));
+        out.resize(data.size() + static_cast<std::size_t>(EVP_CIPHER_CTX_block_size(ctx)));
 
         int len;
         if (1 == EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char*>(out.data()+out_len), &len, reinterpret_cast<const unsigned char*>(data.data()), static_cast<int>(data.size()))) {
@@ -134,12 +134,12 @@ manapi::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data
         }
 
         std::string last;
-        last.resize(EVP_CIPHER_CTX_block_size(ctx));
+        last.resize(static_cast<std::size_t>(EVP_CIPHER_CTX_block_size(ctx)));
         if (!EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char*>(last.data()), &len))
             return status_invalid_argument("EVP_DecryptFinal_ex() failed");
 
-        last.resize(len);
-        out.resize(out_len);
+        last.resize(static_cast<std::size_t>(len));
+        out.resize(static_cast<std::size_t>(out_len));
 
         out += last;
 

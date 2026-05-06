@@ -7,7 +7,7 @@
 
 namespace manapi::net::http {
     struct http_v1_1_t {
-        uint32_t size;
+        std::size_t size;
         int current;
         int next;
         int http;
@@ -16,7 +16,7 @@ namespace manapi::net::http {
     };
 
     struct http_v1_1_chunked_t {
-        uint32_t left;
+        std::size_t left;
         int state;
         int next;
         worker::connection_io_part top;
@@ -41,7 +41,7 @@ namespace manapi::net::http {
     };
 
     bool http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXCEPT;
-    int http_v1_1_work (http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT;
-    int http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT;
+    int http_v1_1_work (http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, std::size_t *nsize) MANAPIHTTP_NOEXCEPT;
+    int http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT;
     int http_v1_1_chunked_flush (http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 }

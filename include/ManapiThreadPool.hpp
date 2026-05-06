@@ -14,10 +14,6 @@
 namespace manapi {
     class threadpool {
     public:
-        threadpool(std::shared_ptr<manapi::logger> logger) : m_logger(std::move(logger)) {}
-
-        virtual ~threadpool() = default;
-
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void append_static_task (manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
@@ -29,23 +25,19 @@ namespace manapi {
         virtual void join () MANAPIHTTP_NOEXCEPT = 0;
 
         MANAPIHTTP_NODISCARD virtual std::size_t tasks_size () const MANAPIHTTP_NOEXCEPT = 0;
-
-        const std::shared_ptr<manapi::logger> &logger () MANAPIHTTP_NOEXCEPT {
-            return this->m_logger;
-        }
-    protected:
-        std::shared_ptr<manapi::logger> m_logger;
     };
 
     class mthreadpool : public threadpool {
     public:
+        struct data_t;
+
         typedef std::vector<chain<std::move_only_function<void()>>> tasks_by_thread_t;
 
-        mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num);
+        mthreadpool(std::size_t thread_num);
 
-        ~mthreadpool() override;
+        ~mthreadpool();
 
-        void resize (ssize_t thread_num);
+        void resize (std::size_t thread_num);
 
         void clear();
 
@@ -61,44 +53,20 @@ namespace manapi {
 
         void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        std::size_t size() const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::size_t tasks_size() const MANAPIHTTP_NOEXCEPT override;
     private:
-        // the function that the thread runs. Execute run() function
-        static void *worker(void *arg, ssize_t index);
-
-        void run(ssize_t index);
-
-        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::fixed_function<void()> *cb2);
-        
-        // this vector contains all m_threads for this thread pool
-        std::vector <std::thread> m_threads;
-
-        std::mutex m_m;
-
-        std::condition_variable m_cv;
-
-        tasks_by_thread_t m_tasks_by_thread;
-
-        // this vector of queue which contains m_tasks
-        std::vector <std::move_only_function<void()>> m_tasks;
-
-        std::vector <manapi::fixed_function<void()>> m_tasks2;
-
-        // queue mutex
-        mutable std::mutex m_queue_mutex;
-
-        std::atomic<int> m_flags;
-
-        ssize_t m_threadnum;
+        std::unique_ptr<data_t> m_data;
     };
 
     class ethreadpool : public threadpool {
     public:
+        struct data_t;
+
         ethreadpool (std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask);
 
-        ~ethreadpool () override;
+        ~ethreadpool ();
 
         MANAPIHTTP_NODISCARD std::size_t tasks_size() const MANAPIHTTP_NOEXCEPT override;
 
@@ -117,13 +85,9 @@ namespace manapi {
         void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
+
+        const std::shared_ptr<manapi::logger> &logger() MANAPIHTTP_NOEXCEPT;
     private:
-        int m_flags;
-
-        std::vector <std::move_only_function<void()>> m_tasks;
-
-        std::vector <manapi::fixed_function<void()>> m_tasks2;
-
-        std::move_only_function<void()> m_ontask;
+        std::unique_ptr<data_t> m_data;
     };
 }

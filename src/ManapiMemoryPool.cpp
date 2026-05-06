@@ -31,13 +31,13 @@ enum buffer_level {
 constexpr int area_size = 4096;
 
 struct manapi::internal::object_pool_data_t {
-    manapi::chain<std::pair<void*, int>> buffers[BUFF_LEVEL_MAX + 1];
+    manapi::chain<std::pair<void*, std::size_t>> buffers[BUFF_LEVEL_MAX + 1];
     std::size_t used;
     std::size_t locked;
     std::size_t cnt;
 };
 
-int bufflen2level (int len) {
+static int bufflen2level (std::size_t len) {
     if (len <= 16) {
         return BUFF_LEVEL_16;
     }
@@ -66,7 +66,7 @@ int bufflen2level (int len) {
     return BUFF_LEVEL_MAX;
 }
 
-int level2bufflen (int lvl) {
+static std::size_t level2bufflen (int lvl) {
     switch (lvl) {
         case BUFF_LEVEL_16: return 16;
         case BUFF_LEVEL_36: return 36;
@@ -139,12 +139,12 @@ manapi::object_pool::object_pool() {
 manapi::object_pool::~object_pool() = default;
 
 int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
-    auto const lvl = bufflen2level(static_cast<int>(suggested));
+    auto const lvl = bufflen2level(suggested);
     auto size = level2bufflen(lvl);
     data->cnt ++;
 
     if (size < suggested) {
-        size = static_cast<int>(suggested);
+        size = suggested;
         auto m = new (std::nothrow) char[size];
         if (!m)
             return manapi::ERR_RESOURCE_EXHAUSTED;
@@ -219,7 +219,7 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         cur->buff.len = buffsize;
     }
 
-    uint32_t rshift = 0;
+    std::size_t rshift = 0;
 
     if (left) {
         if (cur) {
@@ -248,26 +248,26 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         cnt ++;
     }
 
-    auto b = manapi::slice(std::move(buffs), cnt, rshift);
+    auto b = manapi::slice(std::move(buffs), static_cast<uint32_t>(cnt), rshift);
     assert(b.size() == suggested);
     return std::move(b);
 }
 
-manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t min, uint32_t max) {
+manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t min, std::size_t max) {
     return this->buffer(max);
 }
 
-manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t suggested) {
+manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t suggested) {
     void *buffer{nullptr};
     std::size_t size;
     if (object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
         delete []static_cast<char*>(buffer);
         return status_resource_exhausted();
     }
-    return this->buffer(buffer, static_cast<uint32_t>(size));
+    return this->buffer(buffer, (size));
 }
 
-manapi::bytebuffer manapi::object_pool::buffer(void *pointer, uint32_t suggested) {
+manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {
     return {pointer, suggested, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL};
 }
 
@@ -279,7 +279,7 @@ void * manapi::object_pool::alloc(std::size_t size) MANAPIHTTP_NOEXCEPT {
         delete []static_cast<char*>(buffer);
         return nullptr;
     }
-    auto const lvl = bufflen2level(rhs);
+    auto const lvl = static_cast<char>(bufflen2level(rhs));
     *static_cast<char*>(buffer) = lvl;
     return static_cast<char*>(buffer) + 1;
 }

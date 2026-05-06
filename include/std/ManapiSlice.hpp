@@ -111,7 +111,7 @@ namespace manapi {
 
         slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
 
-        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, uint32_t rshift);
+        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, std::size_t rshift);
 
         slice_base (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
@@ -179,7 +179,7 @@ namespace manapi {
 
         std::size_t size_;
 
-        uint32_t shift_;
+        std::size_t shift_;
         /**
          * !!! rshift only for slice_view !!!
          *
@@ -187,7 +187,7 @@ namespace manapi {
          * split the slice and will return the cut part
          * to the memory fabric
          */
-        uint32_t rshift_;
+        std::size_t rshift_;
         slice_part_t *first;
         slice_part_t *last;
         uint32_t count;
@@ -201,7 +201,7 @@ namespace manapi {
 
         slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
 
-        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,  uint32_t nbuff, uint32_t rshift);
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,  uint32_t nbuff, std::size_t rshift);
 
         slice (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
@@ -240,7 +240,7 @@ namespace manapi {
          * @param size buffer size
          * @return Ok if success, otherwise, ResourceExhausted
          */
-        manapi::status push_back (const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status push_back (const void *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
         void clear () MANAPIHTTP_NOEXCEPT;
 

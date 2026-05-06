@@ -42,7 +42,7 @@ namespace manapi::net {
 
         manapi::future<manapi::status> callback_async (std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb);
 
-        manapi::future<manapi::status> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb);
+        manapi::future<manapi::status> callback_sync (std::function<ssize_t(char *buffer, std::size_t size)> cb);
 
         manapi::future<manapi::status_or<std::string>> text ();
 

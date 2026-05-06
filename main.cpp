@@ -143,18 +143,18 @@ int main () {
 
     manapi::init_tools::log_trace_init((manapi::debug::trace_level)logtrace);
 
-    int threads = 4;
-    try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
+    std::size_t threads = 4;
+    try { threads = (std::size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs(manapi::async::context::blockedsignals());
 
-    int loops = 0;
-    try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
+    std::size_t loops = 0;
+    try { loops = (std::size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
     catch (...) {  }
 
-    auto ctx = manapi::async::context::create(loops + 1).unwrap();
+    auto ctx = manapi::async::context::create((uint32_t)loops + 1).unwrap();
 
     std::atomic<int> a = 0;
     std::atomic<int> thrcnt = 0;
@@ -277,7 +277,7 @@ int main () {
         }).unwrap();
 
         router->GET("/timeout/[sec]", [] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            auto tmsec = std::atoi(req.param("sec").unwrap().data());
+            auto tmsec = (std::size_t)std::atoi(req.param("sec").unwrap().data());
             co_await manapi::async::delay (tmsec * 1000, req.cancellation().sub());
             co_return resp.text(std::format("Wait {} seconds", tmsec)).unwrap();
         }).unwrap();

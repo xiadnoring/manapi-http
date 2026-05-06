@@ -15,6 +15,8 @@
 namespace manapi {
     class threadpool;
 
+    class mthreadpool;
+
     class event_loop;
 
     class timerpool;
@@ -35,7 +37,7 @@ namespace manapi::async {
 
     const std::shared_ptr<threadpool> &etaskpool () MANAPIHTTP_NOEXCEPT;
 
-    const std::shared_ptr<threadpool> &mtaskpool () MANAPIHTTP_NOEXCEPT;
+    const std::shared_ptr<mthreadpool> &mtaskpool () MANAPIHTTP_NOEXCEPT;
 
     const std::shared_ptr<logger> &log () MANAPIHTTP_NOEXCEPT;
 

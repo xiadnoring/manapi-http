@@ -27,11 +27,11 @@ namespace manapi {
 
         bool operator==(const std::nullptr_t &) const;
 
-        bytebuffer (void *src, uint32_t size);
+        bytebuffer (void *src, std::size_t size);
 
-        bytebuffer (void *src, uint32_t size, char flags);
+        bytebuffer (void *src, std::size_t size, uint8_t flags);
 
-        static manapi::status_or<bytebuffer> create (uint32_t size);
+        static manapi::status_or<bytebuffer> create (std::size_t size);
 
         ~bytebuffer ();
 
@@ -56,15 +56,15 @@ namespace manapi {
         template<typename T>
         T*as() { return reinterpret_cast<T *> (this->src) + this->shift_; }
 
-        MANAPIHTTP_NODISCARD uint32_t size () const;
+        MANAPIHTTP_NODISCARD std::size_t size () const;
 
-        MANAPIHTTP_NODISCARD uint32_t realsize () const;
+        MANAPIHTTP_NODISCARD std::size_t realsize () const;
 
-        manapi::status realresize (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status realresize (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::status resize (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status resize (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::status resize_max (uint32_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status resize_max (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
         void remove_shift () MANAPIHTTP_NOEXCEPT;
 
@@ -74,11 +74,11 @@ namespace manapi {
 
         void *release ();
 
-        MANAPIHTTP_NODISCARD uint32_t shift () const;
+        MANAPIHTTP_NODISCARD std::size_t shift () const;
 
-        void shift (uint32_t n);
+        void shift (std::size_t n);
 
-        void shift_add (uint32_t n);
+        void shift_add (std::size_t n);
 
         uint8_t flags ();
 

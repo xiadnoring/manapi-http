@@ -60,34 +60,34 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
 
     router->GET("/noise", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
-        ssize_t len = 10737418240 / 2;
+        std::size_t len = 10737418240 / 2;
 
         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, std::to_string(len));
-            co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
+            co_return resp.callback_sync([current = static_cast<std::size_t>(0), len] (char *buffer, std::size_t size, bool &flg) mutable
                     -> ssize_t {
                 size = std::min(size, len - current);
                 memset(buffer, '\0', size);
                 len -= size;
                 if (!len)
                     flg = true;
-                return size;
+                return (ssize_t)size;
             }).unwrap();
     });
 
     router->GET("/noise/[size]", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         char *end;
-        ssize_t len = std::strtoll(req.param("size").unwrap().data(), &end, 10);
+        std::size_t len = (std::size_t)std::strtoll(req.param("size").unwrap().data(), &end, 10);
 
         resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, std::to_string(len));
-        co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
+        co_return resp.callback_sync([current = (std::size_t)0, len] (char *buffer, std::size_t size, bool &flg) mutable
                     -> ssize_t {
                 size = std::min(size, len - current);
                 memset(buffer, '\0', size);
                 len -= size;
                 if (!len)
                     flg = true;
-                return size;
+                return (ssize_t)size;
             }).unwrap();
     });
 
@@ -106,16 +106,16 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             ssize_t result = 0;
             auto c = std::chrono::steady_clock::now();
             try {
-                (co_await req.callback_sync([&c, &result, &cb] (const char *buffer, ssize_t size, bool fin)
+                (co_await req.callback_sync([&c, &result, &cb] (const char *buffer, std::size_t size, bool fin)
                     -> ssize_t {
-                    result += size;
+                    result += (ssize_t)(size);
                     if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
                         auto a = std::format("{}\n", (double)result / 1024 / 1024);
                         result = 0;
                         c = std::chrono::steady_clock::now();
                         std::cout << a << "\n";
                     }
-                    return size;
+                    return static_cast<ssize_t>(size);
                 })).unwrap();
             }
             catch (std::exception const &e) {
@@ -159,8 +159,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                 //sum += size;
                 //std::cout << sum << " " << size << " " << fin << "\n";
                 auto result = co_await cb (buffs, fin);
-                sss+=result;
-                fs.seekg(fs.tellg() - buffs2.size() + result);
+                sss+=(std::size_t)result;
+                fs.seekg((ssize_t)fs.tellg() - (ssize_t)buffs2.size() + (ssize_t)result);
                 co_return result;
             })).unwrap();
             std::cout << sss << "\n";
@@ -170,7 +170,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
     router->POST ("/uploadasynctest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-            ssize_t result = 0;
+            std::size_t result = 0;
             auto c = std::chrono::steady_clock::now();
             try {
                 (co_await req.callback_async([&c, &result, &cb] (manapi::slice_view buffs, bool fin)
@@ -182,7 +182,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                         c = std::chrono::steady_clock::now();
                         std::cout << a << " " << buffs.size() << "\n";
                     }
-                    co_return buffs.size();
+                    co_return (ssize_t)buffs.size();
                 })).unwrap();
             }
             catch (std::exception const &e) {
@@ -206,7 +206,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                 if (fin) {
                     std::cout << "FINSH\n";
                 }
-                hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
+                hash.update(reinterpret_cast<const uint8_t *>(buffer), (std::size_t)size);
                 result += size;
                 return size;
             })).unwrap();
@@ -237,8 +237,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                 return [&hash, &result] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                     for (auto it = buffs.begin(); it != buffs.end(); it++)
                         hash.update((uint8_t*)it.buffer(), it.size());
-                    result += buffs.size();
-                    co_return buffs.size();
+                    result += (ssize_t)buffs.size();
+                    co_return(ssize_t) buffs.size();
                 };
             })).unwrap();
         }
@@ -264,14 +264,14 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         try {
             (co_await req.form([&result, &c] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
                 return [&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-                    result += buffs.size();
+                    result += (ssize_t)buffs.size();
                     if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
                         auto a = std::format("{}\n", (double)result / 1024 / 1024);
                         result = 0;
                         c = std::chrono::steady_clock::now();
                         std::cout << a << "\n";
                     }
-                    co_return buffs.size();
+                    co_return (ssize_t)buffs.size();
                 };
             })).unwrap();
         }
@@ -348,7 +348,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
 
         (co_await response->callback_sync([&] (char *buff, ssize_t size) -> ssize_t {
             res += size;
-            sha256.update((uint8_t *)buff, size);
+            sha256.update((uint8_t *)buff, (std::size_t)size);
             return size;
         })).unwrap();
 
@@ -378,10 +378,10 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         auto response = f.unwrap();
 
         (co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-            res += buffs.size();
+            res += (ssize_t)buffs.size();
             for (auto it = buffs.begin(); it != buffs.end(); it++)
                 sha256.update((uint8_t *)it.buffer(), it.size());
-            co_return buffs.size();
+            co_return (ssize_t)buffs.size();
         })).unwrap();
 
         std::string b;
@@ -406,8 +406,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         auto response = f.unwrap();
         ssize_t res = 0;
         co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-            res += buffs.size();
-            co_return buffs.size();
+            res += (ssize_t)buffs.size();
+            co_return (ssize_t)buffs.size();
         });
         co_return resp.text(std::to_string(res)).unwrap();
     });
@@ -437,7 +437,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             auto token = manapi::process::get_env("MANAPIHTTP_AI").unwrap();
 
             auto cancellation = req.cancellation().sub();
-        cancellation.timeout(timeout);
+        cancellation.timeout((std::size_t)timeout).unwrap();
 
             auto response = (co_await manapi::net::fetch2::fetch(ip, {
                 {"method", "POST"},

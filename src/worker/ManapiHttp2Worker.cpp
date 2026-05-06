@@ -34,7 +34,7 @@ void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) 
     prepared::waiting(conn, state);
 }
 
-void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
@@ -127,10 +127,10 @@ void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
-    return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
+    return sync_write_ex (conn, buff, nbuff, 0 /* no need */, finish, this->w->config()->max_buffer_stack);
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v2_write(conn, buff, nbuff, finish);
 }
 

@@ -21,8 +21,8 @@ namespace manapi::net {
             int current;
             int next;
 
-            int n1;
-            int n2;
+            uint32_t n1;
+            uint32_t n2;
 
             std::string boundary;
 
@@ -86,9 +86,9 @@ namespace manapi::net {
 
         MANAPIHTTP_NODISCARD bool contains (std::string_view name) const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<ssize_t>> payload_size () const;
+        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<std::size_t>> payload_size () const;
 
-        MANAPIHTTP_NODISCARD manapi::status_or<ssize_t> multipart_size (ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<std::size_t> multipart_size (std::size_t boundary_size) const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::string generate_boundary () const;
 

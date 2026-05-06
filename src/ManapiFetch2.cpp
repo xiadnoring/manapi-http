@@ -75,7 +75,7 @@ static manapi::status fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchd
 
         it = params.as_object().find("timeout");
         if (it != params.as_object().end()) {
-            res = fetchdata->data->timeout(it->second.as_integer_cast());
+            res = fetchdata->data->timeout(static_cast<std::size_t>(it->second.as_integer_cast()));
             if (!res)
                 goto err;
         }
@@ -118,8 +118,8 @@ static manapi::status fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchd
         }
 
 
-        res = fetchdata->data->handle_body(+[] (char *buffer, ssize_t size)
-            -> ssize_t { return size; });
+        res = fetchdata->data->handle_body(+[] (char *buffer, std::size_t size)
+            -> ssize_t { return static_cast<ssize_t>(size); });
 
         if (!res)
             goto err;
@@ -351,7 +351,7 @@ manapi::future<manapi::status> manapi::net::fetch2::callback_async(std::function
     co_return co_await fetch2_continue_receiving(this->shared_from_this(), scope_ptr(this->fetchdata.get(), false));
 }
 
-manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, ssize_t size)> cb) {
+manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, std::size_t size)> cb) {
     if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
         co_return status_resource_exhausted("null");
 
@@ -370,10 +370,10 @@ manapi::future<manapi::status_or<std::string>> manapi::net::fetch2::text() {
     try {
         std::string data;
 
-        auto res = co_await this->callback_sync ([&data] (char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT -> ssize_t {
+        auto res = co_await this->callback_sync ([&data] (char *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT -> ssize_t {
             try {
-                data.append(buffer, size);
-                return size;
+                data.append(buffer, (size));
+                return static_cast<ssize_t>(size);
             }
             catch (std::exception const &) {
                 return -1;
@@ -394,11 +394,11 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::fetch2:
     try {
         manapi::json_builder builder;
 
-        auto res =co_await this->callback_sync([&builder] (char *buffer, ssize_t size) -> ssize_t {
-            auto res = builder.parse(std::string_view(buffer, size));
+        auto res =co_await this->callback_sync([&builder] (char *buffer, std::size_t size) -> ssize_t { assert(size >= 0);
+            auto res = builder.parse(std::string_view(buffer, (size)));
             if (!res)
                 return -1;
-            return size;
+            return static_cast<ssize_t>(size);
         });
 
         if (!res)

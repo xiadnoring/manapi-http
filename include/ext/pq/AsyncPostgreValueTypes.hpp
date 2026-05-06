@@ -15,7 +15,7 @@ namespace manapi::ext::pq {
 
     inline void _reverse_seq (std::string_view ctx) {
         auto s = ctx.size() - 1;
-        for (int i = 0; i < ctx.size() / 2; i++) {
+        for (std::size_t i = 0; i < ctx.size() / 2; i++) {
             std::swap((char&)(ctx[i]), (char&)(ctx[s-i]));
         }
     }

@@ -353,7 +353,7 @@ namespace manapi::ext::pq {
     MANAPIHTTP_NODISCARD inline const char *serialize_param (const T v, int len, std::string_view &buffer) {
         pq::to_string<T>(buffer, v);
         const char *start = buffer.data();
-        buffer = buffer.substr(len);
+        buffer = buffer.substr(static_cast<std::size_t>(len));
         return start;
     }
 
@@ -375,14 +375,14 @@ namespace manapi::ext::pq {
 
                     for (auto &len: lengths)
                     {
-                        size += len;
+                        size += static_cast<std::size_t>(len);
                     }
 
                     buffer.clear();
                     buffer.resize(size);
 
                     std::string_view window {buffer.begin(), buffer.end()};
-                    int index = 0;
+                    size_t index = 0;
 
                     return serialize_result_type<Args...> {
                         .types = { (oid_of(args))... },

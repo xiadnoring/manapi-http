@@ -22,9 +22,9 @@ namespace manapi::compress {
 
 #ifdef MANAPIHTTP_BROTLI_DEPENDENCY
     manapi::status_or<std::string> brotli_decompress_string (std::string_view src);
-    manapi::status_or<std::string> brotli_compress_string (std::string_view src, int quality, int window, int mode);
+    manapi::status_or<std::string> brotli_compress_string (std::string_view src, uint32_t quality, uint32_t window, uint32_t mode);
 
-    future<manapi::status> brotli_compress_file (std::string src, std::string dest, int quality, int window, int mode, manapi::ctoken cancellation = nullptr);
+    future<manapi::status> brotli_compress_file (std::string src, std::string dest, uint32_t quality, uint32_t window, uint32_t mode, manapi::ctoken cancellation = nullptr);
     future<manapi::status> brotli_decompress_file (std::string src, std::string dest, manapi::ctoken cancellation = nullptr);
 #endif
 

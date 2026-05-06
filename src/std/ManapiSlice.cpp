@@ -44,7 +44,7 @@ manapi::slice_base::slice_base(std::unique_ptr<slice_part_t, slice_part_deleter>
 }
 
 manapi::slice_base::slice_base(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff,
-    uint32_t rshift) {
+    std::size_t rshift) {
     this->last = nullptr;
     this->rshift_ = rshift;
     this->size_ = summary_size_buffs(buffs, &this->last);
@@ -385,9 +385,10 @@ manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t p
     if (this->last->next == scurrent)
         return status_out_of_range("pos and size too large");
 
-    ssize_t rshift;
+    std::size_t rshift;
 
     if (size) {
+        assert(scurrent->buff.len >= size);
         rshift = scurrent->buff.len - size;
         cnt++;
     }
@@ -395,7 +396,7 @@ manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t p
         rshift = 0;
     }
 
-    return manapi::slice_base{current, scurrent, cnt, pos, static_cast<std::size_t>(rshift), tmp_size};
+    return manapi::slice_base{current, scurrent, cnt, pos, rshift, tmp_size};
 }
 
 manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos) const MANAPIHTTP_NOEXCEPT {
@@ -746,7 +747,7 @@ manapi::slice::slice(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, ui
     : slice_base(std::move(buffs), nbuff){
 }
 
-manapi::slice::slice(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, uint32_t rshift)
+manapi::slice::slice(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, std::size_t rshift)
     : slice_base(std::move(buffs), nbuff, rshift){
 }
 
@@ -902,11 +903,11 @@ manapi::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
                     i += rhs;
                 }
 
-                uint32_t s_shift_used = 0;
+                std::size_t s_shift_used = 0;
 
                 if (i != datasize) {
                     assert(s.first->buff.len >= s.shift_);
-                    s_shift_used = std::min<uint32_t>(s.shift_, datasize - i);
+                    s_shift_used = std::min<std::size_t>(s.shift_, datasize - i);
                     memcpy (s.first->buff.base + s.first->buff.len - s_shift_used,
                         data + i, s_shift_used);
 
@@ -936,13 +937,13 @@ manapi::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
     return status_ok();
 }
 
-manapi::status manapi::slice::push_back(const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::slice::push_back(const void *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT {
     try {
         if (!size)
             return status_ok();
 
         if (this->rshift_) {
-            auto const copy = static_cast<uint32_t>(std::min<ssize_t>(size, this->rshift_));
+            auto const copy = std::min<std::size_t>(size, this->rshift_);
             memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);
 
             this->rshift_ -= copy;

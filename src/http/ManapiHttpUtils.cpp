@@ -486,7 +486,7 @@ manapi::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy
     auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
 
     std::string buffer;
-    int size;
+    uint32_t size;
 
     if (sn->sin_family == manapi::ev::IPv4) {
         size = sizeof ("xxx:xxx:xxx:xxx");
@@ -495,11 +495,12 @@ manapi::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy
         if (!inet_ntop(AF_INET, &sn->sin_addr, buffer.data(), size))
             return status_invalid_argument("ip: inet_ntop() returned null");
 
-        while (--size >= 0 && buffer[size] == '\0') {
+        while (size > 0 && buffer[size - 1] == '\0') {
             /* skip null bytes */
+            size--;
         }
 
-        buffer.resize(size + 1);
+        buffer.resize(size);
 
         uint16_t const port = (reinterpret_cast<const sockaddr_in *> (&addr)->sin_port);
         return std::make_pair(std::move(buffer), port);
@@ -512,11 +513,12 @@ manapi::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy
         if (!inet_ntop(AF_INET6, &reinterpret_cast<const sockaddr_in6 *>(addr)->sin6_addr, buffer.data(), size))
             return status_invalid_argument("ip: inet_ntop() returned null");
 
-        while (--size >= 0 && buffer[size] == '\0') {
+        while (size > 0 && buffer[size - 1] == '\0') {
             /* skip null bytes */
+            size--;
         }
 
-        buffer.resize(size + 1);
+        buffer.resize(size);
 
         uint16_t const port = (reinterpret_cast<const sockaddr_in6 *> (&addr)->sin6_port);
         return std::make_pair(std::move(buffer), port);

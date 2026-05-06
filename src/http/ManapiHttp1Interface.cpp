@@ -54,7 +54,7 @@ static int default_wrk_http_all_version (const manapi::net::worker::shared_conn 
     return 0;
 }
 
-static int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+static int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     HTTP_ALL_SWITCH (accept_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
@@ -76,7 +76,7 @@ static int default_wrk_http_all_cleanup (manapi::net::worker::connection * conn,
     HTTP_ALL_SWITCH (cleanup_cb, conn, httpctx, w);
 }
 
-static void default_wrk_http_all_custom_read(const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+static void default_wrk_http_all_custom_read(const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     HTTP_ALL_SWITCH (custom_read_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
@@ -134,7 +134,7 @@ static uint64_t default_wrk_http_all_global_flags (const manapi::net::worker::sh
         case manapi::net::http::versions::HTTP_v3:
             return data->http3->flags;
         default:
-            return -1;
+            return 0;
     }
 }
 
@@ -213,7 +213,7 @@ manapi::status manapi::net::worker::default_wrk_http_all_global_add_version(wrk_
     return status_ok();
 }
 
-static void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+static void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *> (conn->wrk.data);
 
     if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
@@ -274,7 +274,7 @@ static int default_wrk_http1_global_cleanup (manapi::net::worker::wrk_interface_
     return manapi::ERR_OK;
 }
 
-static int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+static int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     int status = manapi::net::http::BAD_REQUEST_400;
 
@@ -462,7 +462,7 @@ exec:
 
                 for (auto &value : trailers_header) {
                     for (auto &c : value.value)
-                        c = std::tolower(static_cast<int>(c));
+                        c = static_cast<char> (std::tolower(c));
 
                     if (!wrk_data->req.handler->trailers.contains(value.value)) {
                         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer not allowed");
@@ -507,7 +507,7 @@ exec:
 
     send_error: {
         try {
-            auto msg = manapi::net::http::status_to_string(status);
+            auto msg = manapi::net::http::status_to_string(static_cast<uint16_t>(status));
             if (msg.ok()) {
                 auto status_message = msg.unwrap();
                 auto const s = manapi::net::http::internal::generate_default_page (status, status_message);

@@ -231,16 +231,16 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
             // get file size
             auto stat_res = co_await manapi::fs::async_file_size(filepath);
-            ssize_t fileSize = stat_res.unwrap();
+            ssize_t fileSize = static_cast<ssize_t>(stat_res.unwrap());
             ssize_t dynamicFileSize = fileSize;
 
             // replacers
             if (features.replacers) {
                 if (fileSize <= 65536) {
                     auto token = res->req()->cancellation().sub();
-                    token.timeout(5000);
+                    token.timeout(5000).unwrap();
                     auto data = co_await manapi::fs::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
-                    res->text(data.unwrap());
+                    res->text(data.unwrap()).unwrap();
                     manapi::async::run(send_response_text(std::move(res), std::move(features)));
                     co_return;
                 }
@@ -307,7 +307,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                             f.seekg(start);
                             // set size and send
                             if (size) {
-                                manapi::async::run (send_file(std::move(res), f, size));
+                                manapi::async::run (send_file(std::move(res), f, static_cast<std::size_t>(size)));
                             }
                         }
                 });
@@ -327,10 +327,10 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                             if (value && *value == ERR_OK) {
                                 if (replacers.empty()) {
                                     // without replacers
-                                    manapi::async::run( send_file(std::move(res), f, fileSize));
+                                    manapi::async::run( send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
                                 }
                                 else {
-                                    manapi::async::run(send_file(std::move(res), f, fileSize));
+                                    manapi::async::run(send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
                                 }
                             }
                     });
@@ -557,7 +557,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
 
                 if (result && *result == ERR_OK) {
                     auto boundary = formdata->generate_boundary();
-                    size += formdata->multipart_size(static_cast<ssize_t>(boundary.size())).unwrap();
+                    size += formdata->multipart_size(boundary.size()).unwrap();
 
                     res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size));
                     res->header(std::string{H_CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
@@ -625,7 +625,7 @@ manapi::future<manapi::status> send_http_v1_1_chunked_data (manapi::net::http::i
                 co_return manapi::status_internal("send_http_v1_1_chunked_data:to_chars failed");
             }
 
-            auto len = static_cast<ssize_t>(res.ptr - header);
+            auto len = static_cast<std::size_t>(res.ptr - header);
 
             if (len + 2 > sizeof (header) - 1)
                 /* TODO: think */
@@ -646,7 +646,7 @@ manapi::future<manapi::status> send_http_v1_1_chunked_data (manapi::net::http::i
 
         if (finish) {
             if (co_await cdata->worker->fwrite(cdata->conn, msg.data(),
-                    static_cast<ssize_t>(msg.size()), true) <= 0)
+                    (msg.size()), true) <= 0)
                 goto err;
         }
         co_return manapi::status_ok();
@@ -707,10 +707,14 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
                                     std::max<std::size_t>(res->config()->buffer_size, 64L));
                                 auto buffer = bufres.unwrap();
                                 while (!finish) {
-                                    auto rhs = cb_sync(buffer.data(), buffer.size(), finish);
+                                    auto rhs = cb_sync(buffer.data(), (buffer.size()), finish);
+                                    if (rhs < 0) {
+                                        manapi_log_trace("send_response_sync_cb():The callback returned an invalid length");
+                                        co_return;
+                                    }
                                     slice_ref buffs;
                                     if (rhs)
-                                        buffs.push_back(buffer.data(), rhs);
+                                        buffs.push_back(buffer.data(), static_cast<std::size_t>(rhs));
                                     auto chunk_err = co_await send_http_v1_1_chunked_data(cdata, buffs, finish);
                                     if (!chunk_err) {
                                         manapi_log_trace("%s failed due to %.*s", "send_response_sync_cb()",
@@ -722,17 +726,17 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
                             else {
                                 auto slices = cdata->worker->bufferpool().slice(4096 * 16).unwrap();
                                 while (!finish) {
-                                    ssize_t total = 0;
+                                    std::size_t total = 0;
                                     for (auto it = slices.begin(); it != slices.end() && !finish; ) {
                                         auto rhs = cb_sync(static_cast<char *>(it.buffer()) + cursor,
-                                            it.size() - cursor, finish);
+                                            (it.size() - cursor), finish);
 
                                         if (rhs < 0) {
                                             manapi_log_trace("send_response_sync_cb():The callback returned an invalid length");
                                             co_return;
                                         }
 
-                                        cursor += rhs;
+                                        cursor += static_cast<std::size_t>(rhs);
 
                                         if (cursor == it.size()) {
                                             total += cursor;
@@ -816,7 +820,7 @@ void manapi::net::http::internal::send_response_stream_cb(std::unique_ptr<respon
                                             chunk_err.msg().size(), chunk_err.msg().data());
                                         co_return -1;
                                     }
-                                    co_return buffs.size();
+                                    co_return static_cast<ssize_t>(buffs.size());
                                 });
                             }
                             else {
@@ -886,7 +890,11 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
                             if (http_v1_1_is_chunked_data(res.get())) {
                                 while (!finish) {
                                     auto const rhs = co_await cb_async(buffer, finish);
-                                    auto res = buffer.subslice(0, rhs);
+                                    if (rhs < 0) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s", "send_response_async_cb()", "cb returned an invalid length");
+                                        co_return;
+                                    }
+                                    auto res = buffer.subslice(0, static_cast<std::size_t>(rhs));
                                     res.unwrap();
                                     auto chunk_err = co_await send_http_v1_1_chunked_data(cdata, res.unwrap(), finish);
                                     if (!chunk_err) {
@@ -905,7 +913,7 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
                                         co_return;
                                     }
 
-                                    auto res = buffer.subslice(0, rhs);
+                                    auto res = buffer.subslice(0, static_cast<std::size_t>(rhs));
                                     res.unwrap();
 
                                     rhs = co_await cdata->worker->fwrite(cdata->conn,
@@ -914,7 +922,7 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
                                     if (rhs <= 0)
                                         co_return;
 
-                                    cursor += rhs;
+                                    cursor += static_cast<std::size_t>(rhs);
 
                                     if (cursor == buffer.size())
                                         cursor = 0;
@@ -1004,7 +1012,7 @@ namespace manapi::net::http::internal {
         send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
         return;
     }
-    static void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, int index) {
+    static void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, uint32_t index) {
         auto const cdata_ptr = res->connection_data();
         auto const res_ptr = res.get();
 
@@ -1058,8 +1066,8 @@ namespace manapi::net::http::internal {
                     std::string path;
 
 
-                    auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
-                        ? cdata->req_data->divided : cdata->req_data->path.size());
+                    auto maxsize = cdata->req_data->divided >= 0
+                        ? static_cast<std::size_t>(cdata->req_data->divided) : cdata->req_data->path.size();
 
                     size_t path_reserved = 0;
 
@@ -1219,8 +1227,8 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
     handle_income_request_(std::move(cdata), status);
 }
 
-manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, fs::fstream f, ssize_t size) {
-    ssize_t const block_size = 4096 * 16;
+manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, fs::fstream f, std::size_t size) {
+    std::size_t const block_size = 4096 * 16;
     auto const cdata = res->connection_data();
 
     //bool check_conn = false;
@@ -1228,7 +1236,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
     auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
 
-    ssize_t current = f.tellg();
+    std::size_t current = static_cast<std::size_t>(f.tellg());
 
     size += current;
 
@@ -1249,7 +1257,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     try {
         while (size > current) {
             /* add count of the chars which will be sent at this iterration */
-            current += rhs;
+            current += static_cast<std::size_t>(rhs);
             bool readsome = size > current;
             if (readsome) {
                 auto status = parallel.run(f.read(read_block.subslice(0,
@@ -1261,7 +1269,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
                 }
             }
 
-            auto sv = write_block.subslice(0, rhs).unwrap();
+            auto sv = write_block.subslice(0, static_cast<std::size_t>(rhs)).unwrap();
 
             assert(sv.size() == rhs);
             if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0) {
@@ -1278,7 +1286,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
             //     }
             // }
 
-            if ((rhs = co_await parallel.get_or(0)) <= 0) {
+            if ((rhs = co_await parallel.get_or(0L)) <= 0) {
                 break;
             }
 
@@ -1294,14 +1302,14 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
     err:
     if (parallel.some()) {
-        co_await parallel.get_or(0);
+        co_await parallel.get_or(0L);
     }
     co_return;
 }
 
 manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<response> res, std::string text) {
     const char *current = text.data();
-    auto sent = static_cast<ssize_t>(text.size());
+    auto sent = text.size();
     auto cdata = res->connection_data();
 
     while (sent != 0) {
@@ -1319,7 +1327,7 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
             co_return;
         }
 
-        sent -= result;
+        sent -= static_cast<std::size_t>(result);
 
         current = current + result;
     }

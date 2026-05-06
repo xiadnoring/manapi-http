@@ -43,7 +43,7 @@ namespace manapi::net::http::internal {
     void handle_income_request (uq_handle_data_t cdata,int status);
     void send_error_response (uq_handle_data_t cdata, int status = http::INTERNAL_SERVER_ERROR_500);
     //future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers);
-    future<void> send_file(std::unique_ptr<response> res, fs::fstream f, ssize_t size);
+    future<void> send_file(std::unique_ptr<response> res, fs::fstream f, std::size_t size);
     future<void> send_text(std::unique_ptr<response> res, std::string text);
     void expect_header (uq_handle_data_t cdata);
 

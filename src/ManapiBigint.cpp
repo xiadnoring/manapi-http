@@ -95,22 +95,22 @@ void manapi::bigint::parse(long double num) {
 
 std::string manapi::bigint::stringify() const {
     mp_exp_t exponent;
-    char *ptr       = mpf_get_str (nullptr, &exponent, 10, 0, this->x->m);
-    std::string ret = ptr;
+    char buf[4096];
+    mpf_get_str (buf, &exponent, 10, sizeof (buf) - 2, this->x->m);
+    std::string ret(buf);
 
     if (!ret.empty()) {
         if (ret[0] == '-')
             exponent++;
 
         if (ret.size() > exponent)
-            ret.insert(exponent, exponent == 0 ? "0." : ".");
+            ret.insert(static_cast<std::size_t>(exponent), exponent == 0 ? "0." : ".");
 
         else {
-            for (size_t i = ret.size(); i < exponent; i++)
-                ret += '0';
+            ret.append(static_cast<std::size_t>(exponent) - ret.size(), '0');
         }
 
-        return ret;
+        return std::move(ret);
     }
 
     return "0";
@@ -133,14 +133,19 @@ manapi::bigint manapi::bigint::operator+(const manapi::bigint &oth) const {
 }
 
 manapi::bigint manapi::bigint::operator+(ssize_t oth) const {
-    bigint n (*this);
+    bigint n(*this);
 
-    if (oth > 0) {
-        mpf_add_ui (n.x->m, n.x->m, oth);
-    }
-    else {
-        mpf_sub_ui (n.x->m, n.x->m, -oth);
-    }
+    mpz_t temp_z;
+    mpz_init_set_si(temp_z, oth);
+
+    mpf_t temp_f;
+    mpf_init(temp_f);
+    mpf_set_z(temp_f, temp_z);
+
+    mpf_add(n.x->m, n.x->m, temp_f);
+
+    mpf_clear(temp_f);
+    mpz_clear(temp_z);
 
     return std::move(n);
 }
@@ -178,14 +183,14 @@ manapi::bigint manapi::bigint::operator/(long double oth) const {
     return std::move(bigint(*this / bigint (oth, mpf_get_prec(this->x->m))));
 }
 
-manapi::bigint manapi::bigint::root(ssize_t oth) const {
+manapi::bigint manapi::bigint::root(uint32_t oth) const {
     bigint n;
     n.precision(mpf_get_prec(this->x->m));
     mpf_pow_ui(n.x->m, this->x->m, oth);
     return std::move(n);
 }
 
-manapi::bigint manapi::bigint::sqrt(ssize_t oth) const {
+manapi::bigint manapi::bigint::sqrt(uint32_t oth) const {
     bigint n = *this;
     mpf_sqrt_ui(n.x->m, oth);
     return std::move(n);
@@ -206,16 +211,32 @@ manapi::bigint manapi::bigint::operator-(int oth) const {
 }
 
 manapi::bigint manapi::bigint::operator-(ssize_t oth) const {
-    bigint n;
+    // bigint n;
+    //
+    // n.precision(mpf_get_prec (this->x->m));
+    //
+    // if (oth > 0) {
+    //     mpf_sub_ui (n.x->m, this->x->m, oth);
+    // }
+    // else {
+    //     mpf_add_ui (n.x->m, this->x->m, -oth);
+    // }
+    // return std::move(n);
 
-    n.precision(mpf_get_prec (this->x->m));
+    bigint n(*this);
 
-    if (oth > 0) {
-        mpf_sub_ui (n.x->m, this->x->m, oth);
-    }
-    else {
-        mpf_add_ui (n.x->m, this->x->m, -oth);
-    }
+    mpz_t temp_z;
+    mpz_init_set_si(temp_z, oth);
+
+    mpf_t temp_f;
+    mpf_init(temp_f);
+    mpf_set_z(temp_f, temp_z);
+
+    mpf_sub(n.x->m, n.x->m, temp_f);
+
+    mpf_clear(temp_f);
+    mpz_clear(temp_z);
+
     return std::move(n);
 }
 

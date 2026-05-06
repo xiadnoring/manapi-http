@@ -48,7 +48,7 @@ namespace manapi::ext::pq {
 
         manapi::future<manapi::status> connect (const char * const *keywords, const char * const *values, manapi::ctoken token = nullptr);
 
-        manapi::future<pq::status_or<pq::result>> pexec (const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, int resultFormat, manapi::ctoken token = nullptr);
+        manapi::future<pq::status_or<pq::result>> pexec (const char *command, std::size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, int resultFormat, manapi::ctoken token = nullptr);
 
         template<typename ...Args>
         manapi::future<pq::status_or<pq::result>> exec (const std::string &sql, Args &&...args) {

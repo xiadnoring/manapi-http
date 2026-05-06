@@ -47,7 +47,7 @@ manapi::future<manapi::status> manapi::net::worker::udp::init(std::size_t deep) 
 
         this->recv_buffer_dealloc_(buf);
     },
-    [this](const std::shared_ptr<ev::udp> &w, ssize_t nread, ev::buff_t *buff)
+    [this](const std::shared_ptr<ev::udp> &w, std::size_t nread, ev::buff_t *buff)
         -> void {
         this->recv_buffer_alloc_(nread, buff);
     });
@@ -75,7 +75,7 @@ manapi::future<manapi::status> manapi::net::worker::udp::init(std::size_t deep) 
     }
 
     {
-        int bind_flags = ev::UDP_REUSEADDR;
+        uint32_t bind_flags = ev::UDP_REUSEADDR;
 #if defined(__unix__) && !defined(__APPLE__)
         bind_flags |= ev::UDP_REUSEPORT;
 #endif
@@ -120,7 +120,7 @@ void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {
 
 }
 
-void manapi::net::worker::udp::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
+void manapi::net::worker::udp::recv_buffer_alloc_(std::size_t nread, ev::buff_t *buff) {
     auto bufres = this->bufferpool().buffer(1, nread);
     if (bufres.ok()) {
         auto buffer = bufres.unwrap();

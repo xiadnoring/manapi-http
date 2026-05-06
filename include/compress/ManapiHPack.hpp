@@ -133,10 +133,10 @@ namespace manapi::compress::hpack
 			uint8_t next;
 			uint8_t flags;
 			int n1;
-			uint32_t n2;
+			std::size_t n2;
 			std::string buff1;
 			std::string buff2;
-			uint32_t headers_size;
+			std::size_t headers_size;
 			uint16_t key_size;
 			uint16_t label_size;
 
@@ -153,11 +153,11 @@ namespace manapi::compress::hpack
 
 				\param max the maximum size of the dynamic table; unbounded and allowed to exceed RFC sizes
 			*/
-			decoder_t(int64_t max, uint32_t headers_size, uint16_t key_size, uint16_t label_size);
+			decoder_t(uint64_t max, uint32_t headers_size, uint16_t key_size, uint16_t label_size);
 
 			virtual ~decoder_t();
 
-			void m_dynamic_max (int64_t max);
+			void m_dynamic_max (uint64_t max);
 
 			/*!
 				\fn bool decode(const std::string&)
@@ -190,7 +190,7 @@ namespace manapi::compress::hpack
 
 				\Return The map of the decoded headers
 			 */
-			manapi::status_or<std::map< std::string, std::string >> headers(uint32_t headers_size);
+			manapi::status_or<std::map< std::string, std::string >> headers(std::size_t headers_size);
 	};
 
 
@@ -215,7 +215,7 @@ namespace manapi::compress::hpack
 
 			bool find(const header_t& h, int64_t& index);
 
-			uint64_t encode_integer(std::vector< uint8_t >& dst, uint32_t I, uint8_t N);
+			uint64_t encode_integer(std::vector< uint8_t >& dst, std::size_t I, uint8_t N);
 
 		public:
 			/*!

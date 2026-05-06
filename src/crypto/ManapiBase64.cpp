@@ -500,7 +500,7 @@ inline constexpr size_t decidx2{3};
                       std::is_same_v<output_value_type, signed char> ||
                       std::is_same_v<output_value_type, unsigned char> ||
                       std::is_same_v<output_value_type, std::byte>);
-        const size_t binarytextsize = end - begin;
+        const size_t binarytextsize = static_cast<std::size_t>(end - begin);
         const size_t encodedsize = (binarytextsize / 3 + (binarytextsize % 3 > 0))
                 << 2;
         OutputBuffer encoded(encodedsize, detail::padding_char);
@@ -571,7 +571,7 @@ inline constexpr size_t decidx2{3};
         }
 
         const size_t numPadding =
-                std::count(base64Text.rbegin(), base64Text.rbegin() + 4, '=');
+                static_cast<std::size_t>(std::count(base64Text.rbegin(), base64Text.rbegin() + 4, '='));
         if (numPadding > 2) {
             return status_invalid_argument("base64:Invalid base64 encoded data - Found more than 2 padding signs");
         }

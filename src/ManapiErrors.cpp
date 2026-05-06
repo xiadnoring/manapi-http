@@ -132,14 +132,14 @@ manapi::messages::messages() {
 }
 
 manapi::messages::~messages() {
-    if (this->m_errnum & (1<<31)) {
+    if (this->m_errnum & (1U<<31)) {
         this->m_data.m_str.~basic_string();
     }
 }
 
 manapi::messages::messages(messages &&n) MANAPIHTTP_NOEXCEPT {
     this->m_errnum = std::exchange(n.m_errnum, 0);
-    if (this->m_errnum & (1<<31)) {
+    if (this->m_errnum & (1U<<31)) {
         new (&this->m_data.m_str) std::string (std::move(n.m_data.m_str));
         n.m_data.m_str.~basic_string();
     }
@@ -151,7 +151,7 @@ manapi::messages::messages(messages &&n) MANAPIHTTP_NOEXCEPT {
 manapi::messages & manapi::messages::operator=(messages &&n) MANAPIHTTP_NOEXCEPT {
     if (this != &n) {
         this->m_errnum = std::exchange(n.m_errnum, 0);
-        if (this->m_errnum & (1<<31)) {
+        if (this->m_errnum & (1U<<31)) {
             new (&this->m_data.m_str) std::string (std::move(n.m_data.m_str));
             n.m_data.m_str.~basic_string();
         }
@@ -164,7 +164,7 @@ manapi::messages & manapi::messages::operator=(messages &&n) MANAPIHTTP_NOEXCEPT
 
 manapi::messages::messages(const messages &n) {
     this->m_errnum = n.m_errnum;
-    if (this->m_errnum & (1<<31)) {
+    if (this->m_errnum & (1U<<31)) {
         new (&this->m_data.m_str) std::string (n.m_data.m_str);
     }
     else {
@@ -175,7 +175,7 @@ manapi::messages::messages(const messages &n) {
 manapi::messages & manapi::messages::operator=(const messages &n) {
     if (this != &n) {
         this->m_errnum = n.m_errnum;
-        if (this->m_errnum & (1<<31)) {
+        if (this->m_errnum & (1U<<31)) {
             new (&this->m_data.m_str) std::string (n.m_data.m_str);
         }
         else {
@@ -186,39 +186,39 @@ manapi::messages & manapi::messages::operator=(const messages &n) {
 }
 
 void manapi::messages::errnum(manapi::err_num code) MANAPIHTTP_NOEXCEPT {
-    this->m_errnum = static_cast<uint32_t> (code)|(this->m_errnum & (1<<31));
+    this->m_errnum = static_cast<uint32_t> (code)|(this->m_errnum & (1U<<31));
 }
 
 manapi::err_num manapi::messages::errnum() const MANAPIHTTP_NOEXCEPT {
-    if (this->m_errnum & (1<<31)) return static_cast<manapi::err_num>(this->m_errnum ^ (1<<31));
+    if (this->m_errnum & (1U<<31)) return static_cast<manapi::err_num>(this->m_errnum ^ (1U<<31));
     return static_cast<manapi::err_num>(this->m_errnum);
 }
 
 std::string_view manapi::messages::msg_view() const MANAPIHTTP_NOEXCEPT {
-    if (this->m_errnum & (1<<31)) return this->m_data.m_str;
+    if (this->m_errnum & (1U<<31)) return this->m_data.m_str;
     return this->m_data.m_view;
 }
 
 std::string manapi::messages::msg() MANAPIHTTP_NOEXCEPT {
-    if (this->m_errnum & (1<<31)) return std::move(this->m_data.m_str);
+    if (this->m_errnum & (1U<<31)) return std::move(this->m_data.m_str);
     return std::string{this->m_data.m_view};
 }
 
 void manapi::messages::msg_view(std::string_view msg) MANAPIHTTP_NOEXCEPT {
-    if (this->m_errnum & (1<<31)) {
+    if (this->m_errnum & (1U<<31)) {
         this->m_data.m_str.~basic_string();
-        this->m_errnum ^= (1<<31);
+        this->m_errnum ^= (1U<<31);
     }
     this->m_data.m_view = msg;
 }
 
 void manapi::messages::msg(std::string msg) MANAPIHTTP_NOEXCEPT {
-    if (this->m_errnum & (1<<31)) {
+    if (this->m_errnum & (1U<<31)) {
         this->m_data.m_str = std::move(msg);
         return;
     }
     new (&this->m_data.m_str) std::string(std::move(msg));
-    this->m_errnum |= (1<<31);
+    this->m_errnum |= (1U<<31);
 }
 
 manapi::exception::exception(messages msg) {
@@ -244,10 +244,10 @@ manapi::exception::exception(manapi::err_num errnum, std::string_view fmt, ...) 
     try {
         va_list args_copy;
         va_copy(args_copy, args);
-        std::size_t size = vsnprintf(nullptr, 0, fmt.data(), args_copy);
+        const int size = vsnprintf(nullptr, 0, fmt.data(), args_copy);
         va_end(args_copy);
 
-        message.resize(size);
+        message.resize(static_cast<std::size_t>(size));
         vsnprintf(message.data(), message.size() + 1, fmt.data(), args);
     }
     catch (std::exception const &e) {

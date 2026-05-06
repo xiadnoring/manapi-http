@@ -216,10 +216,10 @@ int manapi::ev::tcp::read_stop() MANAPIHTTP_NOEXCEPT {
     return uv_read_stop(MANAPIHTTP_EV_CAST_STREAM(&this->s_));
 }
 
-ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::ev::tcp::try_write(const void *buff, std::size_t len) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)buff;
-    buffs.len = static_cast<std::size_t>(len);
+    buffs.len = len;
     return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
@@ -227,7 +227,7 @@ ssize_t manapi::ev::tcp::try_write(const ev::buff_t *buff, uint32_t nbuff) MANAP
     return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), buff, nbuff);
 }
 
-int manapi::ev::tcp::s_bind(const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT {
+int manapi::ev::tcp::s_bind(const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT {
     return uv_tcp_bind(&this->s_, addr, flags);
 }
 
@@ -267,7 +267,7 @@ int manapi::ev::udp::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
     return uv_udp_init(loop, &this->s_);
 }
 
-int manapi::ev::udp::s_bind(const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT{
+int manapi::ev::udp::s_bind(const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT{
     return uv_udp_bind(&this->s_, addr, flags);
 }
 
@@ -390,7 +390,7 @@ int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff,
     return this->write(fileno, buff, nbuff, offset, callback_watcher_fs);
 }
 
-ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, std::size_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
     ssize_t r;
 
 #if defined(_WIN32)
@@ -471,7 +471,7 @@ ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbu
     return r;
 }
 
-ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, std::size_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
     ssize_t r;
 #if defined(_WIN32)
     HANDLE handle;

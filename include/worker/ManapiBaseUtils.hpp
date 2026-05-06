@@ -4,12 +4,12 @@
 #include "./ManapiBaseWorker.hpp"
 #include "./ManapiTimerObject.hpp"
 
-#define MANAPIHTTP_WORKER_EVENT_LOOP(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_check_delay); \
+#define MANAPIHTTP_WORKER_EVENT_LOOP(n__) n__->speed_min_delay = (this->config()->speed_check_delay); \
 auto const prev = std::exchange(n__->flags, ((n__->flags & (~CONN_MASK_UPDATE))) | (flags & CONN_MASK_UPDATE)); \
 if (n__->flags & CONN_EVENT_LOCKED) return prev; \
 n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
 while (true)
-#define MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_stream_check_delay); \
+#define MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(n__) n__->speed_min_delay = (this->config()->speed_stream_check_delay); \
 auto const prev = std::exchange(n__->flags, ((n__->flags & (~CONN_MASK_UPDATE))) | (flags & CONN_MASK_UPDATE)); \
 if (n__->flags & CONN_EVENT_LOCKED) return prev; \
 n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
@@ -19,13 +19,13 @@ assert (n__->flags & CONN_EVENT_LOCKED); n__->flags ^= CONN_EVENT_LOCKED;  break
 
 namespace manapi::net::worker {
     struct connection_base_t {
-        ssize_t transfered;
-        ssize_t transfered_k;
+        std::size_t transfered;
+        std::size_t transfered_k;
     };
 
     struct connection_base2_t : connection_base_t {
         int flags;
-        int speed_min_delay;
+        uint32_t speed_min_delay;
     };
 
     struct connection_prepared_base_t : connection_base2_t {
@@ -82,11 +82,11 @@ namespace manapi::net::worker {
 
         void timer_clear (manapi::timer t) MANAPIHTTP_NOEXCEPT;
 
-        void feed_event (worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        void feed_event (worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
 
-        void feed_event (worker::base *w, const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        void feed_event (worker::base *w, const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
 
-        void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, ssize_t speed_check_delay, ssize_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
+        void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, uint32_t speed_check_delay, std::size_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
         void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 

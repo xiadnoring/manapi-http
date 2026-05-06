@@ -19,9 +19,9 @@ namespace manapi::fs {
 
     future<ev::status> async_close (ev::file file, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_write (ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_write (ev::file file, const void *data, std::size_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_read (ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
+    future<ev::status_or<ssize_t>> async_read (ev::file file, void *data, std::size_t size, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
     future<ev::status> async_write (std::string path, std::string data, int mode, int flags = ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_APPEND, int64_t offset = -1, manapi::ctoken cancellation = nullptr);
 
@@ -55,7 +55,7 @@ namespace manapi::fs {
 
     future<ev::status_or<ssize_t>> async_read (ev::file file, slice_view slice, int64_t offset = -1, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ssize_t>> async_file_size (std::string path, manapi::ctoken cancellation = nullptr);
+    future<ev::status_or<std::size_t>> async_file_size (std::string path, manapi::ctoken cancellation = nullptr);
 
     future<ev::status> async_unlink (std::string path, ctoken cancellation = nullptr);
 

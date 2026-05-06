@@ -24,8 +24,8 @@ manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
     this->init_proto_timeout = get_config_param<std::size_t> (config, "init_proto_timeout", 8000);
-    this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 2000000);
-    this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 4000000);
+    this->window_stream_size = get_config_param<uint32_t> (config, "window_stream_size", 2000000);
+    this->window_connection_size = get_config_param<uint32_t> (config, "window_connection_size", 4000000);
     this->max_concurrent_streams = get_config_param<int> (config, "max_concurrent_streams", -1);
     this->max_frame_size = get_config_param<int>(config, "max_frame_size", -1);
     this->max_hpack_table_size = get_config_param<int>(config, "max_hpack_table_size", -1);
@@ -34,24 +34,24 @@ manapi::net::http::config::config(const json &config) {
     this->http1_implementation = get_config_param<std::string>(config, "http1_implementation", "default");
     this->http2_implementation = get_config_param<std::string>(config, "http2_implementation", "default");
     this->http3_implementation = get_config_param<std::string>(config, "http3_implementation", "default");
-    this->max_merge_buffer_stack = get_config_param<int>(config, "max_merge_buffer_stack", 2);
-    this->partial_data_min_size = get_config_param<ssize_t>(config, "partial_data_min_size", 0);
-    this->max_buffer_stack = get_config_param<ssize_t>(config, "max_buffer_stack", 5);
+    this->max_merge_buffer_stack = get_config_param<uint32_t>(config, "max_merge_buffer_stack", 2);
+    this->partial_data_min_size = get_config_param<std::size_t>(config, "partial_data_min_size", 0);
+    this->max_buffer_stack = get_config_param<std::size_t>(config, "max_buffer_stack", 5);
     this->port = get_config_param<std::string>(config, "port", "8888");
     this->address = get_config_param<std::string>(config, "address", "0.0.0.0");
-    this->speed_limit_rate = get_config_param<ssize_t>(config, "speed_limit_rate", 2097152000);
-    this->max_connections = get_config_param<int>(config, "max_connections", 1000);
-    this->max_connections_by_ip = get_config_param<int>(config, "max_connections_by_ip", 6);
-    this->max_rst_cnt = get_config_param<int>(config, "max_rst_cnt", 5);
+    this->speed_limit_rate = get_config_param<std::size_t>(config, "speed_limit_rate", 2097152000);
+    this->max_connections = get_config_param<uint32_t>(config, "max_connections", 1000);
+    this->max_connections_by_ip = get_config_param<uint32_t>(config, "max_connections_by_ip", 6);
+    this->max_rst_cnt = get_config_param<uint32_t>(config, "max_rst_cnt", 5);
     this->tcp_no_delay = get_config_param<bool>(config, "tcp_no_delay", false);
-    this->speed_check_delay = get_config_param<int>(config, "speed_check_delay", 5);
-    this->speed_check_bytes = get_config_param<int>(config, "speed_check_bytes", 1048576);
-    this->speed_stream_check_delay = get_config_param<int>(config, "speed_stream_check_delay", 5);
-    this->speed_stream_check_bytes = get_config_param<int>(config, "speed_stream_check_bytes", 1048576);
+    this->speed_check_delay = get_config_param<uint32_t>(config, "speed_check_delay", 5);
+    this->speed_check_bytes = get_config_param<std::size_t>(config, "speed_check_bytes", 1048576);
+    this->speed_stream_check_delay = get_config_param<uint32_t>(config, "speed_stream_check_delay", 5);
+    this->speed_stream_check_bytes = get_config_param<std::size_t>(config, "speed_stream_check_bytes", 1048576);
     this->simultaneous_accepts = get_config_param<bool>(config, "simultaneous_accepts", false);
-    this->max_headers_size = get_config_param<ssize_t>(config, "max_headers_size", 16384);
-    this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);
-    this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
+    this->max_headers_size = get_config_param<uint32_t>(config, "max_headers_size", 16384);
+    this->max_header_key_size = get_config_param<uint32_t>(config, "max_header_key_size", 64);
+    this->max_header_value_size = get_config_param<uint32_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<uint32_t>(config, "buffer_size", 4096);
     this->tcp_backlog = get_config_param<int>(config, "tcp_backlog", 200);
     this->tls_accept_timeout = get_config_param<std::size_t>(config, "tls_accept_timeout", 8000);
@@ -60,7 +60,7 @@ manapi::net::http::config::config(const json &config) {
     this->keep_alive = get_config_param<uint32_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");
     this->transport = get_config_param<std::string>(config, "transport", "tcp");
-    this->max_shutdown_time = get_config_param<int>(config, "max_shutdown_time", 5);
+    this->max_shutdown_time = get_config_param<uint32_t>(config, "max_shutdown_time", 5);
 
     if (config.contains("ssl") && config["ssl"].is_object())
         this->ssl = config["ssl"];
@@ -75,7 +75,7 @@ manapi::net::http::config::config(const json &config) {
     /* http versions */
     if (config.contains("http")) {
         for (const auto &version : config["http"].as_array() ) {
-            int num = 0;
+            uint32_t num = 0;
             if (version == "0.9")           num = HTTP_VER_BIT_0_9;
             else if (version == "1.0")      num = HTTP_VER_BIT_1_0;
             else if (version == "1.1")      num = HTTP_VER_BIT_1_1;
@@ -99,7 +99,7 @@ manapi::net::http::config::~config() = default;
 
 
 bool manapi::net::http::config::contains_http_version(int version) {
-    int num = 0;
+    uint32_t num = 0;
     switch (version) {
         case http::versions::HTTP_v0_9: num = HTTP_VER_BIT_0_9; break;
         case http::versions::HTTP_v1_0: num = HTTP_VER_BIT_1_0; break;

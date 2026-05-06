@@ -147,7 +147,7 @@ namespace manapi::ext::pq {
             co_return co_await this->pexec (type, sql, t.size(), t.data(), v.data(), l.data(), f.data(), std::move(token));
         }
     protected:
-        manapi::future<pq::status_or<pq::result>> pexec (ktypes type, const char *command, int nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, ctoken token);
+        manapi::future<pq::status_or<pq::result>> pexec (ktypes type, const char *command, size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, ctoken token);
 
     private:
         std::shared_ptr<pq::pool> m_master;

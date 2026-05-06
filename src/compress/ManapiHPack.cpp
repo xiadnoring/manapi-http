@@ -410,13 +410,13 @@ namespace manapi::compress::hpack {
 				}
 
 				if ( current->code() >= 0 ) {
-					uint16_t code = current->code();
+					auto code = static_cast<uint16_t>(current->code());
 
 					if ( 257 == code ) {
 						if (maxlen < 2)
 							goto err_zero;
 
-						dst += static_cast< uint8_t >( ( ( code & 0xFF00 ) >> 8 ) & 0xFF );
+						dst += static_cast< int8_t >( ( ( code & 0xFF00 ) >> 8 ) & 0xFF );
 						maxlen -= 2;
 					}
 					else if (!maxlen)
@@ -424,7 +424,7 @@ namespace manapi::compress::hpack {
 					else
 						maxlen -= 1;
 
-					dst += static_cast< uint8_t >( code & 0xFF );
+					dst += static_cast< int8_t >( code & 0xFF );
 					current = this->m_root;
 				}
 			}
@@ -553,10 +553,10 @@ err_zero:
 
 		for ( std::size_t idx = 0; idx < m_queue.size(); idx++ ) {
 			if ( !h.first.compare(m_queue.at(idx).first) && !h.second.compare(m_queue.at(idx).second) ) {
-				index = predefined_headers.size() + idx;
+				index = static_cast<int64_t>(predefined_headers.size() + idx);
 				return true;
 			} else if ( !h.first.compare(m_queue.at(idx).first) ) {
-				index = predefined_headers.size() + idx;
+				index = static_cast<int64_t>(predefined_headers.size() + idx);
 				return false;
 			}
 		}
@@ -713,7 +713,7 @@ err_zero:
 		HPACK_DECODE_BUG
 	};
 
-	decoder_t::decoder_t(int64_t max, uint32_t headers_size, uint16_t key_size, uint16_t label_size)  : m_dynamic(max) {
+	decoder_t::decoder_t(uint64_t max, uint32_t headers_size, uint16_t key_size, uint16_t label_size)  : m_dynamic(max) {
 		this->n1 = 0;
 		this->key_size = key_size;
 		this->headers_size = headers_size;
@@ -726,7 +726,7 @@ err_zero:
 
 	decoder_t::~decoder_t() = default;
 
-	void decoder_t::m_dynamic_max(int64_t max) {
+	void decoder_t::m_dynamic_max(uint64_t max) {
 		m_dynamic.max(max);
 	}
 
@@ -858,7 +858,7 @@ err_zero:
 						 */
 
 						auto const copy = std::min<size_t>(
-							std::distance(itr, end), this->n2);
+							static_cast<std::size_t>(std::distance(itr, end)), this->n2);
 
 						uint32_t msize = 4096;
 
@@ -968,7 +968,7 @@ err_zero:
 						 * n2 - index
 						 */
 
-						int const next = this->state == HPACK_DECODE_HEADER_LITERAL_INDX ?
+						const uint8_t next = this->state == HPACK_DECODE_HEADER_LITERAL_INDX ?
 							HPACK_DECODE_HEADER_LITERAL_VALUE_INDX : HPACK_DECODE_HEADER_LITERAL_VALUE_NOINDX;
 
 						if ( 0 != this->n2 ) {
@@ -1085,7 +1085,7 @@ err_zero:
 		return status_internal("hpack: due to exception");
 	}
 
-	manapi::status_or<std::map< std::string, std::string >> decoder_t::headers(uint32_t headers_size) {
+	manapi::status_or<std::map< std::string, std::string >> decoder_t::headers(std::size_t headers_size) {
 		this->headers_size = headers_size;
 
 		bool const flg = this->state == HPACK_DECODE_HBYTE;
@@ -1105,7 +1105,7 @@ err_zero:
 		huffbuff = m_huffman.encode(str);
 
 		if ( 128 > huffbuff.size() )
-			m_buf.push_back(static_cast< uint8_t >( HUFFMAN_ENCODED | huffbuff.size() ));
+			m_buf.push_back(static_cast< int8_t >( HUFFMAN_ENCODED | huffbuff.size() ));
 		else {
 			std::vector< uint8_t > tmp;
 			encode_integer(tmp, huffbuff.size(), 7);
@@ -1121,7 +1121,7 @@ err_zero:
 		int64_t saved_index(-1);
 		index = -1;
 
-		for ( uint64_t idx = 1; idx < predefined_headers.size(); idx++ ) {
+		for ( int64_t idx = 1; idx < predefined_headers.size(); idx++ ) {
 			if ( !h.first.compare(predefined_headers.at(static_cast< std::size_t >( idx )).first) &&
 				!h.second.compare(predefined_headers.at(static_cast< std::size_t >( idx )).second) ) {
 				index = idx;
@@ -1145,7 +1145,7 @@ err_zero:
 		return false;
 	}
 
-	uint64_t encoder_t::encode_integer(std::vector<uint8_t> &dst, uint32_t I, uint8_t N) {
+	uint64_t encoder_t::encode_integer(std::vector<uint8_t> &dst, std::size_t I, uint8_t N) {
 		const uint16_t two_N = static_cast< uint16_t >( std::pow(2, N) - 1 );
 
 		if ( I < two_N ) {

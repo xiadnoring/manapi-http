@@ -83,11 +83,11 @@ namespace manapi {
 
         manapi::status_or<manapi::slice> slice (std::size_t suggested);
 
-        manapi::status_or<manapi::bytebuffer> buffer (uint32_t min, uint32_t max);
+        manapi::status_or<manapi::bytebuffer> buffer (std::size_t min, std::size_t max);
 
-        manapi::status_or<manapi::bytebuffer> buffer (uint32_t suggested);
+        manapi::status_or<manapi::bytebuffer> buffer (std::size_t suggested);
 
-        manapi::bytebuffer buffer (void *pointer, uint32_t suggested);
+        manapi::bytebuffer buffer (void *pointer, std::size_t suggested);
 
         void *alloc (std::size_t size) MANAPIHTTP_NOEXCEPT;
 

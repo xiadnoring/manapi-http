@@ -39,7 +39,7 @@ namespace manapi::net::worker {
 
         ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT override;
 
-        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT override;
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT override;
 
         void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
@@ -49,7 +49,7 @@ namespace manapi::net::worker {
 
         worker_watcher_cb event_on(const shared_conn &conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT override;
 
-        void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT override;
+        void feed_event(const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT override;
 
         // bool is_send_pending(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
 

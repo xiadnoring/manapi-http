@@ -316,7 +316,7 @@ bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANA
         }
 
         if (delay >= 0) {
-            data_->timer->start(delay, 1);
+            data_->timer->start(static_cast<uint64_t>(delay), 1);
         }
     }
 

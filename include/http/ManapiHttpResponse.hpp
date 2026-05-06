@@ -28,7 +28,7 @@ namespace manapi::net::http {
     class response {
         friend class uresponse;
     public:
-        using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;
+        using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, std::size_t size, bool&)>;
         using resp_callback_async = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool&)>;
         using resp_stream_cb = std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool)>;
         using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;

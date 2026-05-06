@@ -17,8 +17,8 @@ static const unsigned char hextable2[] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
-int manapi::unicode::count_of_octet(unsigned char c) {
-    int i = 0;
+uint32_t manapi::unicode::count_of_octet(unsigned char c) {
+    uint32_t i = 0;
 
     if (c < 128)
         return 1;

@@ -59,6 +59,8 @@ OPTION(MANAPIHTTP_DEPENDENCY_FETCH_OUTPUT "Output Directory For Libraries" OFF)
 OPTION(MANAPIHTTP_BUILD_TYPE "Build result: binary or library" "lib")
 OPTION(MANAPIHTTP_INSTALL_ARCH "/x86_64-linux-gnu for example" "")
 OPTION(MANAPIHTTP_ENABLE_TESTS "Enable Tests" OFF)
+OPTION(MANAPIHTTP_STRICT_BUILD "Strict Build" OFF)
+OPTION(MANAPIHTTP_UNITY_BUILD "Unity Build" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "C++ Stack Tracing: ${MANAPIHTTP_CPPTRACE_DEPENDENCY}")
@@ -78,6 +80,18 @@ message(STATUS "qt dependency: ${MANAPIHTTP_QT_DEPENDENCY}")
 
 set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
+if(MANAPIHTTP_STRICT_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+            -Werror
+            -Wconversion
+            -Wsign-conversion
+            -Wno-sign-compare
+            -Wfloat-conversion
+            -Wno-subobject-linkage
+    )
+endif()
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
@@ -959,7 +973,7 @@ endif ()
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
 # target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules>)
 # target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
-set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ${MANAPIHTTP_UNITY_BUILD})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 include(GenerateExportHeader)

@@ -1,6 +1,6 @@
 #include "worker/ManapiHttp3Worker.hpp"
 
-#define MANAPI_AS_STREAM(n__) static_cast<manapi::net::worker::http_v3_stream_base_t *>(n__)
+#define MANAPI_HTTP3_WORKER_AS_STREAM(n__) static_cast<manapi::net::worker::http_v3_stream_base_t *>(n__)
 
 int manapi::net::worker::http_v3_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s, bool force) MANAPIHTTP_NOEXCEPT {
     return prepared::flush_read2_(config, conn, s, force);
@@ -38,15 +38,15 @@ void manapi::net::worker::http_v3::waiting(const shared_conn &conn, bool state) 
     return this->w->waiting(conn, state);
 }
 
-void manapi::net::worker::http_v3::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
-    return prepared::feed_event(this, conn, MANAPI_AS_STREAM(conn->wrk.data), flags, buff, size, p);
+void manapi::net::worker::http_v3::feed_event(const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
+    return prepared::feed_event(this, conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data), flags, buff, size, p);
 }
 
 void manapi::net::worker::http_v3::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
     if (!conn)
         return;
 
-    auto data = MANAPI_AS_STREAM (conn->wrk.data);
+    auto data = MANAPI_HTTP3_WORKER_AS_STREAM (conn->wrk.data);
 
     if (data->flags & CONN_REMOVED) {
         return;
@@ -75,11 +75,11 @@ void manapi::net::worker::http_v3::close_connection(shared_conn conn, int flags)
 }
 
 int manapi::net::worker::http_v3::event_flags(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
-    return prepared::event_flags(conn, MANAPI_AS_STREAM(conn->wrk.data));
+    return prepared::event_flags(conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data));
 }
 
 int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
-    auto const data = MANAPI_AS_STREAM(conn->wrk.data);
+    auto const data = MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data);
 
     MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(data) {
         if (data->ev_callback) {
@@ -111,7 +111,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags
 }
 
 manapi::net::worker::worker_watcher_cb manapi::net::worker::http_v3::event_on(const shared_conn &conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
-    return prepared::event_on(conn, MANAPI_AS_STREAM(conn->wrk.data), std::move(callback));
+    return prepared::event_on(conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data), std::move(callback));
 }
 
 manapi::future<manapi::status> manapi::net::worker::http_v3::init(std::size_t deep) {
@@ -132,24 +132,24 @@ void manapi::net::worker::http_v3::stop(std::function<void()> cb) {
 }
 
 ssize_t manapi::net::worker::http_v3::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
-    return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
+    return sync_write_ex (conn, buff, nbuff, 0 /* no need */, finish, (this->w->config()->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v3::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::http_v3::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v3_write(conn, buff, nbuff, finish);
 }
 
 void manapi::net::worker::http_v3::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const c = this->config();
-    return prepared::update_limit_rate_connection(conn, MANAPI_AS_STREAM(conn->wrk.data), this, c, c->speed_stream_check_delay, c->speed_stream_check_bytes, this->wrk_global());
+    return prepared::update_limit_rate_connection(conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data), this, c, c->speed_stream_check_delay, c->speed_stream_check_bytes, this->wrk_global());
 }
 
 std::size_t manapi::net::worker::http_v3::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {
-    return prepared::recv_count(conn, MANAPI_AS_STREAM(conn->wrk.data));
+    return prepared::recv_count(conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data));
 }
 
 manapi::bytebuffer manapi::net::worker::http_v3::recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
-    return prepared::recv_first_buffer(conn, MANAPI_AS_STREAM(conn->wrk.data));
+    return prepared::recv_first_buffer(conn, MANAPI_HTTP3_WORKER_AS_STREAM(conn->wrk.data));
 }
 
 

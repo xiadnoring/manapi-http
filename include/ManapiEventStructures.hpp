@@ -654,11 +654,11 @@ namespace manapi::ev {
 
         int read_stop () MANAPIHTTP_NOEXCEPT;
 
-        ssize_t try_write (const void *buff, ssize_t len) MANAPIHTTP_NOEXCEPT;
+        ssize_t try_write (const void *buff, std::size_t len) MANAPIHTTP_NOEXCEPT;
 
         ssize_t try_write (const ev::buff_t *buff, uint32_t nbuff) MANAPIHTTP_NOEXCEPT;
 
-        int s_bind (const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
+        int s_bind (const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT;
 
         int getpeername (sockaddr *name, int *namelen) MANAPIHTTP_NOEXCEPT;
 
@@ -687,7 +687,7 @@ namespace manapi::ev {
 
         int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
-        int s_bind (const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
+        int s_bind (const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT;
 
         int recv_start () MANAPIHTTP_NOEXCEPT;
         int recv_start (uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPIHTTP_NOEXCEPT;
@@ -778,9 +778,9 @@ namespace manapi::ev {
 
         int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t try_write (ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
+        static ssize_t try_write (ev::file fileno, const void *buff, std::size_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t try_read (ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
+        static ssize_t try_read (ev::file fileno, void *buff, std::size_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
         int close (ev::file fileno, uv_fs_cb close_cb) MANAPIHTTP_NOEXCEPT;
 

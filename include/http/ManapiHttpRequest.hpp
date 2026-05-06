@@ -18,7 +18,7 @@
 namespace manapi::net::http {
     class request {
     public:
-        using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, ssize_t size, bool fin)>;
+        using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, std::size_t size, bool fin)>;
         using onrecv_async_cb = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)>;
 
         request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker);

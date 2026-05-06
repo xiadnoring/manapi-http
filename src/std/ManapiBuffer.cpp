@@ -20,23 +20,23 @@ bool manapi::bytebuffer::operator==(const std::nullptr_t &) const {
     return this->src == nullptr;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, uint32_t size) {
+manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
     this->src = static_cast <uint8_t *> (src);
-    this->s = static_cast<int>(size);
-    this->reserved = static_cast<int>(size);
+    this->s = static_cast<uint32_t>(size);
+    this->reserved = static_cast<uint32_t>(size);
     this->shift_ = 0;
     this->flags_ = 0;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, uint32_t size, char flags_) {
+manapi::bytebuffer::bytebuffer(void *src, std::size_t size, uint8_t flags_) {
     this->src = static_cast <uint8_t *> (src);
-    this->s = static_cast<int>(size);
-    this->reserved = static_cast<int>(size);
+    this->s = static_cast<uint32_t>(size);
+    this->reserved = static_cast<uint32_t>(size);
     this->flags_ = flags_;
     this->shift_ = 0;
 }
 
-manapi::status_or<manapi::bytebuffer> manapi::bytebuffer::create(uint32_t size) {
+manapi::status_or<manapi::bytebuffer> manapi::bytebuffer::create(std::size_t size) {
     auto src = manapi::memory::alloc<uint8_t>(size);
     if (!src)
         return status_resource_exhausted();
@@ -95,21 +95,21 @@ manapi::bytebuffer::operator bool() const {
     return !!this->src;
 }
 
-uint32_t manapi::bytebuffer::size() const {
+std::size_t manapi::bytebuffer::size() const {
     return this->s - this->shift_;
 }
 
-uint32_t manapi::bytebuffer::realsize() const {
+std::size_t manapi::bytebuffer::realsize() const {
     return this->reserved < 0 ? this->s : this->reserved;
 }
 
-manapi::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_NOEXCEPT {
     if (this->s == s)
         return status_ok();
 
     if (this->reserved >= s) {
-        this->s = static_cast<int>(s);
-        this->shift_ = static_cast<uint32_t>(std::min<uint32_t>(this->shift_, this->s));
+        this->s = static_cast<uint32_t>(s);
+        this->shift_ = std::min<uint32_t>(this->shift_, this->s);
         return status_ok();
     }
 
@@ -128,7 +128,7 @@ manapi::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
         std::swap(this->src, nm);
 
         auto nsize = this->reserved;
-        this->s = static_cast<int>(s);
+        this->s = static_cast<uint32_t>(s);
 
         this->reserved = this->s;
 
@@ -150,20 +150,20 @@ manapi::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
             }
         }
 
-        this->reserved = static_cast<int>(s);
-        this->s = static_cast<int>(s);
+        this->reserved = static_cast<uint32_t>(s);
+        this->s = static_cast<uint32_t>(s);
     }
 
     this->shift_ = static_cast<uint32_t>(std::min<std::size_t>(this->shift_, this->s));
     return status_ok();
 }
 
-manapi::status manapi::bytebuffer::resize(uint32_t s) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::bytebuffer::resize(std::size_t s) MANAPIHTTP_NOEXCEPT {
     return this->realresize(s + this->shift_);
 }
 
-manapi::status manapi::bytebuffer::resize_max(uint32_t s) MANAPIHTTP_NOEXCEPT {
-    return this->resize(std::max<uint32_t>(s, this->realsize()));
+manapi::status manapi::bytebuffer::resize_max(std::size_t s) MANAPIHTTP_NOEXCEPT {
+    return this->resize(std::max<std::size_t>(s, this->realsize()));
 }
 
 void manapi::bytebuffer::remove_shift() MANAPIHTTP_NOEXCEPT {
@@ -200,16 +200,16 @@ void * manapi::bytebuffer::release() {
     return std::exchange(this->src, nullptr);
 }
 
-uint32_t manapi::bytebuffer::shift() const {
+std::size_t manapi::bytebuffer::shift() const {
     return this->shift_;
 }
 
-void manapi::bytebuffer::shift(uint32_t n) {
-    this->shift_ = n;
+void manapi::bytebuffer::shift(std::size_t n) {
+    this->shift_ = static_cast<uint32_t>(n);
 }
 
-void manapi::bytebuffer::shift_add(uint32_t n) {
-    this->shift_ += n;
+void manapi::bytebuffer::shift_add(std::size_t n) {
+    this->shift_ += static_cast<uint32_t>(n);
 }
 
 uint8_t manapi::bytebuffer::flags() {

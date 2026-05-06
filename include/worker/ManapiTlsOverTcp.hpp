@@ -20,7 +20,7 @@ namespace manapi::net::worker {
 
         void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT override;
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT override;
 
         ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT override;
 
@@ -106,6 +106,6 @@ namespace manapi::net::worker {
 
         int ssl_bio_flush_read_ (const shared_conn &conn, tls_connection_t *m, std::size_t max_cnt);
 
-        int ssl_flush_recv (const shared_conn &conn, connection_io_part *top, int *cnt);
+        int ssl_flush_recv (const shared_conn &conn, connection_io_part *top, uint32_t *cnt);
     };
 }
