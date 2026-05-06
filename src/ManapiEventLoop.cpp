@@ -1,6 +1,7 @@
 #include <csignal>
 #include <memory>
 #include <cstring>
+#include <algorithm>
 
 #include "ManapiEventLoop.hpp"
 #include "ManapiUtils.hpp"
