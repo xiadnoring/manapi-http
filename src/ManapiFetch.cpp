@@ -1191,7 +1191,7 @@ manapi::future<manapi::status> manapi::net::fetch::body(http::file_transfer_info
     if (code != CURLE_OK)
         goto err;
 
-    code = curl_easy_setopt(this->m_data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, co_await file.size());
+    code = curl_easy_setopt(this->m_data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, (co_await file.size()).unwrap());
     if (code != CURLE_OK)
         goto err;
 
