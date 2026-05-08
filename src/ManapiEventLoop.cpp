@@ -355,9 +355,9 @@ namespace manapi::ev::internal {
         //
         // std::move_only_function<void()> adding_curl_async_cb{nullptr};
         // std::queue<std::shared_ptr<ev::io>> curl_fds{};
-        std::map<CURL*, curl_res_value_t> curl_res{};
+        std::unordered_map<CURL*, curl_res_value_t> curl_res{};
         manapi::timer timeout_watcher{nullptr};
-        std::map<socket_t, std::shared_ptr<ev::io>> watchers;
+        std::unordered_map<socket_t, std::shared_ptr<ev::io>> watchers;
     };
 #endif
     struct timerloop_t {
@@ -389,7 +389,7 @@ struct addrinfo_deleter {
     }
 };
 
-std::map<size_t, std::shared_ptr<manapi::event_loop>> manapi::event_loop::m_events = {};
+std::unordered_map <size_t, std::shared_ptr<manapi::event_loop>> manapi::event_loop::m_events = {};
 std::atomic<bool> manapi::event_loop::m_interrupted = false;
 std::mutex manapi::event_loop::m_stop_mx;
 
@@ -708,7 +708,7 @@ static manapi::future<> m_event_loop_call_on_finish_cb(std::map <size_t, std::pa
     }
 }
 
-static manapi::ev::status m_event_loop_register_(std::mutex &stop_mx, std::map <size_t, std::shared_ptr<manapi::event_loop>> &events, std::shared_ptr<manapi::event_loop> loop) MANAPIHTTP_NOEXCEPT {
+static manapi::ev::status m_event_loop_register_(std::mutex &stop_mx, std::unordered_map <size_t, std::shared_ptr<manapi::event_loop>> &events, std::shared_ptr<manapi::event_loop> loop) MANAPIHTTP_NOEXCEPT {
     std::lock_guard<std::mutex> lk (stop_mx);
 
     try {
@@ -721,7 +721,7 @@ static manapi::ev::status m_event_loop_register_(std::mutex &stop_mx, std::map <
     }
 }
 
-static void m_event_loop_unregister_(std::mutex &stop_mx, std::map <size_t, std::shared_ptr<manapi::event_loop>> &events, manapi::event_loop *loop) MANAPIHTTP_NOEXCEPT {
+static void m_event_loop_unregister_(std::mutex &stop_mx, std::unordered_map <size_t, std::shared_ptr<manapi::event_loop>> &events, manapi::event_loop *loop) MANAPIHTTP_NOEXCEPT {
     std::lock_guard<std::mutex> lk (stop_mx);
     events.erase(reinterpret_cast<std::size_t> (loop));
 }

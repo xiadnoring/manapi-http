@@ -69,11 +69,12 @@ manapi::status_or<std::string> manapi::crypto::hkdf_extract(std::string_view sal
 
 manapi::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk, std::string_view info, int length, hashes algorithm) {
     try {
+        assert(length >= 0);
         std::string t;
         std::string okm;
         int i = 0;
         std::string ninfo;
-        while (okm.size() < length) {
+        while (okm.size() < static_cast<std::size_t>(length)) {
             i ++;
             ninfo = t;
             ninfo += info;

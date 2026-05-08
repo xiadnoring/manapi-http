@@ -185,14 +185,24 @@ namespace manapi::net::worker {
         uint32_t recv_size;
     };
 
+    struct string_hash
+    {
+        using hash_type = std::hash<std::string_view>;
+        using is_transparent = void;
+
+        std::size_t operator()(const char* str) const;
+        std::size_t operator()(std::string_view str) const;
+        std::size_t operator()(std::string const& str) const;
+    };
+
     struct connection_base_t;
 
     class base : public std::enable_shared_from_this<base> {
     public:
 
-        typedef std::map<uintptr_t, shared_conn> conn_by_port;
+        typedef std::unordered_map<uintptr_t, shared_conn> conn_by_port;
 
-        typedef std::map<std::string, conn_by_port, std::less<>> conns_by_ip;
+        typedef std::unordered_map<std::string, conn_by_port, string_hash, std::equal_to<>> conns_by_ip;
 
         typedef vbefore_delete<bool, false> oncont_cb;
 

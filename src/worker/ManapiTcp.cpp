@@ -617,7 +617,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
     }
 
 
-    if (rhs != size) {
+    if (static_cast<std::size_t>(rhs) != size) {
         if (rhs) {
             auto skip = static_cast<std::size_t>(rhs);
             while (skip >= buff->len) {
@@ -747,7 +747,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                 auto current = sent.get();
                 ssize_t request = 0;
 
-                for (int i = 0; i < conn->top->cur_send_size; i++) {
+                for (uint32_t i = 0; i < conn->top->cur_send_size; i++) {
                     auto &object = current->buffer;
 
                     if (current == conn->top->send.last_deque) {
@@ -800,7 +800,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
 
                     uint32_t cursor = 0;
                     while (cursor != conn->top->cur_send_size
-                        && rhs >= s[cursor].len) {
+                        && static_cast<std::size_t>(rhs) >= s[cursor].len) {
                         rhs -= static_cast<ssize_t>(s[cursor].len);
                         sent = std::move(sent->next);
                         cursor++;
@@ -855,7 +855,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         memory += bnext->buffer.size();
                                         bnext = bnext->next.get();
                                     }
-                                    for (int i = 0; i < nbuff; i++) {
+                                    for (uint32_t i = 0; i < nbuff; i++) {
                                         written += s.get()[i].len;
                                     }
                                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "written=%zu used=%zu bytes on %p conn", written, memory, connection.get());

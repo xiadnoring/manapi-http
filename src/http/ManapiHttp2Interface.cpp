@@ -98,8 +98,8 @@ static int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int f
                          * of the map (ctx->streams).
                          **/
                         auto status = http_v2_ctx->status;
-                        auto const s = http_v2_ctx->streams.rbegin();
-                        if (s == http_v2_ctx->streams.rend() || !s->second)
+                        auto const s = http_v2_ctx->streams.find(static_cast<int>(http_v2_ctx->frame_stream_id));
+                        if (s == http_v2_ctx->streams.end() || !s->second)
                             continue;
 
                         w->waiting(conn, false);

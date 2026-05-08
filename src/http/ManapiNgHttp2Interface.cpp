@@ -65,7 +65,7 @@ struct manapi::net::worker::ng_wrk_http2_ctx_t {
     char flgs;
     std::unique_ptr<nghttp2_session, nghttp2_session_deleter> ctx;
     worker::connection *conn;
-    std::map<int, shared_conn> streams;
+    std::unordered_map<int, shared_conn> streams;
     size_t streams_size;
     uint32_t want_read;
     int cur_stream_id;
@@ -564,7 +564,7 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data),
         len, &sess->gctx->worker->bufferpool(), config->buffer_size, &s->top->recv_size, WORKER_MAX_CNT);
 
-    if (rhs != len)
+    if (rhs != static_cast<ssize_t>(len))
         return NGHTTP2_ERR_NOMEM;
 
     s->transfered_k += static_cast<std::size_t>(rhs);

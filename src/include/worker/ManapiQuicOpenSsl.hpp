@@ -102,8 +102,11 @@ namespace manapi::net::worker {
         int try_init_conn_ (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
         std::function<void()> finish;
+
         uint32_t finish_ref;
-        std::map<std::string, std::map<std::uintptr_t, shared_conn>, std::less<>> conns_;
+
+        std::unordered_map <std::string, std::map<std::uintptr_t, shared_conn>, worker::string_hash, std::equal_to<>> conns_;
+
         std::size_t count;
     private:
         static manapi::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);

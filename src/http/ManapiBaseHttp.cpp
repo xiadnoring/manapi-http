@@ -225,13 +225,17 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 }
             }
 
-            if (!err) {
+            if (!err.ok()) {
                 co_return;
             }
 
             // get file size
             auto stat_res = co_await manapi::fs::async_file_size(filepath);
             ssize_t fileSize = static_cast<ssize_t>(stat_res.unwrap());
+
+            if (fileSize < 0)
+                co_return;
+
             ssize_t dynamicFileSize = fileSize;
 
             // replacers
@@ -251,7 +255,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
 
             // partial enabled
-            if (res->partial_enabled() && res->contains_ranges() && res->config()->partial_data_min_size <= fileSize) {
+            if (res->partial_enabled() && res->contains_ranges() && res->config()->partial_data_min_size <= static_cast<std::size_t>(fileSize)) {
                 if (features.compressor_for_file) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "send_response_file()", "compressor_for_file",
                         "compress with the partial content is not supported");
@@ -471,7 +475,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         proxy_data->fetch->handle_async_body(
             [p = proxy_data.get()](slice_view buffs, bool fin) mutable
                 -> manapi::future<ssize_t> {
-            if (p->content_length > 0 && p->content_length <= buffs.size())
+            if (p->content_length > 0 && static_cast<std::size_t>(p->content_length) <= buffs.size())
                 fin = true;
 
             auto const cdata = p->resp->connection_data();
@@ -1271,7 +1275,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
             auto sv = write_block.subslice(0, static_cast<std::size_t>(rhs)).unwrap();
 
-            assert(sv.size() == rhs);
+            assert(sv.size() == static_cast<std::size_t>(rhs));
             if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0) {
                 manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), "fwrite() <= 0");
                 /* failed to send */
@@ -1321,7 +1325,7 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
             co_return;
         }
 
-        if (result > sent) {
+        if (static_cast<std::size_t>(result) > sent) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_text()",
                 "write incorrect");
             co_return;

@@ -144,7 +144,7 @@ manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) 
 
                         b.push_back(this->ctx_.hctx->s2.data(), size);
 
-                        if (size != co_await ucb (slice_view(b), true)) {
+                        if (static_cast<ssize_t>(size) != co_await ucb (slice_view(b), true)) {
                             status = status_invalid_argument("formdata:user callback returned an invalid result");
                             goto finish;
                         }
@@ -472,7 +472,7 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                         this->ctx_.n1 = 0;
 
                         if (!slice_transfer.empty()) {
-                            if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
+                            if (static_cast<ssize_t>(slice_transfer.size()) != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
                                 manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", slice_transfer.size());
                                 co_return -1;
                             }
@@ -583,7 +583,7 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
         }
 
         if (!slice_transfer.empty()) {
-            if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
+            if (static_cast<ssize_t>(slice_transfer.size()) != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
                 manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", slice_transfer.size());
                 co_return -1;
             }
@@ -668,7 +668,7 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_urlencoded_(slice_vie
                                 this->ctx_.hctx->s2.resize(0);
 
                                 if (!buffs_transfered.empty()) {
-                                    if (buffs_transfered.size() != co_await this->ondata_cb_ (slice_view(buffs_transfered), false)) {
+                                    if (static_cast<ssize_t>(buffs_transfered.size()) != co_await this->ondata_cb_ (slice_view(buffs_transfered), false)) {
                                         manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", buffs_transfered.size());
                                         co_return -1;
                                     }

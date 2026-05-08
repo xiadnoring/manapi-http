@@ -87,7 +87,7 @@ if(MANAPIHTTP_STRICT_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             -Werror
             -Wconversion
             -Wsign-conversion
-            -Wno-sign-compare
+            -Wsign-compare
             -Wfloat-conversion
             -Wno-subobject-linkage
     )

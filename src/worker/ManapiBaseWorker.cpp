@@ -23,6 +23,18 @@ manapi::net::worker::connection::~connection() {
         this->deleter(this);
 }
 
+std::size_t manapi::net::worker::string_hash::operator()(const char *str) const {
+    return hash_type{}(str);
+}
+
+std::size_t manapi::net::worker::string_hash::operator()(std::string_view str) const {
+    return hash_type{}(str);
+}
+
+std::size_t manapi::net::worker::string_hash::operator()(std::string const &str) const {
+    return hash_type{}(str);
+}
+
 manapi::net::worker::base::base() = default;
 
 manapi::net::worker::base::~base() = default;

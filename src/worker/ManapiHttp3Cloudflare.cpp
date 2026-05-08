@@ -46,11 +46,12 @@ struct manapi::net::worker::http_v3_cloudflare_quiche::connection_t {
     http_v3_cloudflare_quiche *worker;
     quiche_conn *conn;
     quiche_h3_conn *http3_conn;
-    std::map <int64_t, reference<worker::connection>> streams;
+    std::unordered_map <int64_t, reference<worker::connection>> streams;
     manapi::timer timeout;
     shared_conn self;
     uint32_t queue_send_size;
     std::unique_ptr<queue_udp_send_t> queue_send;
+    int64_t last_stream_id;
 };
 
 struct manapi::net::worker::http_v3_cloudflare_quiche::connection_stream_t : connection_prepared_t {
@@ -323,7 +324,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
     int shutdown;
 
     if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOS)) {
-        shutdown = quiche_h3_send_goaway(s->conn->http3_conn, s->conn->conn, static_cast<uint64_t>(s->conn->streams.empty() ? s->id : s->conn->streams.rbegin()->first));
+        shutdown = quiche_h3_send_goaway(s->conn->http3_conn, s->conn->conn, static_cast<uint64_t>(s->conn->last_stream_id));
 
         if (shutdown) {
             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %d", "cf quiche", "quiche_h3_send_goaway",
@@ -458,7 +459,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::gen_mint_token_(char *dcid, 
 manapi::status quiche_udp_send_data_ (manapi::ev::udp *udp, manapi::ev::buff_t *buff, sockaddr *send_addr, socklen_t send_len) MANAPIHTTP_NOEXCEPT {
     try {
         ssize_t const sent = udp->try_send(buff, 1, send_addr);
-        if (sent != buff->len) {
+        if (sent != static_cast<ssize_t>(buff->len)) {
             std::unique_ptr<manapi::ev::buff_t, udp_send_buff_deleter> buffs (new manapi::ev::buff_t{});
             auto queue_item = std::make_unique<manapi::net::worker::http_v3_cloudflare_quiche::queue_udp_send_t>();
 
@@ -767,7 +768,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
         try {
             std::string conn_id{dcid, dcid_len};
 
-            auto p = std::make_unique<connection_t>(conn_id, 0, this, quiche_conn_, nullptr, std::map<int64_t, shared_conn>{});
+            auto p = std::make_unique<connection_t>(conn_id, 0, this, quiche_conn_, nullptr, std::unordered_map<int64_t, shared_conn>{});
             connection = reference (new worker::connection(p.release(), connection_interface_eraser));
 
             conn_data = connection->as<connection_t>();
@@ -814,14 +815,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             if (!connection)
                 return;
 
-            if (this->count > this->config_->max_connections + this->config_->max_connections ||
+            if (this->count > static_cast<int>(this->config_->max_connections + this->config_->max_connections) ||
                 conn_by_ip->second.size() > this->config_->max_connections_by_ip + this->config_->max_connections_by_ip) {
                 auto const rhs = quiche_conn_close(conn_data->conn, false, 0x02, reinterpret_cast<const uint8_t *> (many_connections_msg.data()), many_connections_msg.size());
                 if (rhs)
                     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %d for conn %p", "quche_conn_close", conn_data, rhs);
             }
 
-            if (this->count > this->config_->max_connections ||
+            if (this->count > static_cast<int>(this->config_->max_connections) ||
                 conn_by_ip->second.size() > this->config_->max_connections_by_ip) {
                 auto const rhs = quiche_conn_close(conn_data->conn, false, 0x02,  reinterpret_cast<const uint8_t *> (many_connections_msg.data()), many_connections_msg.size());
                 if (rhs)
@@ -939,6 +940,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
                                 s->req->path = url_decoder.result();
                                 s->req->divided = url_decoder.divided();
+
+                                conn_data->last_stream_id = s->id;
 
                                 auto const req_ptr = s->req.get();
                                 auto cdata = std::make_unique<http::internal::handle_data_t>(stream_conn, this->shared_from_this(),
@@ -1127,7 +1130,7 @@ ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shar
         if (!rhs)
             break;
 
-        if (buff[i].len == rhs)
+        if (static_cast<ssize_t>(buff[i].len) == rhs)
             i++;
         else {
             buff[i].base += rhs;

@@ -367,7 +367,7 @@ namespace manapi {
 #endif
         static std::atomic<bool> m_interrupted;
 
-        static std::map <size_t, std::shared_ptr<event_loop>> m_events;
+        static std::unordered_map <size_t, std::shared_ptr<event_loop>> m_events;
 
         static std::mutex m_stop_mx;
 

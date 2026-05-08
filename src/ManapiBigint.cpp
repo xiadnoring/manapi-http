@@ -103,7 +103,8 @@ std::string manapi::bigint::stringify() const {
         if (ret[0] == '-')
             exponent++;
 
-        if (ret.size() > exponent)
+        assert(exponent >= 0);
+        if (ret.size() > static_cast<std::size_t>(exponent))
             ret.insert(static_cast<std::size_t>(exponent), exponent == 0 ? "0." : ".");
 
         else {

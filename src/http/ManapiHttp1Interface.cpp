@@ -513,9 +513,9 @@ exec:
                 auto const s = manapi::net::http::internal::generate_default_page (status, status_message);
                 auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                     manapi::net::http::config::stringify_http_version(conn->version), status, status_message, s.size());
-                if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, WORKER_MAX_CNT))
+                if (static_cast<ssize_t>(h.size()) != w->sync_write_ex(conn, h.data(), h.size(), false, WORKER_MAX_CNT))
                     goto err;
-                if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, WORKER_MAX_CNT))
+                if (static_cast<ssize_t>(s.size()) != w->sync_write_ex(conn, s.data(), s.size(), true, WORKER_MAX_CNT))
                     goto err;
                 w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
             }
@@ -586,7 +586,7 @@ manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::
     manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     const auto response = stringify_http_info(res, conn->version, "\r\n") + stringify_headers(res, "\r\n") + "\r\n";
     auto rhs = co_await w->fwrite (conn, response.data(), response.size(), finish);
-    if (rhs != response.size())
+    if (rhs != static_cast<ssize_t>(response.size()))
         co_return manapi::ERR_ABORTED;
     co_return manapi::ERR_OK;
 }

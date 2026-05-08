@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cctype>
 #include <memory>
+#include <unordered_set>
 
 #include "ManapiString.hpp"
 #include "ManapiFetch.hpp"
@@ -32,7 +33,7 @@ enum http_v1_1_callbacks {
 static constexpr char version_label_1_1[] = "HTTP/1.1";
 static constexpr char version_label_2[] = "HTTP/2.0";
 
-static const std::set<char> tcharlist = {'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'};
+static const std::unordered_set<char> tcharlist = {'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'};
 
 bool manapi::net::http::http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXCEPT {
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
@@ -578,7 +579,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                     break;
                 }
 
-                if (ctx->left > std::numeric_limits<int>::max() / 16) {
+                if (ctx->left > static_cast<uint32_t>(std::numeric_limits<int>::max()) / 16) {
                     /**
                      * RFC9112 (7.1) Chunked Transfer Coding
                      *
@@ -610,7 +611,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                     return EHTTP_V1_1_CHUNKED_ERR;
                 }
 
-                if (ctx->left > std::numeric_limits<int>::max() - n) {
+                if (ctx->left > static_cast<uint32_t>(std::numeric_limits<int>::max()) - n) {
                     /* would overflow */
                     return EHTTP_V1_1_CHUNKED_ERR;
                 }
@@ -648,7 +649,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                         worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {
-                        if (copy != worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
+                        if (static_cast<ssize_t>(copy) != worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
                             &worker->bufferpool(), config->buffer_size, nullptr, 0)) {
                             return EHTTP_V1_1_CHUNKED_ERR;
                         }

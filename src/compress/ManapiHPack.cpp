@@ -548,7 +548,7 @@ err_zero:
 	bool ringtable_t::find(const header_t &h, int64_t &index) const {
 		index = -1;
 
-		if ( index > std::numeric_limits< std::size_t >::max() )
+		if ( index > static_cast<ssize_t>(std::numeric_limits< std::size_t >::max()) )
 			throw std::invalid_argument("HPACK::ringtable_t::find(): Invalid/overlarge index which results in truncation");
 
 		for ( std::size_t idx = 0; idx < m_queue.size(); idx++ ) {
@@ -1121,7 +1121,7 @@ err_zero:
 		int64_t saved_index(-1);
 		index = -1;
 
-		for ( int64_t idx = 1; idx < predefined_headers.size(); idx++ ) {
+		for ( int64_t idx = 1; idx < static_cast<int64_t>(predefined_headers.size()); idx++ ) {
 			if ( !h.first.compare(predefined_headers.at(static_cast< std::size_t >( idx )).first) &&
 				!h.second.compare(predefined_headers.at(static_cast< std::size_t >( idx )).second) ) {
 				index = idx;

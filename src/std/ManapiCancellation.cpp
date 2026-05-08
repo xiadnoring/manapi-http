@@ -130,8 +130,8 @@ manapi::ctoken::~ctoken() {
         if (this->m_data->parent)
             usage++;
 
-        assert(this->m_data.use_count() >= usage);
-        if (this->m_data.use_count() == usage) {
+        assert(static_cast<std::size_t>(this->m_data.use_count()) >= usage);
+        if (static_cast<std::size_t>(this->m_data.use_count()) == usage) {
             if (this->m_data->parent) {
                 assert(this->m_data->it);
 

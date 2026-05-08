@@ -211,7 +211,7 @@ namespace manapi::hash {
         ctx.final(digest);
 
         char buf[2*sha256::DIGEST_SIZE];
-        for (int i = 0; i < sha256::DIGEST_SIZE; i++)
+        for (uint32_t i = 0; i < sha256::DIGEST_SIZE; i++)
             sprintf(buf+i*2, "%02x", digest[i]);
 
         return status_ok();

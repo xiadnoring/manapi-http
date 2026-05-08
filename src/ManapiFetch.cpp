@@ -392,7 +392,7 @@ static manapi::future<manapi::status> curl_recv_async_callback (manapi::net::fet
                 co_return manapi::status_ok();
             }
 
-            if (rhs != m_data->async_buffer_size) {
+            if (rhs < 0 || static_cast<std::size_t>(rhs) != m_data->async_buffer_size) {
                 if (finish)
                     co_return manapi::status_internal("curl_recv_async_callback:User callback failed");
 

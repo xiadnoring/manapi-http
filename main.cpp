@@ -29,6 +29,12 @@
 #include "ext/pq/AsyncPostgreClient.hpp"
 #include "std/ManapiRef.hpp"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 static std::atomic<std::size_t> bbbb = 0;
 
 // Logic and data behind the server's behavior.
@@ -154,7 +160,7 @@ int main () {
     try { loops = (std::size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
     catch (...) {  }
 
-    auto ctx = manapi::async::context::create((uint32_t)loops + 1).unwrap();
+    auto ctx = manapi::async::context::create(loops + 1).unwrap();
 
     std::atomic<int> a = 0;
     std::atomic<int> thrcnt = 0;
@@ -395,3 +401,5 @@ int main () {
 
     return 0;
 }
+
+#pragma GCC diagnostic pop

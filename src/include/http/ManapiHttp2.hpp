@@ -70,7 +70,7 @@ namespace manapi::net::http {
         std::unique_ptr<http_v2_settings_t> client;
         std::unique_ptr<http_v2_settings_t> server;
 
-        std::map<int, worker::shared_conn> streams;
+        std::unordered_map<int, worker::shared_conn> streams;
         std::size_t streams_size;
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;

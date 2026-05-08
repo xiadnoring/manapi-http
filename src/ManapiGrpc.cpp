@@ -29,9 +29,9 @@ struct wgrpc_connection_data_t {
 };
 
 struct wgrpc_thread_local_storage_t {
-    std::map<std::size_t, std::uintptr_t> wgrpc_tasks_exists;
-    std::map<std::size_t, std::uintptr_t> wgrpc_connect_exists;
-    std::set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
+    std::unordered_map<std::size_t, std::uintptr_t> wgrpc_tasks_exists;
+    std::unordered_map<std::size_t, std::uintptr_t> wgrpc_connect_exists;
+    std::unordered_set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
     uint32_t current_connect_index = 0;
     uint32_t current_task_index = 0;
     std::shared_ptr<manapi::async::cthread> ctx;
@@ -75,11 +75,11 @@ struct wgrpc_current_ctx_deleter_t {
     }
 };
 
-std::map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
+std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
     return wgrpc_storage.wgrpc_tasks_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
-std::map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
+std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
     return wgrpc_storage.wgrpc_connect_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
@@ -544,7 +544,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
 
 
             std::size_t cursor = 0;
-            while (cursor != nread) {
+            while (cursor != static_cast<std::size_t>(nread)) {
                 auto const copy = std::min<std::size_t>(static_cast<std::size_t>(nread) - cursor, 4096);
                 grpc_event_engine::experimental::Slice slice (this->memory_allocator.MakeSlice(copy));
                 memcpy ((char*)slice.data(), buf->base + cursor, copy);
@@ -556,7 +556,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
                 while (this->buffer.Count())
                     this->on_read_buffer->Append(this->buffer.TakeFirst());
 
-                if (this->on_read_hints_bytes <= nread) {
+                if (this->on_read_hints_bytes <= static_cast<std::size_t>(nread)) {
                     this->on_read_hints_bytes = 0;
                     this->flags ^= MANAPI_GRPC_ENDPOINT_WANT_READ;
                     this->on_read(absl::OkStatus());
@@ -635,12 +635,14 @@ const ReadArgs *args
     if (ctx == this->ev) {
         auto const already = this->buffer.Length();
 #if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
-        auto const read_hint_bytes = args.read_hint_bytes();
+        auto read_hint_bytes = args.read_hint_bytes();
 #else
-        auto const read_hint_bytes = args->read_hint_bytes;
+        auto read_hint_bytes = args->read_hint_bytes;
 #endif
+        if (read_hint_bytes < 0)
+            read_hint_bytes = 0;
 
-        bool const want_more = already < read_hint_bytes;
+        bool const want_more = already < static_cast<std::size_t>(read_hint_bytes);
 
         assert(on_read);
 
@@ -661,10 +663,13 @@ const ReadArgs *args
 
             if (!want_more)
                 return true;
-            assert(read_hint_bytes >= 0);
+
             this->on_read_buffer = buffer;
             this->on_read = std::move(on_read);
-            this->on_read_hints_bytes = static_cast<std::size_t>(read_hint_bytes) - already;
+            if (static_cast<std::size_t>(read_hint_bytes) >= already)
+                this->on_read_hints_bytes = static_cast<std::size_t>(read_hint_bytes) - already;
+            else
+                this->on_read_hints_bytes = 0;
             assert(this->on_read);
             this->flags |= MANAPI_GRPC_ENDPOINT_WANT_READ;
         }
@@ -734,7 +739,7 @@ const WriteArgs *args
                 rhs = 0;
                 break;
             }
-            if (rhs != a.size()) {
+            if (static_cast<std::size_t>(rhs) != a.size()) {
                 break;
             }
         }

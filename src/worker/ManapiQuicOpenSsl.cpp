@@ -47,31 +47,31 @@ enum quic_openssl_worker_flags {
     CONN_QUIC_WORKER_POLL_LOOP = manapi::net::worker::WORKER_BASE_FLAG_MAX<<1
 };
 
-struct ssl_worker_ctx_t {
-    std::map<std::string, SSL_SESSION*, std::less<>> sessions;
+struct openssl_quic_worker_ctx_t {
+    // std::unordered_map<std::string, SSL_SESSION*, manapi::net::worker::string_hash, std::equal_to<>> sessions;
     SSL_CTX *ctx;
     manapi::timer sessions_flush_timer;
 };
 
-struct ssl_bio_deleter_t {
+struct openssl_quic_bio_deleter_t {
     void operator() (BIO *b) const MANAPIHTTP_NOEXCEPT {
         BIO_free(b);
     }
 };
 
-struct ssl_ctx_deleter_t {
+struct openssl_quic_ctx_deleter_t {
     void operator() (SSL_CTX *b) const MANAPIHTTP_NOEXCEPT {
         SSL_CTX_free(b);
     }
 };
 
-struct ssl_bio_addr_deleter {
+struct openssl_quic_bio_addr_deleter {
     void operator() (BIO_ADDR *b) const MANAPIHTTP_NOEXCEPT {
         BIO_ADDR_free(b);
     }
 };
 
-struct addrinfofree_deleter {
+struct openssl_quic_addrinfofree_deleter {
     void operator () (addrinfo *n) const MANAPIHTTP_NOEXCEPT {
         manapi::ev::getaddrinfo::free(n);
     }
@@ -80,7 +80,7 @@ struct addrinfofree_deleter {
 struct manapi::net::worker::openssl_quic::quic_conn_t : connection_base2_t {
     SSL *conn;
     openssl_quic *worker;
-    std::map<int64_t, shared_conn> streams;
+    std::unordered_map<int64_t, shared_conn> streams;
     std::size_t streams_size;
     std::size_t poll_id;
 };
@@ -115,7 +115,7 @@ manapi::net::worker::openssl_quic::~openssl_quic() {
         auto &wdata = this->pool_data_->data[this->deep_worker_id_];
         if (wdata.ref) {
             if (!(--wdata.ref)) {
-                auto ctx_data = static_cast<ssl_worker_ctx_t *> (wdata.data);
+                auto ctx_data = static_cast<openssl_quic_worker_ctx_t *> (wdata.data);
                 ctx_data->sessions_flush_timer.stop();
                 SSL_CTX_free(ctx_data->ctx);
                 delete ctx_data;
@@ -133,7 +133,7 @@ std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_
 static void ssl_dump_error_ (int err, const char *msg) {
     return;
 
-    std::unique_ptr<BIO, ssl_bio_deleter_t> bio;
+    std::unique_ptr<BIO, openssl_quic_bio_deleter_t> bio;
     bio.reset(BIO_new(BIO_s_mem()));
     ERR_print_errors(bio.get());
     char *buf;
@@ -305,7 +305,7 @@ manapi::status manapi::net::worker::openssl_quic::load_params (manapi::net::work
         return manapi::status_ok();
     }
 err:
-    std::unique_ptr<BIO, ssl_bio_deleter_t> bio;
+    std::unique_ptr<BIO, openssl_quic_bio_deleter_t> bio;
     bio.reset(BIO_new(BIO_s_mem()));
     ERR_print_errors(bio.get());
     char *buf;
@@ -333,16 +333,16 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
             this->pool_data_->data.resize(deep + 1);
 
         if (!(this->pool_data_->data[deep].ref))
-            this->pool_data_->data[deep].data = new ssl_worker_ctx_t{};
+            this->pool_data_->data[deep].data = new openssl_quic_worker_ctx_t{};
 
-        auto ctx_data = static_cast<ssl_worker_ctx_t *>(this->pool_data_->data[deep].data);
+        auto ctx_data = static_cast<openssl_quic_worker_ctx_t *>(this->pool_data_->data[deep].data);
         this->pool_data_->data[deep].ref++;
 
         if (!ctx_data->sessions_flush_timer) {
 
         }
         if (!ctx_data->ctx) {
-            std::unique_ptr<SSL_CTX, ssl_ctx_deleter_t> ctx (SSL_CTX_new(OSSL_QUIC_server_method()));
+            std::unique_ptr<SSL_CTX, openssl_quic_ctx_deleter_t> ctx (SSL_CTX_new(OSSL_QUIC_server_method()));
             if (!ctx)
                 co_return status_internal("openssl_quic:SSL_CTX_new");
 
@@ -366,8 +366,8 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
 
         this->ctx = ctx_data->ctx;
 
-        std::unique_ptr<BIO, ssl_bio_deleter_t> wbio;
-        std::unique_ptr<BIO, ssl_bio_deleter_t> rbio;
+        std::unique_ptr<BIO, openssl_quic_bio_deleter_t> wbio;
+        std::unique_ptr<BIO, openssl_quic_bio_deleter_t> rbio;
         //
         // BIO *wbiop;
         // BIO *rbiop;
@@ -737,7 +737,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
 
             res += sent;
 
-            if (sent == buff->len) {
+            if (static_cast<std::size_t>(sent) == buff->len) {
                 if (flags)
                     s->flags |= CONN_SEND_END;
 
@@ -971,7 +971,7 @@ void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
 
                 rhs = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&storage_local));
 
-                if (rhs != msg->data_len) {
+                if (rhs != static_cast<ssize_t>(msg->data_len)) {
                     if (rhs == ev::ERR_AGAIN) {
                         std::unique_ptr<manapi::ev::buff_t, ev::buffer_deleter> buffs (new manapi::ev::buff_t{});
 

@@ -151,7 +151,7 @@ manapi::future<manapi::status> manapi::compress::brotli_compress_file(std::strin
                 auto written = CHUNK_SIZE - buffOutSize;
                 if (!buffOutSize||(mmode==BROTLI_OPERATION_FINISH&&written)) {
 
-                    if (written != co_await output.fwrite(buffOut, (written))) {
+                    if (static_cast<ssize_t>(written) != co_await output.fwrite(buffOut, (written))) {
                         goto err;
                     }
 
@@ -299,7 +299,7 @@ manapi::future<manapi::status> manapi::compress::zstd_compress_file(std::string 
                 if (ZSTD_isError(remaining)) {
                     goto err;
                 }
-                if (output_buffer.pos != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
+                if (static_cast<ssize_t>(output_buffer.pos) != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
                     goto err;
                 }
                 /* If we're on the last chunk we're finished when zstd returns 0,
@@ -389,7 +389,7 @@ manapi::future<manapi::status> manapi::compress::zstd_decompress_file(std::strin
                 if (ZSTD_isError(ret)) {
                     goto err;
                 }
-                if (output_buffer.pos != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
+                if (static_cast<ssize_t>(output_buffer.pos) != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
                     goto err;
                 }
                 lastRet = ret;
@@ -479,7 +479,7 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::stri
                 deflate(&stream, flush); assert(CHUNK_SIZE >= stream.avail_out);
                 std::size_t bytes = CHUNK_SIZE - stream.avail_out;
 
-                if (bytes != co_await output.fwrite(out_buff, bytes)) {
+                if (static_cast<ssize_t>(bytes) != co_await output.fwrite(out_buff, bytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);
@@ -774,7 +774,7 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string 
                 deflate(&stream, flush); assert(CHUNK_SIZE >= stream.avail_out);
                 std::size_t bytes = CHUNK_SIZE - stream.avail_out;
 
-                if (bytes != co_await output.fwrite(out_buff, bytes)) {
+                if (static_cast<ssize_t>(bytes) != co_await output.fwrite(out_buff, bytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);

@@ -25,8 +25,8 @@
 #include <openssl/bio.h>
 #include <openssl/engine.h>
 
-struct ssl_worker_ctx_t {
-    std::map<std::string, SSL_SESSION*, std::less<>> sessions;
+struct openssl_tls_worker_ctx_t {
+    std::unordered_map<std::string, SSL_SESSION*, manapi::net::worker::string_hash, std::equal_to<>> sessions;
     SSL_CTX *ctx;
     manapi::timer sessions_flush_timer;
 };
@@ -183,7 +183,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
         auto &wdata = this->pool_data_->data[this->deep_worker_id_];
         if (wdata.ref) {
             if (!(--wdata.ref)) {
-                auto ctx_data = static_cast<ssl_worker_ctx_t *> (wdata.data);
+                auto ctx_data = static_cast<openssl_tls_worker_ctx_t *> (wdata.data);
                 ctx_data->sessions_flush_timer.stop();
                 SSL_CTX_free(ctx_data->ctx);
                 delete ctx_data;
@@ -202,7 +202,7 @@ void manapi::net::worker::OpenSSL_TLS::stop(std::function<void()> cb) {
     TLS::stop(std::move(cb));
 }
 
-void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
+void ssl_flush_sessions (std::mutex *mx, openssl_tls_worker_ctx_t *ctx_data) {
     std::lock_guard<std::mutex> lk (*mx);
     auto &sessions = ctx_data->sessions;
     auto const current_time = ::time(nullptr);
@@ -241,9 +241,9 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
             this->pool_data_->data.resize(deep + 1);
 
         if (!(this->pool_data_->data[deep].ref))
-            this->pool_data_->data[deep].data = new ssl_worker_ctx_t{};
+            this->pool_data_->data[deep].data = new openssl_tls_worker_ctx_t{};
 
-        auto ctx_data = static_cast<ssl_worker_ctx_t *>(this->pool_data_->data[deep].data);
+        auto ctx_data = static_cast<openssl_tls_worker_ctx_t *>(this->pool_data_->data[deep].data);
         this->pool_data_->data[deep].ref++;
 
         if (!ctx_data->sessions_flush_timer) {
@@ -364,7 +364,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //     if (pool_data->data.size() <= deep)
 //         return nullptr;
 //
-//     auto ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//     auto ctx_data = static_cast<openssl_tls_worker_ctx_t *> (pool_data->data[deep].data);
 //     if (!ctx_data)
 //         return nullptr;
 //
@@ -407,7 +407,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //         if (deep >= pool_data->data.size())
 //             return 0;
 //
-//         auto ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//         auto ctx_data = static_cast<openssl_tls_worker_ctx_t *> (pool_data->data[deep].data);
 //         if (!ctx_data)
 //             return 0;
 //
@@ -435,7 +435,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //     std::size_t deep;
 //     manapi::net::http::server_ctx::pool_t *pool_data;
 //     std::string_view id;
-//     ssl_worker_ctx_t *ctx_data;
+//     openssl_tls_worker_ctx_t *ctx_data;
 //     const unsigned char*id_src;
 //     uint32_t id_len;
 //
@@ -455,7 +455,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //     if (deep >= pool_data->data.size())
 //         goto finish;
 //
-//     ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//     ctx_data = static_cast<openssl_tls_worker_ctx_t *> (pool_data->data[deep].data);
 //     if (ctx_data) {
 //         std::lock_guard<std::mutex> lk (*pool_data->mx);
 //         auto it = ctx_data->sessions.find(id);

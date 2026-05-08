@@ -426,7 +426,7 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
 
                             if (ctx_cb.req->body_size >= 0) {
                                 size = std::min(static_cast<std::size_t>(ctx_cb.req->body_size), (nsize));
-                                if (ctx_cb.req->body_size == size)
+                                if (static_cast<std::size_t>(ctx_cb.req->body_size) == size)
                                     flg = true;
                             }
                             else
@@ -438,7 +438,7 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
 
                                 auto const res = ctx_cb.handler (buffer + rhs, copy, flg);
                                 if (res >= 0) {
-                                    if (copy > res) {
+                                    if (copy > static_cast<std::size_t>(res)) {
                                         ctx_cb.resolve(manapi::status_internal("read_body:Something gets wrong"));
                                         goto finish;
                                     }
@@ -577,7 +577,7 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                                     if (ctx_cb->req->body_size >= 0) {
                                         size = std::min(static_cast<std::size_t>(ctx_cb->req->body_size),  (buffs.size()));
 
-                                        if (ctx_cb->req->body_size == size)
+                                        if (static_cast<std::size_t>(ctx_cb->req->body_size) == size)
                                             flg = true;
                                     }
                                     else {
@@ -592,7 +592,7 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
 
                                         auto const res = co_await ctx_cb->handler (buffsview, flg);
                                         if (res >= 0) {
-                                            if (copy > res) {
+                                            if (copy > static_cast<std::size_t>(res)) {
                                                 ctx_cb->resolve(manapi::status_internal("read_async_body:Something gets wrong"));
                                                 goto finish;
                                             }

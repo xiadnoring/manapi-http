@@ -243,7 +243,7 @@ namespace manapi {
          */
         template<typename T>
         requires(std::is_integral_v<T>)
-        json(const T &n) {
+        json(const T &n) : json() {
             this->parse_ (static_cast<INTEGER>(n));
         }
 
@@ -254,7 +254,7 @@ namespace manapi {
          */
         template<typename T>
         requires(std::is_floating_point_v<T>)
-        json (const T &n) {
+        json (const T &n) : json() {
             this->parse_ (static_cast<DECIMAL>(n));
         }
 
@@ -264,7 +264,7 @@ namespace manapi {
          * @param array source array
          */
         template<typename V>
-        json(std::vector<V> array) {
+        json(std::vector<V> array) : json() {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
@@ -275,7 +275,7 @@ namespace manapi {
          * @param array source array
          */
         template<typename V>
-        json(std::deque<V> array) {
+        json(std::deque<V> array) : json() {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
@@ -286,7 +286,7 @@ namespace manapi {
          * @param array source array
          */
         template<typename V>
-        json(std::stack<V> array) {
+        json(std::stack<V> array) : json() {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
@@ -297,7 +297,7 @@ namespace manapi {
          * @param array source set
          */
         template<typename V>
-        json(std::set<V> array) {
+        json(std::set<V> array) : json() {
             this->set_array_();
             while (!array.empty()) { this->push_back(std::move(array.extract(array.begin()).value())); }
         }
@@ -309,7 +309,7 @@ namespace manapi {
          * @param array source array
          */
         template<typename V, std::size_t N>
-        json(std::array<V, N> array) {
+        json(std::array<V, N> array) : json() {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
@@ -1089,20 +1089,20 @@ namespace manapi {
         inline void debug_symb_reinit_ () {};
 #endif
 
-        void    *src = nullptr;
-        types   type = type_null;
+        void    *src;
+        types   type;
 
 #if MANAPIHTTP_JSON_DEBUG
-        const BOOLEAN *debug_bool_src_    = nullptr;
-        const ARRAY   *debug_array_src_   = nullptr;
+        const BOOLEAN *debug_bool_src_;
+        const ARRAY   *debug_array_src_;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        const BIGINT  *debug_bigint_src_  = nullptr;
+        const BIGINT  *debug_bigint_src_;
 #endif
-        const OBJECT  *debug_object_src_  = nullptr;
-        const char  *debug_string_src_  = nullptr;
-        const INTEGER *debug_integer_src_  = nullptr;
-        const DECIMAL *debug_decimal_src_ = nullptr;
-        const PAIR    *debug_pair_src_ = nullptr;
+        const OBJECT  *debug_object_src_;
+        const char  *debug_string_src_;
+        const INTEGER *debug_integer_src_;
+        const DECIMAL *debug_decimal_src_;
+        const PAIR    *debug_pair_src_;
 #endif
     };
 

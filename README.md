@@ -69,7 +69,7 @@ paru -Sy gmp openssl zlib curl
 
 ### For Windows
 
-MSVC C++ (Tested Executable Only)
+MSVC C++
 
 ### For MacOs
 
@@ -484,7 +484,7 @@ int main () {
 
 ## Tested
 - Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release
-- Windows 11 Pro 22h2 x86_64 MSVC Debug (exe)
+- Windows 11 Pro 22h2 x86_64 MSVC Debug (lib/exe)
 
 ## Made in
 

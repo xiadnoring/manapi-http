@@ -4,6 +4,12 @@
 #include "hash/ManapiSHA256.hpp"
 #include "std/ManapiRef.hpp"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::string const &folder) {
     using http = manapi::net::http::server;
 
@@ -466,3 +472,4 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             co_return resp.text(ans.dump(4)).unwrap();
         });
 }
+#pragma GCC diagnostic pop

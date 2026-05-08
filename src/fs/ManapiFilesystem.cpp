@@ -381,8 +381,8 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
     if (!res.ok())
         co_return std::move(res.err());
     auto rhs = res.unwrap();
-    if (rhs != data.size())
-        co_return ev::status_internal("size isn't the same", ev::ERR_UNKNOWN);
+    if (static_cast<std::size_t>(rhs) != data.size())
+        co_return ev::status_internal("fs:sizes aren't the same", ev::ERR_UNKNOWN);
     co_return ev::status_ok();
 }
 
@@ -419,8 +419,8 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
     if (!rhs.ok())
         co_return rhs.err();
 
-    if (rhs.unwrap() != len)
-        co_return ev::status_internal("size isn't the same", ev::ERR_UNKNOWN);
+    if (static_cast<std::size_t>(rhs.unwrap()) != len)
+        co_return ev::status_internal("fs:sizes aren't the same", ev::ERR_UNKNOWN);
 
     co_return std::move(data);
 }
@@ -502,7 +502,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 dd.offset += rhs;
 
             while (dd.nbuff
-                && rhs >= dd.buff->len) {
+                && static_cast<std::size_t>(rhs) >= dd.buff->len) {
                 rhs -= static_cast<ssize_t>(dd.buff->len);
                 dd.buff++;
                 dd.nbuff--;
@@ -639,7 +639,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
             dd.result += rhs;
 
             while (dd.nbuff
-                && rhs >= dd.buff->len) {
+                && static_cast<std::size_t>(rhs) >= dd.buff->len) {
                 rhs -= static_cast<ssize_t>(dd.buff->len);
                 dd.nbuff--;
                 dd.buff++;

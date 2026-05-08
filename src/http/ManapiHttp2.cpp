@@ -172,7 +172,7 @@ static int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_typ
 
     if (nbuff) {
         rhs = ctx->worker->sync_write_ex(ctx->conn, buffs, nbuff, size, force, maxcnt);
-        if (rhs != size) {
+        if (rhs != static_cast<ssize_t>(size)) {
             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2:ctx->worker->sync_write_ex failed");
             return manapi::ERR_INTERNAL;
         }
@@ -1097,8 +1097,9 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                              * had never been created at all..."
                              *
                              */
-                            for (auto it = ctx->streams.upper_bound(ctx->n2); it != ctx->streams.end(); ++it) {
-                                if (!it->second)
+                            // for (auto it = ctx->streams.upper_bound(ctx->n2); it != ctx->streams.end(); ++it) {
+                            for (auto it = ctx->streams.begin(); it != ctx->streams.end(); ++it) {
+                                if (it->first > ctx->n2 || !it->second)
                                     continue;
                                 ctx->http_v2_worker->close_connection(it->second, worker::CLOSE_CONN_ERR);
                             }
@@ -1179,14 +1180,16 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     goto repeat;
                                 }
 
-                                if (std::numeric_limits<int32_t>::max() - sdata->write_window < ctx->n1) {
+                                int nbytes = static_cast<int32_t> (ctx->n1);
+                                if ((nbytes > 0 && (sdata->write_window > std::numeric_limits<int32_t>::max() - nbytes))
+                                    || (nbytes < 0 && (sdata->write_window < std::numeric_limits<int32_t>::min() - nbytes))) {
                                     http_v2_rst_stream_ex(ctx, s->second.get(), sdata->id, worker::HTTP2_ERROR_FLOW_CONTROL_ERROR);
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
                                 }
                                 else {
                                     manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%d prev=%d v=%d",
-                                        sdata->id, sdata->write_window, sdata->write_window + static_cast<int>(ctx->n1));
-                                    sdata->write_window += static_cast<int>(ctx->n1);
+                                        sdata->id, sdata->write_window, sdata->write_window + nbytes);
+                                    sdata->write_window += nbytes;
 
                                     if (sdata->write_window > 0) {
                                         if (sdata->flags & HTTP2_STREAM_WINDOW_EMPTY)
@@ -1199,16 +1202,17 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
                             }
                             else {
-                                if (std::numeric_limits<int32_t>::max() - ctx->write_window < ctx->n1) {
+                                uint32_t nbytes = static_cast<uint32_t> (ctx->n1);
+                                if ((nbytes > 0 && ctx->write_window > std::numeric_limits<uint32_t>::max() - nbytes)) {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_FLOW_CONTROL_ERROR,
                                         "overflow");
                                     goto repeat;
                                 }
                                 manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u prev=%d v=%u",
-                                    0, ctx->write_window, ctx->write_window+ctx->n1);
+                                    0, ctx->write_window, ctx->write_window+nbytes);
 
-                                ctx->write_window += ctx->n1;
-                                if (ctx->write_window <= ctx->n1) {
+                                ctx->write_window += nbytes;
+                                if (ctx->write_window <= nbytes) {
                                     for (const auto &s : ctx->streams) {
                                         if (!s.second)
                                             continue;
@@ -1378,7 +1382,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                      * n2 - padding size
                      * pos1 - weight
                      */
-                    if (ctx->n2 >= ctx->frame_length) {
+                    if (static_cast<uint32_t>(ctx->n2) >= ctx->frame_length) {
                         http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                             "padded");
                         goto repeat;
@@ -1836,7 +1840,9 @@ header_skip:
                     break;
                 }
                 case HTTP2_CALLBACK_PARSE_BODY_DATA : {
-                    if (ctx->n2 >= ctx->frame_length) {
+                    ctx->n2 = ctx->n2 & 0x7FFFFFFF;
+
+                    if (static_cast<uint32_t>(ctx->n2) >= ctx->frame_length) {
                         http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                             "padded");
                         goto repeat;
@@ -1844,14 +1850,14 @@ header_skip:
 
                     auto datasize = ctx->frame_length - static_cast<uint32_t>(ctx->n2);
                     bool const fin_data_frame = datasize == 0;
-                    assert((datasize <= ctx->server->max_frame_size));
+                    assert((datasize <= static_cast<uint32_t>(ctx->server->max_frame_size)));
                     datasize = std::min<uint32_t>(static_cast<uint32_t>(size - pos), datasize);
 
                     ctx->frame_length -= datasize;
                     std::size_t const datapos = pos;
                     pos += datasize;
 
-                    bool const fin_block_in_frame = (ctx->frame_length==ctx->n2);
+                    bool const fin_block_in_frame = (ctx->frame_length==static_cast<uint32_t>(ctx->n2));
 
                     {
                         //MANAPIHTTP_LOG("RECV DATA {}", len);
@@ -1881,7 +1887,7 @@ header_skip:
                                 goto repeat;
                             }
 
-                            if (sdata->read_window < datasize || ctx->read_window < datasize) {
+                            if (sdata->read_window < 0 || static_cast<uint32_t>(sdata->read_window) < datasize || ctx->read_window < datasize) {
                                 http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FLOW_CONTROL_ERROR;
                                 http_goaway.err_msg = "read buffer overflow";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -2263,7 +2269,7 @@ header_skip:
                         }
                     }
 
-                    if (ctx->frame_length > ctx->server->max_frame_size) {
+                    if (ctx->frame_length > static_cast<uint32_t>(ctx->server->max_frame_size)) {
                         http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
                             "frame length is invalid");
                         goto finish;
@@ -2535,7 +2541,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
 
     std::size_t res = 0;
 
-    while (res != copy) {
+    while (res != static_cast<std::size_t>(copy)) {
         auto frame_size = static_cast<std::size_t>(s->ctx->client->max_frame_size);
 
         bool fin = finish;
@@ -2590,7 +2596,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
     if (left) {
         s->ctx->write_window += left;
         s->write_window += static_cast<int>(left);
-        if (s->write_window == left) {
+        if (s->write_window == static_cast<int>(left)) {
             if (http_v2_update_priority(s->ctx, conn, s)) {
                 return -1;
             }
@@ -2598,7 +2604,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
     }
     s->transfered_k += res;
 
-    if (finish && res == copy) {
+    if (finish && res == static_cast<std::size_t>(copy)) {
         if (!(s->flags & HTTP2_STREAM_SEND_END)) {
             /* yay */
             s->flags |= HTTP2_STREAM_SEND_END;

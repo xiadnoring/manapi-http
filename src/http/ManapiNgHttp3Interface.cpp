@@ -165,7 +165,7 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
                 if (rhs < 0)
                     goto err;
                 res += static_cast<std::size_t>(rhs);
-                if (rhs != b.len) {
+                if (rhs != static_cast<ssize_t>(b.len)) {
                     interruped = 1;
                     nghttp3_conn_block_stream(ctx->ctx.get(), v_stream_id);
                     break;
@@ -731,7 +731,7 @@ static int ng_wrk_http3_recv_data (nghttp3_conn *conn, int64_t stream_id, const 
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), datalen, &s->ctx->gctx->worker->bufferpool(),
         config->buffer_size, &s->top->recv_size, WORKER_MAX_CNT);
 
-    if (rhs != datalen)
+    if (rhs != static_cast<ssize_t>(datalen))
         return NGHTTP3_ERR_NOMEM;
 
     if (auto err = manapi::net::worker::http_v3_flush_recv(config, sconn, s, false)) {
