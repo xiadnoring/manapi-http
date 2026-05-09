@@ -280,7 +280,7 @@ static manapi::status process_accepted_data_cb (manapi::net::fetch::data_t *m_da
 
         return manapi::status_ok();
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         return manapi::status_resource_exhausted();
     }
 }
@@ -1378,7 +1378,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
             m_data[ss] = '\0';
             this->m_data->curl_headers.reset(curl_slist_append(this->m_data->curl_headers.release(), m_data));
         }
-        catch (std::exception const &e) {
+        catch (std::exception const &) {
             return manapi::status_resource_exhausted();
         }
     }

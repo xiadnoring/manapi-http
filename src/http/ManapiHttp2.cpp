@@ -109,7 +109,7 @@ struct http_v2_goaway_t {
 };
 
 static constexpr char smlabel[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n";
-static constexpr std::size_t maxcnt = 1e9;
+static constexpr std::size_t maxcnt = static_cast<std::size_t>(1e9);
 
 static std::map <int, manapi::json_mask> const allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
@@ -284,7 +284,7 @@ static int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx,  int stre
 static int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx, int stream_id, const char *data, std::size_t size, bool finish) MANAPIHTTP_NOEXCEPT {
     manapi::ev::buff_t buff;
     buff.base = (char*)(data);
-    buff.len = size;
+    buff.len = static_cast<decltype(buff.len)>(size);
     return http_v2_send_frame(ctx, HTTP2_FRAME_DATA, finish ? HTTP2_FLAG_DATA_END_STREAM : 0, stream_id, &buff, 1, size, finish);
 }
 
@@ -557,7 +557,7 @@ static int http_v2_send_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goawa
     data[0].len = sizeof (nums);
 
     data[1].base = (char *)http_goaway->err_msg.data();
-    data[1].len = http_goaway->err_msg.size();
+    data[1].len = static_cast<decltype(data[1].len)>(http_goaway->err_msg.size());
 
     stringify_number<int>(static_cast<int>(ctx->last_stream_id), data[0].base);
     stringify_number<int>(http_goaway->err_code, data[0].base + 4);
@@ -591,7 +591,7 @@ static int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::
         }
         manapi::ev::buff_t bufs;
         bufs.base = buffer.data();
-        bufs.len = len;
+        bufs.len = static_cast<decltype(bufs.len)>(len);
         if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, 0, 0, &bufs, 1, bufs.len)) {
             return manapi::ERR_INTERNAL;
         }
@@ -2556,7 +2556,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
             if (buff[i].len >= want) {
                 /* cut it */
                 lencut = buff[i].len - (want);
-                buff[i].len = want;
+                buff[i].len = static_cast<decltype(buff[i].len)>(want);
                 bufcut = buff[i].base + want;
                 /* current number */
                 pnbuff = i + 1;
@@ -2585,7 +2585,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
             pnbuff--;
             /* pnbuff as i since now */
             buff[pnbuff].base = bufcut;
-            buff[pnbuff].len = lencut;
+            buff[pnbuff].len = static_cast<decltype(buff[pnbuff].len)>(lencut);
         }
 
         buff += pnbuff;
@@ -2654,7 +2654,7 @@ manapi::future<int> manapi::net::http::http_v2_response(worker::base *worker, co
         }
         ev::buff_t buf;
         buf.base = (char*)data.data() + cnt;
-        buf.len = static_cast<std::size_t>(left);
+        buf.len = static_cast<decltype(buf.len)>(left);
         if (http_v2_send_frame(s->ctx, ft, cflag, s->id, &buf, 1, buf.len)) {
             co_return manapi::ERR_INTERNAL;
         }

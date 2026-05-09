@@ -284,7 +284,7 @@ static ssize_t ng_wrk_http3_write (const manapi::net::worker::shared_conn &conn,
             goto err;
 
         buff->base += copy;
-        buff->len -= copy;
+        buff->len -= static_cast<decltype(buff->len)>(copy);
 
         if (!buff->len) {
             nbuff--;
@@ -785,7 +785,7 @@ static int ng_wrk_http3_recv_header (nghttp3_conn *conn, int64_t stream_id, int3
             }
         }
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         ret = NGHTTP3_ERR_NOMEM;
     }
 

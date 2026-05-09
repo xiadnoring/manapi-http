@@ -629,7 +629,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
             assert((nbuff > 0));
 
             buff->base += skip;
-            buff->len -= skip;
+            buff->len -= static_cast<decltype(buff->len)>(skip);
         }
 
         for (uint32_t i = 0; i < nbuff; i++) {

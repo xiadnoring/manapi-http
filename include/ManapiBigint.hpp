@@ -37,26 +37,26 @@ namespace manapi {
 
         ~bigint();
 
-        explicit bigint(std::string_view num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(std::string_view num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(ssize_t num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(ssize_t num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(int num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(int num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(double num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(long double num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(long double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
         template<typename T>
         requires(std::is_integral_v<T>)
-        explicit bigint (const T &num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
+        explicit bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
             this->init_(precision);
             this->parse(static_cast<ssize_t>(num));
         }
 
         template<typename T>
         requires(std::is_floating_point_v<T>)
-        explicit bigint (const T &num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
+        explicit bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
             this->init_(precision);
             this->parse(static_cast<long double>(num));
         }
@@ -114,13 +114,13 @@ namespace manapi {
          * Set the precision to avoid data loss
          * @param precision the precision to set
          */
-        void precision (std::size_t precision);
+        void precision (uint32_t precision);
 
         /**
          * Get the precision
          * @return the precision
          */
-        MANAPIHTTP_NODISCARD size_t precision () const;
+        MANAPIHTTP_NODISCARD uint32_t precision () const;
 
         bigint operator/ (const bigint &oth) const;
 
@@ -411,7 +411,7 @@ namespace manapi {
          * initialize the bigint ctx
          * @param precision the precision
          */
-        void init_ (std::size_t precision);
+        void init_ (uint32_t precision);
 
         std::unique_ptr<data_t, data_t_deleter> x;
     };

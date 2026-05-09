@@ -88,8 +88,8 @@ UTEST(std_string, chain_3) {
     std::deque<int> b;
 
     for (int i =0 ; i < 500; i++) {
-        int action = manapi::math::random(0, 8);
-        int s = manapi::math::random(0, 10000);
+        int action = (int)manapi::math::random(0, 8);
+        int s = (int)manapi::math::random(0, 10000);
         ASSERT_TRUE(a.empty() == b.empty());
         if (a.empty() || (action % 2 == 0 && action <= 6)) {
             b.push_back(s);
@@ -130,14 +130,14 @@ UTEST(std_string, chain_4) {
     std::vector<decltype(a)::chain_iterator> its;
 
     for (int i =0 ; i < 500; i++) {
-        int s = manapi::math::random(0, 100000);
+        int s = (int)manapi::math::random(0, 100000);
         a.push_back(s);
         its.push_back(a.rbegin());
         values.push_back(s);
     }
 
     for (int i = 0; i < 500; i++) {
-        int p = manapi::math::random(0, a.size() - 1);
+        int p = (int)manapi::math::random(0, a.size() - 1);
         ASSERT_TRUE(*its[p] == values[p]);
         a.erase(its[p]);
         values.erase(values.begin() + p);

@@ -169,14 +169,14 @@ int manapi::net::worker::openssl_quic::select_alpn(SSL *ssl, const unsigned char
         static_cast<uint32_t>(alpn_ossltest.size()), in, in_len) == OPENSSL_NPN_NEGOTIATED) {
         manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %p selected %.*s", "openssl_quic", ssl, *out_len, *out);
         if (w->global_.alpn_cb) {
-            auto const version = w->global_.alpn_cb( &w->global_, reinterpret_cast<char const *>(*out), *out_len, w);
+            auto version = w->global_.alpn_cb( &w->global_, reinterpret_cast<char const *>(*out), *out_len, w);
             if (version >= 0) {
                 auto conn = static_cast<shared_conn *>(SSL_get_app_data(ssl));
                 if (conn) {
                     (*conn)->version = version;
                 }
                 else {
-                    if (!SSL_set_app_data(ssl, version))
+                    if (!SSL_set_app_data(ssl, reinterpret_cast<char*>(static_cast<ssize_t>(version))))
                         return SSL_TLSEXT_ERR_ALERT_FATAL;
                 }
             }
@@ -759,7 +759,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         }
 
         buff->base += written;
-        buff->len -= written;
+        buff->len -= static_cast<decltype(buff->len)>(written);
     }
 
     return res;
@@ -1416,7 +1416,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
             assert(!(this->flags_ & CONN_QUIC_WORKER_POLL_LOOP));
             this->flags_ |= CONN_QUIC_WORKER_POLL_LOOP;
             while (true) {
-                repeat:
+                goto repeat; repeat:
 
                 if (this->current_poll_id >= this->polls_.size())
                     break;

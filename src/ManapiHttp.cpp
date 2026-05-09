@@ -738,11 +738,13 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
             co_return status_already_exists("http:already stopping");
         }
 
+        this->m_data->flags |= MANAPI_HTTP_SERVER_FLAG_STOPPING;
+
         if (!this->m_data->event_id) {
-            co_return status_not_found("http:wasn't configured");
+            res = status_not_found("http:wasn't configured");
+            goto err;
         }
 
-        this->m_data->flags |= MANAPI_HTTP_SERVER_FLAG_STOPPING;
 
         // короч. мне лень. это проблема не сегодняшнего меня
         // АААА. Я делаю рефакторинг в рандомный день 30 Apr 2026
@@ -809,6 +811,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "stop() failed", e.what());
         res = status_internal("stop() failed");
+        goto err;
     }
 err:
     this->m_data->flags ^= MANAPI_HTTP_SERVER_FLAG_STOPPING;

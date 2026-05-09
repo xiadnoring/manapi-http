@@ -82,15 +82,19 @@ set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
-if(MANAPIHTTP_STRICT_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(
-            -Werror
-            -Wconversion
-            -Wsign-conversion
-            -Wsign-compare
-            -Wfloat-conversion
-            -Wno-subobject-linkage
-    )
+if(MANAPIHTTP_STRICT_BUILD)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(
+                -Werror
+                -Wconversion
+                -Wsign-conversion
+                -Wsign-compare
+                -Wfloat-conversion
+                -Wno-subobject-linkage
+        )
+    else()
+        add_compile_options(/WX)
+    endif()
 endif()
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
@@ -943,9 +947,10 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
     #    )
 
 else ()
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
-
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+    endif()
     # LIB
     message(STATUS "Build type 'lib'")
 

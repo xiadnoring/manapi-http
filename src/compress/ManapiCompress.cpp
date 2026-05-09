@@ -580,7 +580,7 @@ manapi::status_or<std::string> manapi::compress::deflate_compress_string(std::st
     buff.resize(original.size() * 2);
     uLongf s;
 
-    compress2(reinterpret_cast<Bytef*>(buff.data()), &s, reinterpret_cast<const Bytef*> (original.data()), original.size(), level);
+    compress2(reinterpret_cast<Bytef*>(buff.data()), &s, reinterpret_cast<const Bytef*> (original.data()), static_cast<unsigned long>(original.size()), level);
 
     buff.resize(s);
 

@@ -248,7 +248,7 @@ static int default_wrk_http1_init (const manapi::net::worker::shared_conn &conn,
 
         conn->wrk.data = tp.release();
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return manapi::ERR_RESOURCE_EXHAUSTED;
     }
     catch (std::exception const &e) {

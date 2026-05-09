@@ -130,7 +130,7 @@ void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) MA
         if (m->cb)
             m->cb(*this->data_->data);
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         manapi_log_error("multithread storage:Notify failed");
     }
 

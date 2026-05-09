@@ -219,7 +219,7 @@ int manapi::ev::tcp::read_stop() MANAPIHTTP_NOEXCEPT {
 ssize_t manapi::ev::tcp::try_write(const void *buff, std::size_t len) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)buff;
-    buffs.len = len;
+    buffs.len = static_cast<decltype(buffs.len)>(len);
     return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
@@ -437,7 +437,7 @@ ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, std::size_t
 
         result = WriteFile(handle,
                            buff,
-                           nbuff,
+                           static_cast<DWORD>(nbuff),
                            &incremental_bytes,
                            overlapped_ptr);
         bytes += incremental_bytes;
@@ -517,7 +517,7 @@ ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, std::size_t nbuff,
 
         result = ReadFile(handle,
                           buff,
-                          nbuff,
+                          static_cast<DWORD>(nbuff),
                           &incremental_bytes,
                           overlapped_ptr);
         bytes += incremental_bytes;

@@ -18,6 +18,42 @@ struct manapi::bigint::data_t {
     mpf_t m;
 };
 
+static void mpz_set_sll(mpz_t n, long long sll)
+{
+    mpz_set_si(n, (int)(sll >> 32));     /* n = (int)sll >> 32 */
+    mpz_mul_2exp(n, n, 32 );             /* n <<= 32 */
+    mpz_add_ui(n, n, (unsigned int)sll); /* n += (unsigned int)sll */
+}
+
+static void mpz_set_ull(mpz_t n, unsigned long long ull)
+{
+    mpz_set_ui(n, (unsigned int)(ull >> 32)); /* n = (unsigned int)(ull >> 32) */
+    mpz_mul_2exp(n, n, 32);                   /* n <<= 32 */
+    mpz_add_ui(n, n, (unsigned int)ull);      /* n += (unsigned int)ull */
+}
+
+static unsigned long long mpz_get_ull(mpz_t n)
+{
+    unsigned int lo, hi;
+    mpz_t tmp;
+
+    mpz_init( tmp );
+    mpz_mod_2exp( tmp, n, 64 );   /* tmp = (lower 64 bits of n) */
+
+    lo = mpz_get_ui( tmp );       /* lo = tmp & 0xffffffff */ 
+    mpz_div_2exp( tmp, tmp, 32 ); /* tmp >>= 32 */
+    hi = mpz_get_ui( tmp );       /* hi = tmp & 0xffffffff */
+
+    mpz_clear( tmp );
+
+    return (((unsigned long long)hi) << 32) + lo;
+}
+
+static long long mpz_get_sll(mpz_t n)
+{
+    return (long long)mpz_get_ull(n); /* just use unsigned version */
+}
+
 void manapi::bigint::data_t_deleter::operator()(data_t *n) MANAPIHTTP_NOEXCEPT {
     mpf_clear(n->m);
 }
@@ -27,32 +63,32 @@ manapi::bigint::bigint() {
     this->parse(static_cast<ssize_t>(0));
 }
 
-manapi::bigint::bigint(ssize_t num, std::size_t precision) {
+manapi::bigint::bigint(ssize_t num, uint32_t precision) {
     this->init_(precision);
     this->parse(num);
 }
 
-manapi::bigint::bigint(int num, std::size_t precision) {
+manapi::bigint::bigint(int num, uint32_t precision) {
     this->init_(precision);
     this->parse(static_cast<ssize_t> (num));
 }
 
-manapi::bigint::bigint(double num, std::size_t precision) {
+manapi::bigint::bigint(double num, uint32_t precision) {
     this->init_(precision);
     this->parse(num);
 }
 
-manapi::bigint::bigint(long double num, std::size_t precision) {
+manapi::bigint::bigint(long double num, uint32_t precision) {
     this->init_(precision);
     this->parse(num);
 }
 
-manapi::bigint::bigint(std::string_view num, std::size_t precision) {
+manapi::bigint::bigint(std::string_view num, uint32_t precision) {
     this->init_(precision);
     this->parse(num);
 }
 
-// manapi::bigint::bigint(mpf_ptr num, std::size_t precision) {
+// manapi::bigint::bigint(mpf_ptr num, uint32_t precision) {
 //     mpf_set (*x, num);
 //     precision(precision);
 // }
@@ -82,7 +118,15 @@ int manapi::bigint::parse(std::string_view num) {
 }
 
 void manapi::bigint::parse(ssize_t num) {
-    mpf_set_si (this->x->m, num);
+    //mpf_set_si (this->x->m, num);
+    
+    mpz_t temp_z;
+    mpz_init (temp_z);
+    mpz_set_sll(temp_z, num);
+
+    mpf_set_z(this->x->m, temp_z);
+
+    mpz_clear(temp_z);
 }
 
 void manapi::bigint::parse(double num) {
@@ -137,7 +181,8 @@ manapi::bigint manapi::bigint::operator+(ssize_t oth) const {
     bigint n(*this);
 
     mpz_t temp_z;
-    mpz_init_set_si(temp_z, oth);
+    mpz_init (temp_z);
+    mpz_set_sll(temp_z, oth);
 
     mpf_t temp_f;
     mpf_init(temp_f);
@@ -227,7 +272,8 @@ manapi::bigint manapi::bigint::operator-(ssize_t oth) const {
     bigint n(*this);
 
     mpz_t temp_z;
-    mpz_init_set_si(temp_z, oth);
+    mpz_init (temp_z);
+    mpz_set_sll(temp_z, oth);
 
     mpf_t temp_f;
     mpf_init(temp_f);
@@ -554,7 +600,7 @@ manapi::bigint & manapi::bigint::operator=(double oth) {
     return *this = bigint (oth, mpf_get_prec(this->x->m));
 }
 
-void manapi::bigint::init_(std::size_t precision) {
+void manapi::bigint::init_(uint32_t precision) {
     if (this->x) {
         mpf_clear(this->x->m);
     }
@@ -564,11 +610,11 @@ void manapi::bigint::init_(std::size_t precision) {
     mpf_init2(this->x->m, precision);
 }
 
-void manapi::bigint::precision(std::size_t precision) {
+void manapi::bigint::precision(uint32_t precision) {
     mpf_set_prec (this->x->m, precision);
 }
 
-size_t manapi::bigint::precision() const {
+uint32_t manapi::bigint::precision() const {
     return mpf_get_prec(this->x->m);
 }
 

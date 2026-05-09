@@ -24,6 +24,21 @@ static const char* level_strings[] = {
     "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
 
+static std::tm localtime_xp(std::time_t timer)
+{
+    std::tm bt {};
+#if defined(__unix__)
+    localtime_r(&timer, &bt);
+#elif defined(_MSC_VER)
+    localtime_s(&bt, &timer);
+#else
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    bt = *std::localtime(&timer);
+#endif
+    return bt;
+}
+
 #ifdef LOG_NO_COLOR
 static const char* level_colors[] = {
     "", "", "", "", "", ""
@@ -642,11 +657,11 @@ static void logit_ (manapi::debug::log_level type, int level, const char *file, 
     auto timepoint = std::chrono::system_clock::now();
     auto coarse = std::chrono::system_clock::to_time_t(timepoint);
     auto fine = std::chrono::time_point_cast<std::chrono::milliseconds>(timepoint);
-
+    auto txp = localtime_xp(coarse);
     char tstr[sizeof "9999-12-31 23:59:59.999"];
     std::snprintf(tstr + std::strftime(tstr, sizeof tstr - 3,
-                                         "%F %T.", std::localtime(&coarse)),
-                  4, "%03lu", fine.time_since_epoch().count() % 1000);
+                                         "%F %T.", &txp),
+                  4, "%03llu", static_cast<uint64_t>(fine.time_since_epoch().count() % 1000));
 
     // Remove path from filename
     const char* base = strrchr(file, '/');

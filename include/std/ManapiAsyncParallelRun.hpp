@@ -69,7 +69,7 @@ namespace manapi::async {
                 run.data = std::make_shared<data_t>();
                 return std::move(run);
             }
-            catch (std::exception const &e) {
+            catch (std::exception const &) {
                 return manapi::status_resource_exhausted();
             }
         }

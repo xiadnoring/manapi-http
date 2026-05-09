@@ -36,7 +36,7 @@ manapi::json_error::status json_unexpected_end (std::size_t pos) {
 }
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_t bigint_precision)  {
+manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, uint32_t bigint_precision)  {
     this->start_cut = 0;
     this->next_parent = nullptr;
     this->flags = 0;
@@ -53,7 +53,7 @@ manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_
 }
 
 manapi::json_builder::
-json_builder(const json &mask, bool use_bigint, size_t bigint_precision) {
+json_builder(const json &mask, bool use_bigint, uint32_t bigint_precision) {
     this->start_cut = 0;
     this->type = json::type_null;
     this->end_cut = 0;

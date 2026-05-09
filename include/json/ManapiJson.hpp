@@ -998,7 +998,7 @@ namespace manapi {
         MANAPIHTTP_NODISCARD PAIR &as_pair_ () const;
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        manapi::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
+        manapi::status parse_ (STRING_VIEW plain_text, bool bigint = false, uint32_t bigint_precision = 128);
 #else
         manapi::status parse_ (STRING_VIEW plain_text);
 #endif

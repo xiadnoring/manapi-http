@@ -547,7 +547,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, htt
 
         return EHTTP_V1_1_PROTOCOL_WANT_READ;
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         /* skip */
     }
     catch (std::exception const &e) {

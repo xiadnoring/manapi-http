@@ -14,8 +14,8 @@ namespace manapi {
         explicit json_builder (const json_mask &mask = nullptr);
         explicit json_builder (const json &mask);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        explicit json_builder (const json_mask &mask, bool use_bigint, size_t bigint_precision = 128);
-        explicit json_builder (const json &mask, bool use_bigint, size_t bigint_precision = 128);
+        explicit json_builder (const json_mask &mask, bool use_bigint, uint32_t bigint_precision = 128);
+        explicit json_builder (const json &mask, bool use_bigint, uint32_t bigint_precision = 128);
 #endif
         ~json_builder();
         json_builder &operator<< (std::string_view str);
@@ -79,7 +79,7 @@ namespace manapi {
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         // bigint
-        size_t bigint_precision = 128;
+        uint32_t bigint_precision = 128;
 #endif
 
         // how many char are contained in the wchar

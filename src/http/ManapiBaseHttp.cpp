@@ -1290,7 +1290,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
             //     }
             // }
 
-            if ((rhs = co_await parallel.get_or(0L)) <= 0) {
+            if ((rhs = co_await parallel.get_or(static_cast<ssize_t>(0))) <= 0) {
                 break;
             }
 
@@ -1306,7 +1306,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
     err:
     if (parallel.some()) {
-        co_await parallel.get_or(0L);
+        co_await parallel.get_or(static_cast<ssize_t>(0));
     }
     co_return;
 }

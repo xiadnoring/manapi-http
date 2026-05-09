@@ -621,7 +621,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                 THROW_MANAPIHTTP_JSON_MASK_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
             }
         }
-
+        goto end;
         end:
 
         if (!builder.is_empty()) {
@@ -1025,7 +1025,7 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
             for (size_t i = 0; i < obj.size(); i++) {
                 ev::buff_t path_part;
                 path_part.base = nullptr;
-                path_part.len = i + 1;
+                path_part.len = static_cast<decltype(path_part.len)>(i + 1);
                 if (path)
                     path->emplace_back(path_part);
                 res = recursive_valid(obj.at(i), default_, false, path);

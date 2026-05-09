@@ -12,6 +12,11 @@
 #include "../include/std/ManapiBeforeDelete.hpp"
 #include "../include/ManapiJsonMaskUtils.hpp"
 
+#ifdef _MSC_VER
+#   pragma warning(push)
+#   pragma warning(disable: 5232)
+#endif
+
 static constexpr std::string_view json_true_ = "true";
 static constexpr std::string_view json_false_ = "false";
 static constexpr std::string_view json_null_ = "null";
@@ -256,7 +261,7 @@ void manapi::json::parse_(const NULLPTR &n) {
     set_nullptr_();
 }
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-manapi::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigint, size_t bigint_precision) {
+manapi::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigint, uint32_t bigint_precision) {
     json_builder builder (json_mask(nullptr), use_bigint, bigint_precision);
     auto res = builder.parse(plain_text);
     if (!res.ok())
@@ -1675,3 +1680,7 @@ const manapi::json_err_num &manapi::json_parse_exception::err_num () const {
 const char *manapi::json_parse_exception::what() const MANAPIHTTP_NOEXCEPT {
     return message.data();
 }
+
+#ifdef _MSC_VER
+#   pragma warning(pop)
+#endif

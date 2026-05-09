@@ -37,8 +37,8 @@ static ssize_t m_fstream_seekg_(manapi::fs::fstream::fstream_data_t *data, ssize
 
     auto prev = data->off_;
     switch (flag) {
-        case manapi::fs::fstream::FILE_SEEK_START: data->off_ = pos; break;
-        case manapi::fs::fstream::FILE_SEEK_CURRENT: data->off_ += pos; break;
+        case manapi::fs::fstream::FILE_SEEK_START: data->off_ = static_cast<long>(pos); break;
+        case manapi::fs::fstream::FILE_SEEK_CURRENT: data->off_ += static_cast<long>(pos); break;
     }
     return prev;
 }
@@ -62,7 +62,7 @@ manapi::status_or<manapi::fs::fstream> manapi::fs::fstream::create(std::string p
         );
         return std::move(f);
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         return manapi::status_resource_exhausted();
     }
 }
@@ -150,7 +150,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_s
             this->m_data->status |= FILE_EOF;
 
         if (this->m_data->off_ >= 0)
-            this->m_data->off_ += rhs;
+            this->m_data->off_ += static_cast<long>(rhs);
 
         co_return rhs;
     }
@@ -170,7 +170,7 @@ manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t
         rhs = res.unwrap();
 
         if (this->m_data->off_ >= 0) {
-            this->m_data->off_ += rhs;
+            this->m_data->off_ += static_cast<long>(rhs);
         }
 
         co_return rhs;
@@ -229,7 +229,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
             this->m_data->status |= FILE_EOF;
 
         if (this->m_data->off_ >= 0)
-            this->m_data->off_ += rhs;
+            this->m_data->off_ += static_cast<long>(rhs);
 
         co_return rhs;
     }
@@ -249,7 +249,7 @@ manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
         rhs = res.unwrap();
 
         if (this->m_data->off_ >= 0)
-            this->m_data->off_ += rhs;
+            this->m_data->off_ += static_cast<long>(rhs);
 
         co_return rhs;
     }

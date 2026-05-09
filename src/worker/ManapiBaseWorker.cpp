@@ -53,7 +53,7 @@ ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi
 ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const void *buff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)(buff);
-    buffs.len = size;
+    buffs.len = static_cast<decltype(buffs.len)>(size);
     return this->sync_write_ex(conn, &buffs, 1, size, finish, maxcnt);
 }
 
@@ -71,14 +71,14 @@ ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_vie
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, const void *buff, std::size_t size, bool finish) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)(buff);
-    buffs.len = size;
+    buffs.len = static_cast<decltype(buffs.len)>(size);
     return this->sync_write(conn, &buffs, 1, finish);
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, const void *buff, std::size_t size, bool finish) {
     ev::buff_t d;
     d.base = (char*)buff;
-    d.len = size;
+    d.len = static_cast<decltype(d.len)>(size);
     co_return co_await this->write(conn, &d, 1, finish);
 }
 

@@ -293,7 +293,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file file, const void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
     buff.base = (char *)(data);
-    buff.len = (size);
+    buff.len = static_cast<decltype(buff.len)>(size);
     co_return co_await async_write(file, &buff, 1,  offset, std::move(cancellation));
 }
 
@@ -363,7 +363,7 @@ struct fileno_deleter {
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
     buff.base = static_cast<char*>(data);
-    buff.len = size;
+    buff.len = static_cast<decltype(buff.len)>(size);
     co_return co_await async_read (file, &buff, 1, offset, std::move(cancellation));
 }
 
@@ -470,7 +470,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
     async_write_data_t dd{};
 
     buff->base += shift;
-    buff->len -= shift;
+    buff->len -= static_cast<decltype(buff->len)>(shift);
 
     dd.event_cb = nullptr;
     dd.buff = buff;
@@ -524,7 +524,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 auto w1 = wres.unwrap();
 
                 dd.buff->base += rhs;
-                dd.buff->len -= static_cast<std::size_t>(rhs);
+                dd.buff->len -= static_cast<decltype(dd.buff->len)>(rhs);
 
                 if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
@@ -607,7 +607,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
     async_read_data_t dd {};
 
     buff->base += shift;
-    buff->len -= shift;
+    buff->len -= static_cast<decltype(buff->len)>(shift);
 
     dd.result = res;
     dd.file = file;
@@ -661,7 +661,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
                 auto w = wres.unwrap();
 
                 dd.buff->base += rhs;
-                dd.buff->len -= static_cast<std::size_t>(rhs);
+                dd.buff->len -= static_cast<decltype(dd.buff->len)>(rhs);
 
                 if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
