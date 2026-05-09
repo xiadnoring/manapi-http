@@ -146,7 +146,7 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
             cache_path = it->second.as_string();
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("cache_path invalid: {}", e.what());
+        manapi_log_trace("http:cache_path invalid: %s", e.what());
     }
 
     try {
@@ -555,7 +555,7 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
                         config["site"] = std::move(obj);
                     }
                     catch (std::exception const &e) {
-                        MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
+                        manapi_log_trace("%s failed due to %s", "http:router:config read", e.what());
                     }
 
                     config["site_time"] = 0;
@@ -624,7 +624,7 @@ manapi::future<manapi::status> manapi::net::http::server::config_object(json con
                         config["site"] = std::move(nconfig);
                     }
                     catch (std::exception const &e) {
-                        MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
+                        manapi_log_trace("%s failed due to %s", "http:router:config read", e.what());
                     }
                 }
 
@@ -1290,7 +1290,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server:
         return std::move(handler_page);
     }
     catch (const std::exception &e) {
-        MANAPIHTTP_LOG("routing: an error has occurred: {}", e.what());
+        manapi_log_trace("%s failed due to %s", "routing", e.what());
     }
     return std::move(handler_page);
 }

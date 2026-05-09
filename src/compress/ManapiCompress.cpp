@@ -454,7 +454,7 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::stri
                 rhs = co_await input.read(in_buff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("deflate compress failed by {}", e.what());
+                manapi_log_trace("%s failed due to %s", "deflate:compress", e.what());
                 goto err;
             }
 
@@ -513,7 +513,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::st
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        MANAPIHTTP_LOG("defalte: {}", "inflateInit(...) failed!");
+        manapi_log_trace("%s failed", "deflate:decompress");
         goto excep;
     }
     try {
@@ -524,7 +524,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::st
                 rhs = co_await input.read(inbuff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("deflate decompress failed by {}", e.what());
+                manapi_log_trace("%s failed due to %s", "deflate:decompress", e.what());
                 goto err;
             }
 
@@ -546,7 +546,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::st
                 if(result == Z_NEED_DICT || result == Z_DATA_ERROR ||
                    result == Z_MEM_ERROR)
                 {
-                    MANAPIHTTP_LOG("deflate(...) failed! deflate() = {}", result);
+                    manapi_log_trace("%s failed, result=%d", "deflate:decompress", result);
                     goto err;
                 }
 
@@ -749,7 +749,7 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string 
                 rhs = co_await input.read(in_buff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("gzip compress failed by {}", e.what());
+                manapi_log_trace("%s failed due to %s", "gzip:compress", e.what());
                 goto err;
             }
 
@@ -819,7 +819,7 @@ manapi::future<manapi::status> manapi::compress::gzip_decompress_file(std::strin
                 rhs = co_await input.read(inbuff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("gzip decompress failed by {}", e.what());
+                manapi_log_trace("%s failed due to %s", "gzip:decompress", e.what());
                 goto err;
             }
             if (rhs < 0) {

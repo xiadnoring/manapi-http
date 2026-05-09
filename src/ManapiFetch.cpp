@@ -104,7 +104,7 @@ manapi::future<manapi::status> manapi::net::curl_send_async_body (std::shared_pt
             rhs = co_await m_data->async_handler_send_body->operator() (m_data->async_buffer, fin);
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG( "set_async_body(...) failed: {}", e.what());
+            manapi_log_trace ( "fetch:set_async_body failed due to %s", e.what());
         }
 
         if (rhs < 0) {

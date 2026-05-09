@@ -1557,7 +1557,7 @@ manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_w
             size_t header_value_cursor = 0;
             while (true) {
                 if (header->first.size() > max_header_value_len) {
-                    THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "header key is too long. Size: {}", header->first.size());
+                    throw manapi::exception (ERR_INTERNAL, "cf::quiche:header key is too long. Size: %zu", header->first.size());
                 }
                 auto len = std::min(max_header_value_len - header->first.size(), header->second.size() - header_value_cursor);
                 quiche_set_header_(q_headers.get() + (i++), header->first, std::string_view{header->second.data() + header_value_cursor, len});
@@ -1566,12 +1566,12 @@ manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_w
                     break;
                 }
                 ++headers_size;
-                auto const nheaders = static_cast<quiche_h3_header *>(realloc(q_headers.release(), sizeof (quiche_h3_header) * headers_size));
+                auto const nheaders = static_cast<quiche_h3_header *>(::realloc(q_headers.release(), sizeof (quiche_h3_header) * headers_size));
                 if (nheaders) {
                     q_headers.reset(nheaders);
                 }
                 else {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "failed to realloc(...) headers buffer");
+                    throw manapi::exception(ERR_INTERNAL, "cf::quiche:failed to realloc(...) headers buffer");
                 }
             }
         }

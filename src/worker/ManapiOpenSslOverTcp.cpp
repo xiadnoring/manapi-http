@@ -521,8 +521,7 @@ manapi::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_context(s
 #   pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
         case http::versions::TLS_v1_3:    method = TLS_server_method();       break;
-        default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
-            "can not find the initialization method openssl (tls_version): {}", version);
+        default: return manapi::status_failed_precondition("openssl:can not find current tls_version");
     }
 
 

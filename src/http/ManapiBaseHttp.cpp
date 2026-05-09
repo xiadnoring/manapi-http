@@ -204,7 +204,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 }
                 else {
                     force_compress = true;
-                    MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+                    manapi_log_error("Failed to open the file: {}", filepath);
                 }
                 continue;
             }
@@ -1198,11 +1198,11 @@ namespace manapi::net::http::internal {
                 case ERR_ABORTED:
                     return;
                 default:
-                    MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                    manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
             }
         }
         catch (const std::exception &e) {
-            MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+            manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
         }
 
         cdata->router = std::move(cdata->router->error);

@@ -43,7 +43,7 @@ void manapi::string::random(char *dst, size_t len) MANAPIHTTP_NOEXCEPT {
 
 std::string manapi::string::random (size_t len, std::string_view src) {
     if (src.empty()) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "random(...): the 'src' parameter is empty");
+        throw manapi::exception(ERR_INTERNAL, "random(...): 'src' parameter is empty");
     }
 
     const size_t back = src.size() - 1;

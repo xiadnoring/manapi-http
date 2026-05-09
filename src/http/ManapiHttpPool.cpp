@@ -150,7 +150,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
 
                             auto it_http_impl = http_implementation.find(*http_impl_name);
                             if (it_http_impl == http_implementation.end()) {
-                                MANAPIHTTP_LOG("http: implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
+                                manapi_log_error("http:implementation by %s not found. Available: [%s]", http_impl_name->data(), concat_keys_in_map(http_implementation).data());
                                 co_return status_failed_precondition("http implementation not found");
                             }
 
@@ -175,7 +175,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                 }
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("http: worker init failed due to {}", e.what());
+                manapi_log_trace("%s failed due to %s", "http:worker init", e.what());
             }
         }
         else

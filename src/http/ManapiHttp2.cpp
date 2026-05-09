@@ -444,7 +444,7 @@ static uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manap
         }
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("http2: priority update failed due to {}", e.what());
+        manapi_log_trace("%s failed due to %s", "http2:priority update", e.what());
         return manapi::ERR_INTERNAL;
     }
 
@@ -2506,7 +2506,7 @@ header_skip:
     catch (std::exception const &e) {
         ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
         /* some errors */
-        MANAPIHTTP_LOG("http2 bug: {}", e.what());
+        manapi_log_trace("%s failed due to %s", "http2", e.what());
         return EHTTP_V2_PROTOCOL_ERROR;
     }
 

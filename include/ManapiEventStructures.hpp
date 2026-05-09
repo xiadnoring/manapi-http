@@ -27,7 +27,7 @@
         int listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT; \
         static int ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPIHTTP_NOEXCEPT; \
         static int ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPIHTTP_NOEXCEPT;
-#define MANAPIHTTP_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); }
+#define MANAPIHTTP_EV_CHECK(expr) if (expr) { throw manapi::exception (manapi::ERR_INTERNAL, #expr); }
 
 namespace manapi {
     /**

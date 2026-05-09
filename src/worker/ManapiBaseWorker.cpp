@@ -156,7 +156,7 @@ manapi::future<ssize_t> write_internal (manapi::net::worker::base *w, ssize_t rh
         w->event_flags(conn, write_data.prev_flags);
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("write(...) failed due to {}", e.what());
+        manapi_log_trace("%s failed due to %s", "fetch:write", e.what());
         w->waiting(conn, false);
         rhs = -1;
     }
@@ -231,7 +231,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
         this->event_flags(conn, write_data.prev_flags);
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("write(...) failed due to {}", e.what());
+        manapi_log_trace("%s failed due to %s", "fetch:write", e.what());
 
         this->waiting(conn, false);
         rhs = -1;
@@ -581,7 +581,7 @@ int manapi::net::worker::base::call_user_callback(worker_watcher_cb *cb, const s
         return manapi::ERR_OK;
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("worker: user callback failed due to {}", e.what());
+        manapi_log_error("%s failed due to %s", "call_user_callback", e.what());
     }
 
     return manapi::ERR_ABORTED;

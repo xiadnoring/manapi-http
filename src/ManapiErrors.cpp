@@ -346,7 +346,7 @@ std::string_view manapi::status::status_msg() const {
 
 void manapi::status::unwrap() const {
     if (this->m_data.errnum() != ERR_OK)
-        THROW_MANAPIHTTP_EXCEPTION(this->m_data.errnum(), this->fullmsg());
+        throw manapi::exception(this->m_data.errnum(), this->fullmsg());
 }
 
 std::string manapi::status::fullmsg() const {

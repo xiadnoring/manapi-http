@@ -1027,7 +1027,7 @@ size_t manapi::event_loop::subscribe_finish(int priority, std::move_only_functio
     auto id = *reinterpret_cast<const std::size_t *> (&cb);
 
     if (!this->m_map_finish_cb.insert({id, std::make_pair(priority, std::move(cb))}).second) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "index {} exists", id);
+        throw manapi::exception (ERR_INTERNAL, "evloop::subscribe_finish:index %zu exists", id);
     }
 
     return id;
@@ -1037,7 +1037,7 @@ std::size_t manapi::event_loop::subscribe_clean_up(std::move_only_function<void(
     auto id = *reinterpret_cast<const std::size_t *> (&cb);
 
     if (!this->m_map_clean_up_cb.insert({id, std::move(cb)}).second) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "index {} exists", id);
+        throw manapi::exception (ERR_INTERNAL, "evloop::subscribe_clean_up:index %zu exists", id);
     }
 
     return id;

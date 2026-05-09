@@ -493,7 +493,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "tcp renew connection %p", conn.get());
         try {
             if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
-                MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
+                manapi_log_trace("tcp:this->global_.cleanup_cb failed");
 
             this->event_on(conn,
                 [this]
@@ -1017,7 +1017,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     auto const wrk = dynamic_cast<TCP*> (connection->worker);
     if (wrk) {
         if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
-            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
+            manapi_log_trace("tcp:this->global_.cleanup_cb failed");
 
         wrk->count--;
         wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);

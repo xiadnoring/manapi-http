@@ -185,7 +185,7 @@ manapi::status_or<std::string> manapi::crypto::aead_encrypt(std::string_view dat
             cipher = EVP_aes_256_cbc();
         break;
         default:
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
+            throw manapi::exception (ERR_UNIMPLEMENTED, "aead_encrypt:Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
     }
 
     std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> n (EVP_CIPHER_CTX_new());
@@ -250,7 +250,7 @@ manapi::status_or<std::string> manapi::crypto::aead_encrypt(std::string_view dat
             cipher = wolfSSL_EVP_aes_256_cbc();
         break;
         default:
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
+            throw manapi::exception(ERR_UNIMPLEMENTED, "aead_encrypt:Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
     }
 
     std::unique_ptr<WOLFSSL_EVP_CIPHER_CTX, wolfssl_evp_cipher_deleter> n (wolfSSL_EVP_CIPHER_CTX_new());

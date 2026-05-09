@@ -45,7 +45,7 @@ void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
 
     for (i = 0; i < str.size(); i++){
         if (!encoding::url_allowed_symbol(str[i])) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "decode_url: invalid char");
+            throw manapi::exception(ERR_INVALID_ARGUMENT, "decode_url: invalid char");
         }
 
         if(str[i] != '%'){

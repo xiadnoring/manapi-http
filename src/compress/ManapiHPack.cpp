@@ -1079,7 +1079,7 @@ err_zero:
 			return status_ok();
 		}
 		catch (std::exception const &e) {
-			MANAPIHTTP_LOG ("unexpected hpack bug: {}", e.what());
+			manapi_log_trace ("%s failed due to %s", "hpack", e.what());
 		}
 
 		return status_internal("hpack: due to exception");

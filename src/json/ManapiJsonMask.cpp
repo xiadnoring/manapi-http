@@ -721,7 +721,7 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
                 }
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("json_mask: unexpected bug: ", e.what());
+                manapi_log_trace("%s failed due to %s", "json_mask", e.what());
             }
         }
 

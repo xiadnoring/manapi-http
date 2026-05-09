@@ -27,9 +27,8 @@ int manapi::net::http::url_decode_stream::operator<<(std::string_view data) {
 }
 
 std::vector<std::string> manapi::net::http::url_decode_stream::result() {
-    if (this->hex_index != -1) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT, "this->hex_index != -1");
-    }
+    if (this->hex_index != -1)
+        throw manapi::exception (ERR_INVALID_ARGUMENT, "url_decode_stream:failed");
     this->cleanup_uri_();
     return std::move(this->result_);
 }

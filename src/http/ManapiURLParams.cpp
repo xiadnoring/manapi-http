@@ -27,7 +27,7 @@ std::map<std::string, std::string, std::less<>> manapi::net::http::parse_get_par
 
         if (params[i] == '=') {
             if (flg) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "key has already been defined");
+                throw manapi::exception(ERR_INVALID_ARGUMENT, "http::params:key has already been defined");
             }
             key = encoding::decode_url (std::string_view{params.data() + j, params.data() + i});
             j = i + 1;
@@ -35,7 +35,7 @@ std::map<std::string, std::string, std::less<>> manapi::net::http::parse_get_par
         }
         else if (params[i] == '&') {
             if (!flg) {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT, "key hasn't been defined yet");
+                throw manapi::exception (ERR_INVALID_ARGUMENT, "http::params:key hasn't been defined yet");
             }
             result.insert({std::move(key), encoding::decode_url(std::string_view{params.data() + j, params.data() + i})});
             j = i + 1;

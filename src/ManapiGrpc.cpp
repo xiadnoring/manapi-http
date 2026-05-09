@@ -1648,8 +1648,8 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
                     n["grpc_path"] = std::move(path);
                 }
                 else {
-                    MANAPIHTTP_LOG("wgrpc:Failed to read data from the grpc_path: {} due to {}:{} {}({}, {})",
-                        path, res_text.status_msg(), res_text.message(), res_text.syserr(), res_text.sysname(), res_text.sysmsg());
+                    manapi_log_trace("wgrpc:Failed to read data from the grpc_path: %s due to %s:%s %d(%s, %s)",
+                        path.data(), res_text.status_msg().data(), res_text.message().data(), res_text.syserr(), res_text.sysname().data(), res_text.sysmsg().data());
                 }
 
                 update = true;

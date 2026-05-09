@@ -84,7 +84,7 @@ manapi::net::http::config::config(const json &config) {
             else if (version == "3"
                 || version == "3.0")        num = HTTP_VER_BIT_3;
             else {
-                MANAPIHTTP_LOG("http version ('{}') incorrect in the config", version.as_string());
+                manapi_log_trace("http:http version ('%s') is incorrect", version.as_string().data());
             }
 
             if (num)

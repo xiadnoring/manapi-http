@@ -370,7 +370,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     auto const wrk = dynamic_cast<TLS*> (connection->worker);
     if (wrk) {
         if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
-            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
+            manapi_log_trace("tcp:this->global_.cleanup_cb failed");
 
         wrk->count--;
         wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
@@ -1130,7 +1130,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
         return CONN_IO_OK;
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("TlsOverTcp failed due to {}", e.what());
+        manapi_log_trace("%s failed due to %s", "tlstcp", e.what());
     }
 
     return CONN_IO_ERROR;
