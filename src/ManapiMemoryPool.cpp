@@ -216,7 +216,7 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
 
         assert((buffsize >= area_size));
         cur->buff.base = static_cast<char *>(buffptr);
-        cur->buff.len = buffsize;
+        cur->buff.len = static_cast<decltype(cur->buff.len)>(buffsize);
     }
 
     std::size_t rshift = 0;
@@ -241,7 +241,7 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         }
 
         cur->buff.base = static_cast<char *>(buffptr);
-        cur->buff.len = buffsize;
+        cur->buff.len = static_cast<decltype(cur->buff.len)>(buffsize);
 
         rshift = (buffsize - left);
 

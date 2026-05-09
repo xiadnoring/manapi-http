@@ -842,7 +842,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
 
     for (auto &param : this->data) {
         part.buff.base = boundary.data();
-        part.buff.len = boundary.size();
+        part.buff.len = static_cast<decltype(part.buff.len)>(boundary.size());
 
         status = co_await write (slice_view(&part), false);
         if (!status)
@@ -860,7 +860,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
                 http::stringify_header_value({{"form-data", {{"name", name}}}})});
 
             part.buff.base = header.data();
-            part.buff.len = header.size();
+            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
             status = co_await write (slice_view(&part), false);
             if (!status)
                 goto err;
@@ -878,7 +878,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
 
 
             part.buff.base = param.second.data.data();
-            part.buff.len = param.second.data.size();
+            part.buff.len = static_cast<decltype(part.buff.len)>(param.second.data.size());
             status = co_await write (slice_view(&part), false);
             if (!status)
                 goto err;
@@ -897,7 +897,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
             std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
             part.buff.base = header.data();
-            part.buff.len = header.size();
+            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
             status = co_await write (slice_view(&part), false);
             if (!status)
                 goto err;
@@ -910,7 +910,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             val = http::stringify_header_value({{std::move(param.second.file.value().filemime)}});
             header = http::stringify_header({http::H_CONTENT_TYPE, val});
             part.buff.base = header.data();
-            part.buff.len = header.size();
+            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
             status = co_await write (slice_view(&part), false);
             if (!status)
                 goto err;
@@ -983,7 +983,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
     }
 
     part.buff.base = boundary.data();
-    part.buff.len = boundary.size();
+    part.buff.len = static_cast<decltype(part.buff.len)>(boundary.size());
     status = co_await write (slice_view(&part), false);
     if (!status)
         goto err;

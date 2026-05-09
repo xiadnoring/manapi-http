@@ -414,7 +414,7 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
                     }
                 }
             }
-            catch (std::bad_alloc const &e) {
+            catch (std::bad_alloc const &) {
                 return NGHTTP2_ERR_NOMEM;
             }
             catch (std::exception const &e) {
@@ -907,7 +907,7 @@ manapi::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net::worker
 
         return status_ok();
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {

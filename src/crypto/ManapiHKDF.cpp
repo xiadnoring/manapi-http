@@ -91,7 +91,7 @@ manapi::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk,
     catch (std::bad_alloc const &) {
         return status_resource_exhausted();
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         return status_internal();
     }
 }

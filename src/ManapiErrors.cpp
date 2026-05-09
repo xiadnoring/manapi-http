@@ -661,7 +661,7 @@ static void logit_ (manapi::debug::log_level type, int level, const char *file, 
     char tstr[sizeof "9999-12-31 23:59:59.999"];
     std::snprintf(tstr + std::strftime(tstr, sizeof tstr - 3,
                                          "%F %T.", &txp),
-                  4, "%03llu", static_cast<uint64_t>(fine.time_since_epoch().count() % 1000));
+                  4, "%03llu", static_cast<unsigned long long>(fine.time_since_epoch().count() % 1000));
 
     // Remove path from filename
     const char* base = strrchr(file, '/');

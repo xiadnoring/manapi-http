@@ -1962,7 +1962,7 @@ manapi::ev::status_or<manapi::ev::shared_work> manapi::event_loop::append_task(s
 
         return std::move(w);
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         return manapi::ev::status_resource_exhausted();
     }
 }

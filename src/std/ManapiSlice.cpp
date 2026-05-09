@@ -539,8 +539,8 @@ void manapi::slice_base::slices_buffs(ev::buff_t *buffs) const {
         buffsptr--;
 
         buffs->base += this->shift_;
-        buffs->len -= this->shift_;
-        buffsptr->len -= this->rshift_;
+        buffs->len -= static_cast<decltype(buffs->len)>(this->shift_);
+        buffsptr->len -= static_cast<decltype(buffsptr->len)>(this->rshift_);
     }
 }
 
@@ -559,8 +559,8 @@ std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> manapi::slice_ba
         buffsptr--;
 
         buffs->base += this->shift_;
-        buffs->len -= this->shift_;
-        buffsptr->len -= this->rshift_;
+        buffs->len -= static_cast<decltype(buffs->len)>(this->shift_);
+        buffsptr->len -= static_cast<decltype(buffsptr->len)>(this->rshift_);
     }
 
     return std::move(buffs);
@@ -705,7 +705,7 @@ manapi::slice_ref::~slice_ref() {
 manapi::status manapi::slice_ref::push_back(const void *buffer, std::size_t size) {
     auto t = std::make_unique<slice_part_t>();
     t->buff.base = (char*)(buffer);
-    t->buff.len = size;
+    t->buff.len = static_cast<decltype(t->buff.len)>(size);
     this->size_ += size;
     if (this->last) {
         this->last->next = t.release();
@@ -836,7 +836,7 @@ manapi::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOEXCEPT {
 
         auto const shift = buffer.shift();
 
-        t->buff.len = buffer.realsize();
+        t->buff.len = static_cast<decltype(t->buff.len)>(buffer.realsize());
         this->size_ += buffer.realsize();
         t->buff.base = static_cast<char*>(buffer.release());
 

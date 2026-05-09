@@ -19,7 +19,7 @@
 #endif
 
 
-manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t resolve, manapi::ctoken cancellation) {
+static manapi::ev::io_cb pio_ready_mk_(int flags, manapi::socket_t fd,manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t resolve, manapi::ctoken cancellation) {
     try {
         return [flags, resolve = std::move(resolve), cancellation = std::move(cancellation)]
             (const std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
@@ -41,7 +41,7 @@ manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<ma
     }
 }
 
-void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t &resolve, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
+static void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const manapi::async::promise_sync<manapi::ev::status_or<int>>::resolve_t &resolve, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     if (!cb)
         goto err;
 

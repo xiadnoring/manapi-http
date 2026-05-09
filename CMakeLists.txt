@@ -93,7 +93,7 @@ if(MANAPIHTTP_STRICT_BUILD)
                 -Wno-subobject-linkage
         )
     else()
-        add_compile_options(/WX)
+        add_compile_options(/WX /Zi /fsanitize=address)
     endif()
 endif()
 

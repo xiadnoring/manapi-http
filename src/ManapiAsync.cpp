@@ -43,12 +43,14 @@ void manapi::async::internal::append_static_task(manapi::fixed_function<void()> 
 std::coroutine_handle<> manapi::async::internal::future_final_awaiter_suspend(std::coroutine_handle<promise<void, manapi::future<>>> handle) MANAPIHTTP_NOEXCEPT {
     auto promise_ = &handle.promise();
     auto waiting = std::exchange(promise_->waiting, nullptr);
+    if (!waiting)
+        waiting = std::noop_coroutine();
 
     if (promise_->finish_cb) {
         promise_->finish_cb->operator()(std::move(promise_->exception));
     }
 
-    return waiting ? waiting : std::noop_coroutine();
+    return waiting;
 }
 
 manapi::async::internal::promise_base_future::promise_base_future() = default;

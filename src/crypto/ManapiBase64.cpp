@@ -680,7 +680,7 @@ manapi::status_or<std::string> manapi::crypto::base64_encode(std::string_view da
     try {
         return base64::encode_into<std::string>(std::begin(data), std::end(data));
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {
@@ -693,7 +693,7 @@ manapi::status_or<std::string> manapi::crypto::base64_decode(std::string_view da
     try {
         return base64::encode_into<std::string>(data);
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return manapi::status_resource_exhausted();
     }
     catch (std::exception const &e) {

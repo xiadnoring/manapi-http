@@ -190,7 +190,7 @@ namespace manapi::hash {
                 return std::move(err);
             return std::move(output);
         }
-        catch (std::bad_alloc const &e) {
+        catch (std::bad_alloc const &) {
             return status_resource_exhausted();
         }
         catch (std::exception const &e) {
@@ -210,9 +210,9 @@ namespace manapi::hash {
         ctx.update( reinterpret_cast<const uint8_t*>(input.data()), input.size());
         ctx.final(digest);
 
-        char buf[2*sha256::DIGEST_SIZE];
-        for (uint32_t i = 0; i < sha256::DIGEST_SIZE; i++)
-            sprintf(buf+i*2, "%02x", digest[i]);
+        // char buf[2*sha256::DIGEST_SIZE + 1];
+        // for (uint32_t i = 0; i < sha256::DIGEST_SIZE; i++)
+        //     snprintf(buf+i*2, 3, "%02x", digest[i]);
 
         return status_ok();
     }

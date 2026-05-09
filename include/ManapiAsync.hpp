@@ -91,7 +91,8 @@ namespace manapi::async::internal {
         auto await_suspend (std::coroutine_handle<P> handle) MANAPIHTTP_NOEXCEPT {
             auto &promise_ = handle.promise();
             auto waiting = std::exchange(promise_.waiting, nullptr);
-
+            if (!waiting)
+                waiting = std::noop_coroutine();
             if (promise_.finish_cb) {
                 if (promise_.exception) {
                     promise_.finish_cb->operator()(std::move(promise_.exception), nullptr);
@@ -102,7 +103,7 @@ namespace manapi::async::internal {
                 }
             }
 
-            return waiting ? waiting : std::noop_coroutine();
+            return waiting;
         }
 
         void await_resume () MANAPIHTTP_NOEXCEPT {}

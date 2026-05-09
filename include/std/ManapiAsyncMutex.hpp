@@ -29,7 +29,7 @@ namespace manapi::async {
     };
 
     class mutex {
-        class mutex_promise;
+        struct mutex_promise;
     public:
         mutex ();
 
