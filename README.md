@@ -247,6 +247,7 @@ int main () {
     manapi::clear_tools::curl_library_clear();
     manapi::clear_tools::ev_library_clear();
     manapi::clear_tools::ssl_library_clear();
+    manapi::clear_tools::grpc_clear();
 
     return 0;
 }
