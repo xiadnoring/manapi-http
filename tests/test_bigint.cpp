@@ -87,6 +87,31 @@ UTEST(bigint, bigint_parse_divide_integer) {
     ASSERT_TRUE(n3.integerify() == 78 / 2);
 }
 
+UTEST(bigint, bigint_ssize1) {
+    manapi::bigint n1 ("78", 1024);
+    manapi::bigint n2 ((ssize_t)(56));
+    auto n3 = n1 + n2;
+    ASSERT_TRUE(n3.integerify() == 78 + 56);
+}
+
+UTEST(bigint, bigint_ssize2) {
+    manapi::bigint n1 ("78", 1024);
+    n1 += static_cast<ssize_t> (-56);
+    ASSERT_TRUE(n1.integerify() == 78 - 56);
+}
+
+UTEST(bigint, bigint_ssize3) {
+    manapi::bigint n1 ("78", 1024);
+    n1 -= static_cast<ssize_t> (-56);
+    ASSERT_TRUE(n1.integerify() == 78 + 56);
+}
+
+UTEST(bigint, bigint_neg1) {
+    manapi::bigint n1 ("78", 1024);
+    n1 = !n1;
+    ASSERT_TRUE(n1.integerify() == -78);
+}
+
 #endif
 
 UTEST_MAIN();

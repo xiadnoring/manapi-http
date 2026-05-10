@@ -55,7 +55,10 @@ static long long mpz_get_sll(mpz_t n)
 }
 
 void manapi::bigint::data_t_deleter::operator()(data_t *n) MANAPIHTTP_NOEXCEPT {
-    mpf_clear(n->m);
+    if (n) {
+        mpf_clear(n->m);
+        delete n;
+    }
 }
 
 manapi::bigint::bigint() {
