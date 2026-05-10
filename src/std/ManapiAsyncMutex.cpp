@@ -49,7 +49,7 @@ void manapi::async::mutex::mutex_promise::await_suspend(std::coroutine_handle<> 
     }
     else {
         this->parent->m_own = true;
-        handle.resume();
+        async::coro_resume(handle);
     }
 }
 
@@ -128,7 +128,7 @@ void manapi::async::mutex::unlock() MANAPIHTTP_NOEXCEPT {
     MANAPIHTTP_MUST_ALLOC_START
     manapi::async::current()->etaskpool()->append_task(
         [handle = promise->handle] () -> void {
-        handle.resume();
+        async::coro_resume(handle);
     });
     MANAPIHTTP_MUST_ALLOC_END
 }

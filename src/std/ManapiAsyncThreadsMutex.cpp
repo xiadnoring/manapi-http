@@ -48,7 +48,7 @@ void manapi::async::tmutex::tmutex_promise::await_suspend(std::coroutine_handle<
 
                 lk.unlock();
 
-                this->handle.resume();
+                async::coro_resume(this->handle);
             });
         }
 
@@ -59,7 +59,7 @@ void manapi::async::tmutex::tmutex_promise::await_suspend(std::coroutine_handle<
             manapi::async::current()->eventloop()->stop_watcher(p->w);
             if (p->token)
                 p->token->disable();
-            p->handle.resume();
+            async::coro_resume(p->handle);
         }).unwrap();
 
         this->pos = this->parent->m_waiters.size();
@@ -69,7 +69,7 @@ void manapi::async::tmutex::tmutex_promise::await_suspend(std::coroutine_handle<
         this->parent->m_locked = true;
         lk.unlock();
 
-        handle.resume();
+        async::coro_resume(handle);
     }
 }
 

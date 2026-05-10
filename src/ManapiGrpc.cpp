@@ -1,6 +1,8 @@
 #include <memory>
 
 #include "ManapiGrpc.hpp"
+
+
 #include "ManapiTimerPool.hpp"
 #include "ManapiTimerObject.hpp"
 #include "ManapiEventLoop.hpp"
@@ -17,6 +19,7 @@
 
 #include <grpcpp/grpcpp.h>
 #include <grpc/event_engine/event_engine.h>
+#include <google/protobuf/stubs/common.h>
 
 enum manapi_grpc_endpoint_flags {
     MANAPI_GRPC_ENDPOINT_WANT_READ = 1,
@@ -1525,6 +1528,8 @@ void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
     else {
 
     }
+
+    google::protobuf::ShutdownProtobufLibrary();
 }
 
 static manapi::future<> wgrpc_server_stop( std::shared_ptr<manapi::net::wgrpc::server> p,  manapi::net::wgrpc::server::data_t * data) {

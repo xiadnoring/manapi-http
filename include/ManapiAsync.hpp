@@ -59,17 +59,23 @@ namespace manapi::async::internal {
 
     void max_stack_depth_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
 
+    // void cnt_finish_inc () MANAPIHTTP_NOEXCEPT;
+
     bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
 
     void append_static_task (manapi::fixed_function<void()> callback) MANAPIHTTP_NOEXCEPT;
+
+    void append_task (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
     class promise_base_future {
     public:
         promise_base_future();
 
-        ~promise_base_future();
+        virtual ~promise_base_future();
 
         void unhandled_exception ();
+
+        virtual void run_finish_cb () MANAPIHTTP_NOEXCEPT = 0;
 
         std::coroutine_handle<> waiting;
 
@@ -93,16 +99,8 @@ namespace manapi::async::internal {
             auto waiting = std::exchange(promise_.waiting, nullptr);
             if (!waiting)
                 waiting = std::noop_coroutine();
-            if (promise_.finish_cb) {
-                if (promise_.exception) {
-                    promise_.finish_cb->operator()(std::move(promise_.exception), nullptr);
-                }
-                else {
-                    auto value_ = promise_.get_value();
-                    promise_.finish_cb->operator()(std::move(promise_.exception), &value_);
-                }
-            }
-
+            promise_.run_finish_cb();
+            // internal::cnt_finish_inc();
             return waiting;
         }
 
@@ -116,6 +114,8 @@ namespace manapi::async::internal {
         promise () = default;
 
         promise (promise &&n) MANAPIHTTP_NOEXCEPT = default;
+
+        ~promise() override = default;
 
         std::suspend_always yield_value(T value) {
             this->value = std::move(value);
@@ -144,6 +144,18 @@ namespace manapi::async::internal {
             return std::move(this->value.value());
         }
 
+        void run_finish_cb() MANAPIHTTP_NOEXCEPT override {
+            if (this->finish_cb) {
+                if (this->exception) {
+                    this->finish_cb->operator()(std::move(this->exception), nullptr);
+                }
+                else {
+                    auto value_ = this->get_value();
+                    this->finish_cb->operator()(std::move(this->exception), &value_);
+                }
+            }
+        }
+
         final_awaiter<T, promise<T, F>> final_suspend() MANAPIHTTP_NOEXCEPT { return {}; }
 
         std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> finish_cb{nullptr};
@@ -151,6 +163,12 @@ namespace manapi::async::internal {
     };
 
     void future_final_awaiter_suspend (std::coroutine_handle<promise_base_future> original, std::coroutine_handle<promise_base_future> handle) MANAPIHTTP_NOEXCEPT;
+}
+
+namespace manapi::async {
+    void coro_resume (std::coroutine_handle<> handle);
+
+    void coro_finish (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT;
 }
 
 namespace manapi {
@@ -188,7 +206,7 @@ namespace manapi {
         }
 
         void operator()() MANAPIHTTP_NOEXCEPT {
-            this->handle_.resume();
+            async::coro_resume(this->handle_);
         }
 
         MANAPIHTTP_NODISCARD bool operator==(const std::nullptr_t &n) const {
@@ -214,16 +232,15 @@ namespace manapi {
                 if (current_stack_cnt_ >= async::internal::max_stack_depth_crt()) {
                     auto &thr = manapi::async::internal::current_();
                     if (thr) {
-                        async::internal::append_static_task([original = this->handle] () -> void {
-                             original.resume();
-                        });
+                        async::internal::append_task([original = this->handle] ()
+                            -> void { async::coro_resume(original); });
                     }
 
                     return;
                 }
 
                 manapi::async::internal::current_stack_cnt_set (current_stack_cnt_ + 1);
-                this->handle.resume();
+                async::coro_resume(this->handle);
             }
 
             bool await_ready () {
@@ -305,7 +322,11 @@ namespace manapi::async::internal {
 
         promise (promise &&n) MANAPIHTTP_NOEXCEPT;
 
+        ~promise() override;
+
         void return_void ();
+
+        void run_finish_cb() MANAPIHTTP_NOEXCEPT override;
 
         final_awaiter<void, promise<void, manapi::future<>>> final_suspend() MANAPIHTTP_NOEXCEPT;
 

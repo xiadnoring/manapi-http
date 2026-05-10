@@ -30,7 +30,7 @@ namespace manapi::async {
         void await_suspend (std::coroutine_handle<> handle) {
             this->cancellation.cancel_callback(
                 [handle, tmp_ = this->cancellation] () mutable -> void {
-                    handle.resume();
+                    async::coro_resume(handle);
                     tmp_.reset();
             });
         }

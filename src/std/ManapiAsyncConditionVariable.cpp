@@ -40,7 +40,7 @@ void manapi::async::condition_variable::notify_one() {
         goto err;
     }
 
-    row.handle.resume();
+    async::coro_resume(row.handle);
     return;
 
     err: this->stack.push_back(std::move(row));
@@ -60,7 +60,7 @@ void manapi::async::condition_variable::notify_all() {
             goto err;
         }
 
-        row.handle.resume();
+        async::coro_resume(row.handle);
         continue;
 
         err: this->stack.push_back(std::move(row));

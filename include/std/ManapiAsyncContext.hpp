@@ -339,7 +339,7 @@ namespace manapi::async::internal {
                 catch (manapi::exception &e) { run_prepare_manapi_exception_(e); }
                 catch (std::exception const &e) { run_prepare_std_exception_(e); }
 
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
                 else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             };
             MANAPIHTTP_MUST_ALLOC_END
@@ -357,7 +357,7 @@ namespace manapi::async::internal {
                 if (err)
                     run_prepare_error_(std::move(err));
 
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
                 else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             });
             MANAPIHTTP_MUST_ALLOC_END
@@ -392,7 +392,7 @@ namespace manapi::async::internal {
                 try { onfinish(std::move(err), value); }
                 catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
                 catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
                 else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             };
             MANAPIHTTP_MUST_ALLOC_END
@@ -406,9 +406,9 @@ namespace manapi::async::internal {
             std::move_only_function<void(std::exception_ptr, T *)> lambda;
             std::unique_ptr<decltype(lambda)> st;
             MANAPIHTTP_MUST_ALLOC_START
-            lambda = [task = task_data.get()] (std::exception_ptr err, T *value) mutable -> void {
+            lambda = [task = task_data.get()] (std::exception_ptr err, T *) mutable -> void {
                 if (err) internal::run_prepare_error_(std::move(err));
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
                 else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             };
             MANAPIHTTP_MUST_ALLOC_END

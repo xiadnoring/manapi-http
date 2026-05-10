@@ -388,8 +388,10 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
         if (!listener)
             co_return status_internal("openssl_quic:SSL_new_listener");
 
-        if (!SSL_set_blocking_mode(listener, 0))
+        if (!SSL_set_blocking_mode(listener, 0)) {
+            SSL_free(listener);
             co_return status_internal("openssl_quic:SSL_set_blocking_mode");
+        }
 
         SSL_set_accept_state(listener);
         this->rbio = rbio.get();
@@ -397,21 +399,74 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
 
         if (!BIO_dgram_set_caps(this->rbio, BIO_DGRAM_CAP_HANDLES_DST_ADDR|BIO_DGRAM_CAP_HANDLES_SRC_ADDR|BIO_DGRAM_CAP_PROVIDES_DST_ADDR|BIO_DGRAM_CAP_PROVIDES_SRC_ADDR)
             || !BIO_dgram_set_caps(this->wbio, BIO_DGRAM_CAP_HANDLES_DST_ADDR|BIO_DGRAM_CAP_HANDLES_SRC_ADDR|BIO_DGRAM_CAP_PROVIDES_DST_ADDR|BIO_DGRAM_CAP_PROVIDES_SRC_ADDR)) {
+            SSL_free(listener);
             co_return status_internal("openssl_quic:BIO_dgram_set_caps");
         }
 
         if (!BIO_dgram_set_local_addr_enable(this->rbio, 1) ||
-            !BIO_dgram_set_local_addr_enable(this->wbio, 1))
+            !BIO_dgram_set_local_addr_enable(this->wbio, 1)) {
+            SSL_free(listener);
             co_return status_internal("openssl_quic:BIO_dgram_set_local_addr_enable");
+        }
 
-        if (!BIO_dgram_set0_local_addr(this->wbio, &this->config_->server_addr) ||
-            !BIO_dgram_set0_local_addr(this->rbio, &this->config_->server_addr))
+        BIO_ADDR *local_addr = BIO_ADDR_new();
+        if (!local_addr) {
+            SSL_free(listener);
+            co_return status_internal("openssl_quic:failed");
+        }
+
+        const sockaddr *addr = reinterpret_cast<const sockaddr *>(&this->config_->server_addr);
+        int family = addr->sa_family;
+
+        const void *raw_addr = nullptr;
+        size_t raw_addr_len = 0;
+        unsigned short port = 0;
+
+        if (family == AF_INET) {
+            const auto *addr_in = reinterpret_cast<const sockaddr_in *>(addr);
+            raw_addr = &addr_in->sin_addr;      // IP (4 bytes)
+            raw_addr_len = sizeof(addr_in->sin_addr);
+            port = ntohs(addr_in->sin_port);
+        }
+        else if (family == AF_INET6) {
+            const auto *addr_in6 = reinterpret_cast<const sockaddr_in6 *>(addr);
+            raw_addr = &addr_in6->sin6_addr;    // IP (16 bytes)
+            raw_addr_len = sizeof(addr_in6->sin6_addr);
+            port = ntohs(addr_in6->sin6_port);
+        }
+
+        if (!BIO_ADDR_rawmake(local_addr, family, raw_addr, raw_addr_len, port)) {
+            BIO_ADDR_free(local_addr);
+            SSL_free(listener);
+            co_return status_internal("openssl_quic:BIO_ADDR_rawmake failed");
+        }
+
+        BIO_ADDR *local_addr2 = BIO_ADDR_dup(local_addr);
+        if (!local_addr2) {
+            BIO_ADDR_free(local_addr);
+            SSL_free(listener);
+            co_return status_internal("openssl_quic:BIO_ADDR_dup failed");
+        }
+
+        if (!BIO_dgram_set0_local_addr(this->wbio, local_addr)) {
+            BIO_ADDR_free(local_addr);
+            BIO_ADDR_free(local_addr2);
+            SSL_free(listener);
             co_return status_internal("openssl_quic:BIO_dgram_set0_local_addr");
+        }
+
+        if (!BIO_dgram_set0_local_addr(this->rbio, local_addr2)) {
+            BIO_ADDR_free(local_addr2);
+            SSL_free(listener);
+            co_return status_internal("openssl_quic:BIO_dgram_set0_local_addr");
+        }
 
         SSL_set_bio(listener, rbio.release(), wbio.release());
 
-        if (!SSL_listen(listener))
+        if (!SSL_listen(listener)) {
+            SSL_free(listener);
             co_return status_internal("openssl_quic:SSL_listen");
+        }
 
         this->listener = listener;
 
@@ -482,9 +537,6 @@ void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
                 this->update_limit_timer.stop();
                 this->update_limit_timer = nullptr;
             }
-
-            this->listener = nullptr;
-            this->ctx = nullptr;
 
             if (this->finish_ref) {
                 this->finish = std::move(cb);

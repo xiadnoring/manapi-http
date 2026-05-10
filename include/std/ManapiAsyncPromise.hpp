@@ -41,7 +41,7 @@ namespace manapi::async::internal {
         MANAPIHTTP_MUST_ALLOC_START
         manapi::async::internal::append_static_task([handle] ()
             -> void {
-            handle.resume();
+            async::coro_resume(handle);
         });
         MANAPIHTTP_MUST_ALLOC_END
     }
