@@ -179,7 +179,7 @@ std::size_t manapi::string::replace(std::string &s, std::string_view from, std::
         }
 
         if (flg) {
-            memmove(s.data() + it + to.size(), s.data() + it + from.size(), s.size() - it - to.size());
+            memmove(s.data() + it + to.size(), s.data() + it + from.size(), s.size() - it - from.size());
             memcpy(s.data() + it, to.data(), to.size());
 
             s.resize(s.size() - shift);

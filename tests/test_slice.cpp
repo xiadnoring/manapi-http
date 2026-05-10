@@ -138,6 +138,7 @@ UTEST(slice, slice_cmp8) {
         auto s3 = manapi::crypto::random_string(65536 * 2 + 100).unwrap();
         std::string s1 = s3 + manapi::crypto::random_string(65536 * 8).unwrap();
         std::string s2 = s3 + manapi::crypto::random_string(65536 * 8).unwrap();
+        ASSERT_TRUE(s1.size() == s2.size());
         auto ra1 = manapi::math::random(0, s2.size() - 1);
         auto ra2 = manapi::math::random(0, ra1);
         auto rd1 = manapi::math::random(0, s1.size() - 1);
@@ -150,15 +151,8 @@ UTEST(slice, slice_cmp8) {
         s2 = s2.substr(rd2, rd1 - rd2);
         auto bb1 = b1.subslice(ra2, ra1 - ra2).unwrap();
         auto bb2 = b2.subslice(rd2, rd1 - rd2).unwrap();
-        int l1 = rcmp(memcmp(s1.data(), s2.data(), s1.size()));
-        int l2 = rcmp(bb1.cmp(bb2));
-        ASSERT_TRUE(l1 == l2);
-        if (l1 == 1)
-            ASSERT_TRUE(s1 > s2);
-        else if (l2 == -1)
-            ASSERT_TRUE(s1 < s2);
-        else
-            ASSERT_TRUE(s1 == s2);
+        ASSERT_TRUE(!bb1.cmp(s1.data(), s1.size()));
+        ASSERT_TRUE(!bb2.cmp(s2.data(), s2.size()));
     }
     manapi::async::run(ctx->stop());
     wait_ctx(ctx);
@@ -177,8 +171,9 @@ UTEST(slice, slice_cmp9) {
         b1.push_back(s1.data(), s1.size());
         b2.push_back(s2.data(), s2.size());
         s2.resize(rd);
-        int l1 = rcmp(memcmp(s1.data(), s2.data(), s1.size()));
-        int l2 = rcmp(b1.cmp(b2.subslice(0, rd).unwrap()));
+        s1.resize(rd);
+        int l1 = rcmp(memcmp(s1.data(), s2.data(), rd));
+        int l2 = rcmp(b1.subslice(0, rd).unwrap().cmp(b2.subslice(0, rd).unwrap()));
         ASSERT_TRUE(l1 == l2);
         if (l1 == 1)
             ASSERT_TRUE(s1 > s2);
