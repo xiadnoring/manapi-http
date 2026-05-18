@@ -252,20 +252,20 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
     }
 }
 
-manapi::future<manapi::ev::status_or<manapi::ev::file>> manapi::fs::async_open(std::string path, int flags, int mode, manapi::ctoken cancellation) {
-    typedef manapi::async::promise_sync<manapi::ev::status_or<ev::file>> promise_sync;
+manapi::future<manapi::ev::status_or<manapi::ev::unique_file>> manapi::fs::async_open(std::string path, int flags, int mode, manapi::ctoken cancellation) {
+    typedef manapi::async::promise_sync<manapi::ev::status_or<ev::unique_file>> promise_sync;
     
-    auto fileno = co_await async_fs_operation<manapi::ev::status_or<ev::file>>([path = std::move(path), flags, mode] (std::shared_ptr<ev::fs> w)
+    auto fileno = co_await async_fs_operation<manapi::ev::status_or<ev::unique_file>>([path = std::move(path), flags, mode] (std::shared_ptr<ev::fs> w)
         -> bool {
         return !w->open(path.data(), flags, mode);
     }, +[] (std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
     -> void {
-        if (async_fs_operation_result_error<manapi::ev::status_or<ev::file>>(w, resolve, cancel)) {
+        if (async_fs_operation_result_error<manapi::ev::status_or<ev::unique_file>>(w, resolve, cancel)) {
             return;
         }
         auto file = static_cast<manapi::ev::file>(w->result());
         manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d open", file);
-        resolve (file);
+        resolve (manapi::ev::unique_file (file));
     }, cancellation);
     co_return fileno;
 }
@@ -315,50 +315,50 @@ struct async_write_data_t {
     async_fs_operation_event_cb<manapi::ev::status_or<ssize_t>> event_cb;
 };
 
-struct fileno_deleter {
-    manapi::ev::file fileno;
-
-    ~fileno_deleter() {
-        std::move_only_function<void(std::exception_ptr, manapi::ev::status *)> cb;
-
-        auto b = manapi::ctokens::timeout(64000);
-        MANAPIHTTP_MUST_ALLOC_START
-        cb = [fileno = this->fileno] (std::exception_ptr err, manapi::ev::status *s)
-            -> void {
-            if (err) {
-                int errnum;
-                char msg[256];
-                std::size_t msg_size = sizeof (msg);
-                std::string_view constexpr status = "exception";
-
-                manapi::extract_exception_ptr(std::move(err), &errnum, msg, &msg_size);
-                manapi_log_error("fs(%.*s):fd %d close failed %.*s",
-                    status.size(), status.data(),
-                    fileno, msg_size, msg);
-            }
-            else {
-                if (s->ok()) {
-                    return;
-                }
-
-                auto const status = s->status_msg();
-                auto const msg = s->msg();
-                manapi_log_error("fs(%.*s):fd %d close failed %.*s",
-                     status.size(), status.data(),
-                    fileno, msg.size(), msg.data());
-            }
-        };
-        MANAPIHTTP_MUST_ALLOC_END
-
-        manapi::future<manapi::ev::status> task(nullptr);
-
-        MANAPIHTTP_MUST_ALLOC_START
-        task = manapi::fs::async_close(this->fileno, b);
-        MANAPIHTTP_MUST_ALLOC_END
-
-        manapi::async::run<manapi::ev::status>(std::move(task), std::move(cb));
-    }
-};
+// struct fileno_deleter {
+//     manapi::ev::file fileno;
+//
+//     ~fileno_deleter() {
+//         std::move_only_function<void(std::exception_ptr, manapi::ev::status *)> cb;
+//
+//         auto b = manapi::ctokens::timeout(64000);
+//         MANAPIHTTP_MUST_ALLOC_START
+//         cb = [fileno = this->fileno] (std::exception_ptr err, manapi::ev::status *s)
+//             -> void {
+//             if (err) {
+//                 int errnum;
+//                 char msg[256];
+//                 std::size_t msg_size = sizeof (msg);
+//                 std::string_view constexpr status = "exception";
+//
+//                 manapi::extract_exception_ptr(std::move(err), &errnum, msg, &msg_size);
+//                 manapi_log_error("fs(%.*s):fd %d close failed %.*s",
+//                     status.size(), status.data(),
+//                     fileno, msg_size, msg);
+//             }
+//             else {
+//                 if (s->ok()) {
+//                     return;
+//                 }
+//
+//                 auto const status = s->status_msg();
+//                 auto const msg = s->msg();
+//                 manapi_log_error("fs(%.*s):fd %d close failed %.*s",
+//                      status.size(), status.data(),
+//                     fileno, msg.size(), msg.data());
+//             }
+//         };
+//         MANAPIHTTP_MUST_ALLOC_END
+//
+//         manapi::future<manapi::ev::status> task(nullptr);
+//
+//         MANAPIHTTP_MUST_ALLOC_START
+//         task = manapi::fs::async_close(this->fileno, b);
+//         MANAPIHTTP_MUST_ALLOC_END
+//
+//         manapi::async::run<manapi::ev::status>(std::move(task), std::move(cb));
+//     }
+// };
 
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
@@ -368,15 +368,14 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
 }
 
 manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std::string data, int mode, int flags, int64_t offset, manapi::ctoken cancellation) {
-    ev::file fileno;
+    ev::unique_file fileno;
     {
         auto fileno_res = co_await async_open(path, flags, mode, manapi::ctoken::unit(cancellation));
         if (!fileno_res.ok())
             co_return fileno_res.err();
         fileno = fileno_res.unwrap();
     }
-    fileno_deleter deleter (fileno);
-    auto res = co_await async_write(fileno, data.data(),
+    auto res = co_await async_write(fileno.get(), data.data(),
         (data.size()), offset, manapi::ctoken::unit(cancellation));
     if (!res.ok())
         co_return std::move(res.err());
@@ -387,7 +386,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
 }
 
 manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::string path, int flags, int64_t offset, manapi::ctoken cancellation) {
-    ev::file fileno;
+    ev::unique_file fileno;
     std::string data;
     std::size_t len = 0;
     bool failed{false};
@@ -399,9 +398,7 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
         fileno = fileno_res.unwrap();
     }
 
-    fileno_deleter deleter (fileno);
-
-    auto res = co_await async_fstat(fileno, [&len, &failed] (ev::stat_t *stat)
+    auto res = co_await async_fstat(fileno.get(), [&len, &failed] (ev::stat_t *stat)
         -> void {
         if (stat) len = (stat->st_size);
         else failed = true;
@@ -415,7 +412,7 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
 
     data.resize(len);
 
-    auto rhs = co_await async_read(fileno, data.data(), len, offset, manapi::ctoken::unit(cancellation));
+    auto rhs = co_await async_read(fileno.get(), data.data(), len, offset, manapi::ctoken::unit(cancellation));
     if (!rhs.ok())
         co_return rhs.err();
 
@@ -983,18 +980,18 @@ manapi::future<manapi::ev::status> manapi::fs::async_fdatasync(ev::file file, ct
         -> bool { return !w->fdatasync(file); }, std::move(cancellation));
 }
 
-manapi::future<manapi::ev::status_or<manapi::ev::dir_t *>> manapi::fs::async_opendir(std::string path, ctoken cancellation) {
-    typedef manapi::async::promise_sync<manapi::ev::status_or<manapi::ev::dir_t *>> promise_sync;
+manapi::future<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>>> manapi::fs::async_opendir(std::string path, ctoken cancellation) {
+    typedef manapi::async::promise_sync<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>>> promise_sync;
 
-    co_return co_await async_fs_operation<manapi::ev::status_or<manapi::ev::dir_t *>>([path = std::move(path)] (std::shared_ptr<ev::fs> w)
+    co_return co_await async_fs_operation<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>>> ([path = std::move(path)] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->opendir(path.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
         -> void {
             cancel.disable();
-            if (async_fs_operation_result_error<manapi::ev::status_or<ev::dir_t *>>(w, resolve, cancel))
+            if (async_fs_operation_result_error<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>>>(w, resolve, cancel))
                 return;
-            resolve(static_cast<ev::dir_t *> (w->custom()->ptr));
+            resolve(std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>(static_cast<ev::dir_t *> (w->custom()->ptr)));
         }, std::move(cancellation));
 }
 

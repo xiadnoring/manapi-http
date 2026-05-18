@@ -15,7 +15,7 @@ namespace manapi::fs {
 
     manapi::future<ev::status> async_mkdir (std::string path, int mode = 0644, bool recursive = true, manapi::ctoken cancellation = nullptr);
 
-    future<ev::status_or<ev::file>> async_open (std::string path, int flags, int mode, manapi::ctoken cancellation = nullptr);
+    future<ev::status_or<ev::unique_file>> async_open (std::string path, int flags, int mode, manapi::ctoken cancellation = nullptr);
 
     future<ev::status> async_close (ev::file file, ctoken cancellation = nullptr);
 
@@ -61,7 +61,7 @@ namespace manapi::fs {
 
     future<ev::status> async_rmdir (std::string path, ctoken cancellation = nullptr);
 
-    future<ev::status_or<ev::dir_t *>> async_opendir (std::string path, ctoken ctoken = nullptr);
+    future<ev::status_or<std::unique_ptr<ev::dir_t, ev::dir_deleter_t>>> async_opendir (std::string path, ctoken ctoken = nullptr);
 
     future<ev::status> async_closedir (ev::dir_t *directory, ctoken cancellation = nullptr);
 

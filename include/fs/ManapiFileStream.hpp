@@ -6,7 +6,8 @@
 #include "../std/ManapiCancellation.hpp"
 
 namespace manapi::fs {
-    class fstream {
+    class fstream : public std::enable_shared_from_this<fstream> {
+        fstream (std::string path, ctoken cancellation);
     public:
         struct fstream_data_t;
 
@@ -15,19 +16,18 @@ namespace manapi::fs {
             FILE_SEEK_CURRENT
         };
 
-        fstream ();
 
         operator bool () const MANAPIHTTP_NOEXCEPT;
 
-        static manapi::status_or<fstream> create (std::string path, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<fstream>> create (std::string path, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
-        fstream (fstream &&n) MANAPIHTTP_NOEXCEPT;
+        fstream (fstream &&n) MANAPIHTTP_NOEXCEPT = delete;
 
-        fstream &operator=(fstream &&n) MANAPIHTTP_NOEXCEPT;
+        fstream &operator=(fstream &&n) MANAPIHTTP_NOEXCEPT = delete;
 
-        fstream (const fstream &n);
+        fstream (const fstream &n) = delete;
 
-        fstream &operator=(const fstream &n);
+        fstream &operator=(const fstream &n) = delete;
 
         future<manapi::ev::status> open (int flags, int mode = 0644);
 
@@ -51,8 +51,6 @@ namespace manapi::fs {
 
         future<ssize_t> fwrite (manapi::slice_view slice);
 
-        future<ev::status> close_and_wait ();
-
         void close ();
 
         MANAPIHTTP_NODISCARD ssize_t tellg() const;
@@ -63,6 +61,6 @@ namespace manapi::fs {
 
         MANAPIHTTP_NODISCARD bool eof () const;
     private:
-        std::shared_ptr<fstream_data_t> m_data;
+        fstream_data_t* m_data;
     };
 }

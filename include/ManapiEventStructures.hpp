@@ -448,6 +448,39 @@ namespace manapi::ev {
     /* Stores the result of fs::stat() and other stat requests. */
     typedef uv_stat_t stat_t;
 
+    class unique_file {
+    public:
+        unique_file ();
+
+        unique_file (ev::file fd);
+
+        ~unique_file();
+
+        unique_file (unique_file &&n) MANAPIHTTP_NOEXCEPT;
+
+        unique_file (const unique_file &n) = delete;
+
+        unique_file &operator= (unique_file &&n) MANAPIHTTP_NOEXCEPT;
+
+        unique_file &operator= (const unique_file &n) = delete;
+
+        manapi::status_or<ev::file> release () MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD ev::file get () const;
+
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
+
+        void reset () MANAPIHTTP_NOEXCEPT;
+
+        void reset (ev::file fd) MANAPIHTTP_NOEXCEPT;
+    private:
+        std::optional<ev::file> m_fd;
+    };
+
+    struct dir_deleter_t {
+        void operator ()(ev::dir_t *ptr) MANAPIHTTP_NOEXCEPT;
+    };
+
     class async {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
     public:

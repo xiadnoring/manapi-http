@@ -30,9 +30,15 @@ In release mode, messages with the ```LOG_TRACE_HARD``` level are removed.
 int main(int argc, char *argv[]) {
     // System log initialization (not thread-safe)
     manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HIGH);
-    // Disable logs by ManapiHttp
-    manapi::init_tools::log_name_enable("manapihttp", false);
+    // Enable logs by ManapiHttp (not thread-safe)
+    manapi::init_tools::log_name_enable("manapihttp", true);
+    manapi::init_tools::log_name_enable("manapihttp::fs", true);
+    manapi::init_tools::log_name_enable("manapihttp::http", true);
+    manapi::init_tools::log_name_enable("manapihttp::fetch", true);
+    manapi::init_tools::log_name_enable("manapihttp::bigint", true);
     // Print message (method is blocking and thread-safe)
     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "Application has started!");
+    // Print message with a custom label
+    manapi_log_trace2("app", manapi::debug::LOG_TRACE_HIGH, "Application has started!");
 }
 ```

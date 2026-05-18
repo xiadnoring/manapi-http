@@ -1183,7 +1183,7 @@ manapi::future<manapi::status> manapi::net::fetch::body(http::file_transfer_info
     if (!fileres)
         co_return fileres.err();
     auto file = fileres.unwrap();
-    auto res = co_await file.open(ev::FS_O_RDONLY);
+    auto res = co_await file->open(ev::FS_O_RDONLY);
     if (!res.ok())
         co_return std::move(res);
 
@@ -1191,15 +1191,15 @@ manapi::future<manapi::status> manapi::net::fetch::body(http::file_transfer_info
     if (code != CURLE_OK)
         goto err;
 
-    code = curl_easy_setopt(this->m_data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, (co_await file.size()).unwrap());
+    code = curl_easy_setopt(this->m_data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, (co_await file->size()).unwrap());
     if (code != CURLE_OK)
         goto err;
 
     this->async_body([file = std::move(file), file_info = std::move(file_info)] (slice_view buffs, bool &fin) mutable
         -> manapi::future<ssize_t> {
-        auto rhs = co_await file.fread(buffs);
+        auto rhs = co_await file->fread(buffs);
 
-        if (file.eof())
+        if (file->eof())
             fin = true;
 
         if (rhs < 0) {

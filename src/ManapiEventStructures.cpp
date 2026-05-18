@@ -1,7 +1,7 @@
 #include "ManapiEventStructures.hpp"
 #include "ManapiAsync.hpp"
+#include "ManapiEventLoop.hpp"
 #include "std/ManapiAsyncContext.hpp"
-
 #include "./include/ManapiEventStructuresInternal.hpp"
 #include "./include/ManapiDebug.hpp"
 
@@ -997,4 +997,67 @@ manapi::ev::status manapi::ev::status_not_found(std::string_view msg) {
 
 manapi::ev::status manapi::ev::status_ok() {
     return ev::status{ERR_OK, "OK", 0};
+}
+
+manapi::ev::unique_file::unique_file() : m_fd({}) {
+}
+
+manapi::ev::unique_file::unique_file(ev::file fd) : m_fd(fd) {
+
+}
+
+manapi::ev::unique_file::~unique_file() {
+    this->reset();
+}
+
+manapi::ev::unique_file::unique_file(unique_file &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_fd = n.m_fd;
+    n.m_fd.reset();
+}
+
+manapi::ev::unique_file & manapi::ev::unique_file::operator=(unique_file &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_fd = n.m_fd;
+    n.m_fd.reset();
+    return *this;
+}
+
+manapi::status_or<manapi::ev::file> manapi::ev::unique_file::release() MANAPIHTTP_NOEXCEPT {
+    if (this->m_fd.has_value()) {
+        auto val = this->m_fd.value();
+        this->m_fd.reset();
+        return val;
+    }
+    return manapi::status_not_found("unique_file:empty");
+}
+
+manapi::ev::file manapi::ev::unique_file::get() const {
+    if (this->m_fd.has_value())
+        return this->m_fd.value();
+    throw manapi::exception (manapi::ERR_NOT_FOUND, "unique_file:empty");
+}
+
+manapi::ev::unique_file::operator bool() const MANAPIHTTP_NOEXCEPT {
+    return this->m_fd.has_value();
+}
+
+void manapi::ev::unique_file::reset() MANAPIHTTP_NOEXCEPT {
+    if (this->m_fd.has_value()) {
+        auto fd = this->release().unwrap();
+        ::uv_fs_t req;
+        if (auto rhs = ::uv_fs_close(manapi::async::eventloop()->loop(), &req, fd, nullptr))
+            manapi_log_error("%s failed due to %s", "uv_fs_close", ev::strerror(rhs));
+        ::uv_fs_req_cleanup(&req);
+    }
+}
+
+void manapi::ev::unique_file::reset(ev::file fd) MANAPIHTTP_NOEXCEPT {
+    this->reset();
+    this->m_fd = fd;
+}
+
+void manapi::ev::dir_deleter_t::operator()(ev::dir_t *ptr) MANAPIHTTP_NOEXCEPT {
+    ::uv_fs_t req;
+    if (auto rhs = ::uv_fs_closedir(manapi::async::eventloop()->loop(), &req, ptr, nullptr))
+        manapi_log_error("%s failed due to %s", "uv_fs_closedir", ev::strerror(rhs));
+    ::uv_fs_req_cleanup(&req);
 }

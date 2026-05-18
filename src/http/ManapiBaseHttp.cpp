@@ -192,7 +192,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
             }
 
             auto f = status.unwrap();
-            auto fres = co_await f.open(ev::FS_O_RDONLY);
+            auto fres = co_await f->open(ev::FS_O_RDONLY);
 
             if (!fres.ok()) {
                 if (force_compress) {
@@ -308,7 +308,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
                         if (value && *value == ERR_OK) {
                             // set start position
-                            f.seekg(start);
+                            f->seekg(start);
                             // set size and send
                             if (size) {
                                 manapi::async::run (send_file(std::move(res), f, static_cast<std::size_t>(size)));
@@ -1231,7 +1231,7 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
     handle_income_request_(std::move(cdata), status);
 }
 
-manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, fs::fstream f, std::size_t size) {
+manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, std::shared_ptr<fs::fstream> f, std::size_t size) {
     std::size_t const block_size = 4096 * 16;
     auto const cdata = res->connection_data();
 
@@ -1240,7 +1240,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
     auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
 
-    std::size_t current = static_cast<std::size_t>(f.tellg());
+    std::size_t current = static_cast<std::size_t>(f->tellg());
 
     size += current;
 
@@ -1253,7 +1253,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
     ssize_t rhs;
 
-    if ((rhs = co_await f.read(write_block.subslice(0,
+    if ((rhs = co_await f->read(write_block.subslice(0,
         std::min(block_size, size - current)).unwrap())) <= 0) {
         co_return;
     }
@@ -1264,7 +1264,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
             current += static_cast<std::size_t>(rhs);
             bool readsome = size > current;
             if (readsome) {
-                auto status = parallel.run(f.read(read_block.subslice(0,
+                auto status = parallel.run(f->read(read_block.subslice(0,
                     std::min(block_size, size - current)).unwrap()));
                 if (!status) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,

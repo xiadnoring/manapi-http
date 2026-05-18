@@ -38,13 +38,13 @@ int main() {
         
         auto router = manapi::net::http::server::create(router_ctx).unwrap();
 
-        router.GET("/", [](http::req &req, http::uresp resp) mutable -> void {
+        router->GET("/", [](http::req &req, http::uresp resp) mutable -> void {
             resp->text("Hello World!").unwrap();
             resp.finish(); // optional to define here
         }).unwrap();
 
         manapi::async::run([router]() mutable -> manapi::future<> {
-            manapi::unwrap(co_await router.config_object({
+            manapi::unwrap(co_await router->config_object({
                 {"pools", manapi::json::array({
                     {
                         {"address", "127.0.0.1"},
@@ -52,16 +52,17 @@ int main() {
                         {"port", "8888"}
                     }
                 })},
-                {"save_config", false}
+                {"save", false}
             }));
 
-            manapi::unwrap(co_await router.start());
+            manapi::unwrap(co_await router->start());
         });
 
         /* bind event loop in the current context */
         bind();
     }).unwrap();
 
+    manapi::clear_tools::grpc_clear();
     manapi::clear_tools::curl_library_clear();
     manapi::clear_tools::ev_library_clear();
     manapi::clear_tools::ssl_library_clear();
@@ -73,12 +74,12 @@ int main() {
 `manapi::net::http::server` supports many methods:
 
 ```c++
-router.GET("/", ...).unwrap();
-router.POST("/", ...).unwrap();
-router.HEAD("/", ...).unwrap();
-router.OPTIONS("/", ...).unwrap();
-router.PUT("/", ...).unwrap();
-router.PATCH("/", ...).unwrap();
+router->GET("/", ...).unwrap();
+router->POST("/", ...).unwrap();
+router->HEAD("/", ...).unwrap();
+router->OPTIONS("/", ...).unwrap();
+router->PUT("/", ...).unwrap();
+router->PATCH("/", ...).unwrap();
 ```
 
 <Callout title="Note">You can also use custom methods with `manapi::net::http::server::handler`.</Callout>
@@ -88,7 +89,7 @@ router.PATCH("/", ...).unwrap();
 You can share files using the `manapi::net::http::server::GET` method.
 
 ```c++
-router.GET("/", "/path/to/folder", [](http::req &req, http::uresp resp) 
+router->GET("/", "/path/to/folder", [](http::req &req, http::uresp resp) 
     -> void { }).unwrap();
 ```
 
@@ -97,14 +98,14 @@ router.GET("/", "/path/to/folder", [](http::req &req, http::uresp resp)
 You can create layers using the `+layer` keyword in the URL.
 
 ```c++
-router.GET("/admin/+layer", [](http::req &req, http::uresp resp) mutable -> void {
+router->GET("/admin/+layer", [](http::req &req, http::uresp resp) mutable -> void {
     if (req.ip_data().ip != "127.0.0.1") {
         req.stop_propagation();
         resp->text("error").unwrap();
     }
 }).unwrap();
 
-router.GET("/admin/next/+layer", [](http::req &req, http::uresp resp) mutable -> void {
+router->GET("/admin/next/+layer", [](http::req &req, http::uresp resp) mutable -> void {
     if (req.ip_data().port != "5555") {
         req.stop_propagation();
         resp->text("error").unwrap();
@@ -122,7 +123,7 @@ router.GET("/admin/next/+layer", [](http::req &req, http::uresp resp) mutable ->
 Display error pages for server errors or when a page does not exist.
 
 ```c++
-router.GET("/+error", [](http::req &req, http::uresp resp) mutable -> void {
+router->GET("/+error", [](http::req &req, http::uresp resp) mutable -> void {
     resp->text("something went wrong").unwrap();
 }).unwrap();
 ```
@@ -132,7 +133,7 @@ router.GET("/+error", [](http::req &req, http::uresp resp) mutable -> void {
 Show a page for URLs that start with a specified string.
 
 ```c++
-router.GET("/[test]/+custom", [](http::req &req, http::uresp resp) mutable -> void {
+router->GET("/[test]/+custom", [](http::req &req, http::uresp resp) mutable -> void {
     resp->text(std::format("{}, test={}", 
         std::string{req.url()}, req.param("test").unwrap())).unwrap();
 }).unwrap();

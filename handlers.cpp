@@ -150,14 +150,14 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         std::size_t sss = 0;
         co_return resp.callback_stream([&sss, &resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
             auto fs = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4").unwrap();
-            auto rhs = co_await fs.open(manapi::ev::FS_O_RDONLY);
+            auto rhs = co_await fs->open(manapi::ev::FS_O_RDONLY);
             rhs.unwrap();
             (co_await req.callback_async([&sss, cb = std::move(cb), fs] (manapi::slice_view buffs, bool fin) mutable
                 -> manapi::future<ssize_t> {
                 auto buffs2 = manapi::async::current()->memory_fabric().slice(buffs.size()).unwrap();
                 buffs2.resize(buffs.size());
                 assert(buffs.size() == buffs2.size());
-                auto res = co_await fs.fread(buffs2);
+                auto res = co_await fs->fread(buffs2);
                 assert(res == buffs.size());
                 auto cmp = buffs.cmp(buffs2);
                 assert(!cmp);
@@ -166,7 +166,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                 //std::cout << sum << " " << size << " " << fin << "\n";
                 auto result = co_await cb (buffs, fin);
                 sss+=(std::size_t)result;
-                fs.seekg((ssize_t)fs.tellg() - (ssize_t)buffs2.size() + (ssize_t)result);
+                fs->seekg((ssize_t)fs->tellg() - (ssize_t)buffs2.size() + (ssize_t)result);
                 co_return result;
             })).unwrap();
             std::cout << sss << "\n";
@@ -301,8 +301,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             cancellation.ask_cancel_callback();
             auto file = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
                 cancellation).unwrap();
-            co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
-            if (!file.is_open()) {
+            co_await file->open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
+            if (!file->is_open()) {
                 co_return resp.text("failed to open the file").unwrap();
             }
 
@@ -318,12 +318,12 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                     {"content-length", "298512394"}
                 }}
             }, [file] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
-                auto const res = co_await file.fread(buffs);
-                fin = file.eof();
+                auto const res = co_await file->fread(buffs);
+                fin = file->eof();
                 co_return res;
             }, manapi::ctoken::unit(cancellation))).unwrap();
 
-            file.close();
+            file->close();
 
             if (!fetch->ok()) {
                 co_return resp.text(std::format("status : {}", fetch->status())).unwrap();

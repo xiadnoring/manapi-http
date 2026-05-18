@@ -9,7 +9,7 @@
 #define CHUNK_SIZE 65536
 
 
-static manapi::future<manapi::status> compress_file_init (manapi::fs::fstream &input, manapi::fs::fstream &output, std::string src, std::string dest, manapi::ctoken &cancellation) {
+static manapi::future<manapi::status> compress_file_init (std::shared_ptr<manapi::fs::fstream> &input, std::shared_ptr<manapi::fs::fstream> &output, std::string src, std::string dest, manapi::ctoken &cancellation) {
     auto ires = manapi::fs::fstream::create (std::move(src), manapi::ctoken::unit(cancellation));
     auto ores = manapi::fs::fstream::create (std::move(dest), manapi::ctoken::unit(cancellation));
 
@@ -22,13 +22,13 @@ static manapi::future<manapi::status> compress_file_init (manapi::fs::fstream &i
     input = ires.unwrap();
     output = ores.unwrap();
 
-    auto oires = co_await input.open(manapi::ev::FS_O_RDONLY);
+    auto oires = co_await input->open(manapi::ev::FS_O_RDONLY);
     if (!oires) {
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
             "compress:input open", oires.sysmsg().size(), oires.sysmsg().data());
         co_return std::move(oires);
     }
-    auto oores = co_await output.open(manapi::ev::FS_O_CREAT|manapi::ev::FS_O_TRUNC|manapi::ev::FS_O_WRONLY,
+    auto oores = co_await output->open(manapi::ev::FS_O_CREAT|manapi::ev::FS_O_TRUNC|manapi::ev::FS_O_WRONLY,
         manapi::ev::IRUSR|manapi::ev::IWUSR|manapi::ev::IRGRP);
     if (!oores) {
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
@@ -86,7 +86,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::brotli_compress_file(std::string src, std::string dest, uint32_t quality, uint32_t window, uint32_t mode, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
 
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
@@ -123,7 +123,7 @@ manapi::future<manapi::status> manapi::compress::brotli_compress_file(std::strin
         for (;;) {
             const uint8_t *buffInNext = buffIn;
 
-            auto read = co_await input.read(buffIn, (toRead));
+            auto read = co_await input->read(buffIn, (toRead));
 
             if (read < 0) {
                 goto err;
@@ -151,7 +151,7 @@ manapi::future<manapi::status> manapi::compress::brotli_compress_file(std::strin
                 auto written = CHUNK_SIZE - buffOutSize;
                 if (!buffOutSize||(mmode==BROTLI_OPERATION_FINISH&&written)) {
 
-                    if (static_cast<ssize_t>(written) != co_await output.fwrite(buffOut, (written))) {
+                    if (static_cast<ssize_t>(written) != co_await output->fwrite(buffOut, (written))) {
                         goto err;
                     }
 
@@ -179,7 +179,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -235,7 +235,7 @@ manapi::status_or<std::string> manapi::compress::zstd_compress_string(std::strin
 }
 
 manapi::future<manapi::status> manapi::compress::zstd_compress_file(std::string src, std::string dest, int level, int additional_threads, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -272,7 +272,7 @@ manapi::future<manapi::status> manapi::compress::zstd_compress_file(std::string 
 
         std::size_t const toRead = buffInSize;
         for (;;) {
-            auto read = co_await input.read(buffIn.data(), (toRead));
+            auto read = co_await input->read(buffIn.data(), (toRead));
             if (read < 0) {
                 goto err;
             }
@@ -299,7 +299,7 @@ manapi::future<manapi::status> manapi::compress::zstd_compress_file(std::string 
                 if (ZSTD_isError(remaining)) {
                     goto err;
                 }
-                if (static_cast<ssize_t>(output_buffer.pos) != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
+                if (static_cast<ssize_t>(output_buffer.pos) != co_await output->fwrite(buffOut.data(), (output_buffer.pos))) {
                     goto err;
                 }
                 /* If we're on the last chunk we're finished when zstd returns 0,
@@ -328,7 +328,7 @@ err:
 }
 
 manapi::future<manapi::status> manapi::compress::zstd_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -359,7 +359,7 @@ manapi::future<manapi::status> manapi::compress::zstd_decompress_file(std::strin
         int isEmpty = 1;
 
         while (true) {
-            read = co_await input.read(buffIn.data(),(toRead));
+            read = co_await input->read(buffIn.data(),(toRead));
 
             if (read < 0) {
                 goto err;
@@ -389,7 +389,7 @@ manapi::future<manapi::status> manapi::compress::zstd_decompress_file(std::strin
                 if (ZSTD_isError(ret)) {
                     goto err;
                 }
-                if (static_cast<ssize_t>(output_buffer.pos) != co_await output.fwrite(buffOut.data(), (output_buffer.pos))) {
+                if (static_cast<ssize_t>(output_buffer.pos) != co_await output->fwrite(buffOut.data(), (output_buffer.pos))) {
                     goto err;
                 }
                 lastRet = ret;
@@ -431,7 +431,7 @@ err:
 #include <zlib.h>
 
 manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -451,7 +451,7 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::stri
         ssize_t rhs;
         do {
             try {
-                rhs = co_await input.read(in_buff, CHUNK_SIZE);
+                rhs = co_await input->read(in_buff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s failed due to %s", "deflate:compress", e.what());
@@ -479,7 +479,7 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(std::stri
                 deflate(&stream, flush); assert(CHUNK_SIZE >= stream.avail_out);
                 std::size_t bytes = CHUNK_SIZE - stream.avail_out;
 
-                if (static_cast<ssize_t>(bytes) != co_await output.fwrite(out_buff, bytes)) {
+                if (static_cast<ssize_t>(bytes) != co_await output->fwrite(out_buff, bytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);
@@ -500,7 +500,7 @@ excep:
 
 /* decompress */
 manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation){
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -521,7 +521,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::st
 
         do {
             try {
-                rhs = co_await input.read(inbuff, CHUNK_SIZE);
+                rhs = co_await input->read(inbuff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s failed due to %s", "deflate:decompress", e.what());
@@ -551,7 +551,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(std::st
                 }
 
                 uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
-                if (nbytes != co_await output.fwrite(outbuff, nbytes)) {
+                if (nbytes != co_await output->fwrite(outbuff, nbytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);
@@ -727,7 +727,7 @@ manapi::status_or<std::string> manapi::compress::gzip_decompress_string(std::str
 
 manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string src, std::string dest, int level, int strategy, manapi::ctoken cancellation)
 {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -746,7 +746,7 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string 
         ssize_t rhs;
         do {
             try {
-                rhs = co_await input.read(in_buff, CHUNK_SIZE);
+                rhs = co_await input->read(in_buff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s failed due to %s", "gzip:compress", e.what());
@@ -774,7 +774,7 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(std::string 
                 deflate(&stream, flush); assert(CHUNK_SIZE >= stream.avail_out);
                 std::size_t bytes = CHUNK_SIZE - stream.avail_out;
 
-                if (static_cast<ssize_t>(bytes) != co_await output.fwrite(out_buff, bytes)) {
+                if (static_cast<ssize_t>(bytes) != co_await output->fwrite(out_buff, bytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);
@@ -795,7 +795,7 @@ excep:
 }
 
 manapi::future<manapi::status> manapi::compress::gzip_decompress_file(std::string src, std::string dest, manapi::ctoken cancellation) {
-    manapi::fs::fstream input, output;
+    std::shared_ptr< manapi::fs::fstream  > input, output;
     auto res = co_await compress_file_init (input, output, std::move(src), std::move(dest), cancellation);
     if (!res)
         co_return std::move(res);
@@ -816,7 +816,7 @@ manapi::future<manapi::status> manapi::compress::gzip_decompress_file(std::strin
         ssize_t rhs;
         do {
             try {
-                rhs = co_await input.read(inbuff, CHUNK_SIZE);
+                rhs = co_await input->read(inbuff, CHUNK_SIZE);
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s failed due to %s", "gzip:decompress", e.what());
@@ -845,7 +845,7 @@ manapi::future<manapi::status> manapi::compress::gzip_decompress_file(std::strin
                 }
 
                 uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
-                if (nbytes != co_await output.fwrite(outbuff, nbytes)) {
+                if (nbytes != co_await output->fwrite(outbuff, nbytes)) {
                     goto err;
                 }
             } while (stream.avail_out == 0);

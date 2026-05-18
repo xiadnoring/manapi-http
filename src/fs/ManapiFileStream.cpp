@@ -15,16 +15,10 @@ enum fstream_status_flags {
 struct manapi::fs::fstream::fstream_data_t {
     std::string path;
     manapi::ctoken cancellation;
-    manapi::ev::file file;
-    std::atomic<int> status{0};
+    manapi::ev::unique_file file;
+    int status;
     off_t off_;
 };
-
-static manapi::future<manapi::ev::status> m_fstream_close_(manapi::ev::file fileno) {
-    if (fileno > 0)
-        co_return co_await manapi::fs::async_close(fileno);
-    co_return manapi::ev::status_ok();
-}
 
 static ssize_t m_fstream_seekg_(manapi::fs::fstream::fstream_data_t *data, ssize_t pos, manapi::fs::fstream::seek_flag_t flag) {
     if (data->off_ < 0) {
@@ -43,46 +37,23 @@ static ssize_t m_fstream_seekg_(manapi::fs::fstream::fstream_data_t *data, ssize
     return prev;
 }
 
-manapi::fs::fstream::fstream() : m_data() {
+manapi::fs::fstream::fstream(std::string path, ctoken cancellation) : m_data(new fstream_data_t{}) {
+    assert(this->m_data->status == 0);
+    this->m_data->path = std::move(path);
+    this->m_data->cancellation = std::move(cancellation);
 }
 
 manapi::fs::fstream::operator bool() const MANAPIHTTP_NOEXCEPT {
     return !!this->m_data;
 }
 
-manapi::status_or<manapi::fs::fstream> manapi::fs::fstream::create(std::string path, ctoken cancellation) MANAPIHTTP_NOEXCEPT {
+manapi::status_or<std::shared_ptr<manapi::fs::fstream>> manapi::fs::fstream::create(std::string path, ctoken cancellation) MANAPIHTTP_NOEXCEPT {
     try {
-        fstream f;
-        f.m_data = std::make_shared<fstream_data_t>(
-            std::move(path),
-            std::move(cancellation),
-            -1,
-            0,
-            0
-        );
-        return std::move(f);
+        return std::shared_ptr<manapi::fs::fstream> (new manapi::fs::fstream(std::move(path), std::move(cancellation)));
     }
     catch (std::exception const &) {
         return manapi::status_resource_exhausted();
     }
-}
-
-manapi::fs::fstream::fstream(fstream &&n) MANAPIHTTP_NOEXCEPT {
-    this->m_data = std::move(n.m_data);
-}
-
-manapi::fs::fstream & manapi::fs::fstream::operator=(fstream &&n) MANAPIHTTP_NOEXCEPT {
-    this->m_data = std::move(n.m_data);
-    return *this;
-}
-
-manapi::fs::fstream::fstream(const fstream &n) {
-    this->m_data = n.m_data;
-}
-
-manapi::fs::fstream & manapi::fs::fstream::operator=(const fstream &n) {
-    this->m_data = n.m_data;
-    return *this;
 }
 
 manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode) {
@@ -120,22 +91,18 @@ manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode
 }
 
 bool manapi::fs::fstream::is_open() const {
-    return (this->m_data->file >= 0) && !(this->m_data->status & FILE_CLOSED);
+    return (!!this->m_data->file) && !(this->m_data->status & FILE_CLOSED);
 }
 
 manapi::fs::fstream::~fstream() {
-    if (1 == this->m_data.use_count()) {
-        MANAPIHTTP_MUST_ALLOC_START
-        manapi::async::run(::m_fstream_close_(this->m_data->file));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
+    delete this->m_data;
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_size) {
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->off_,
+        auto res = co_await manapi::fs::async_read(this->m_data->file.get(), buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -161,7 +128,7 @@ manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->off_,
+        auto res = co_await manapi::fs::async_write(this->m_data->file.get(), buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -214,7 +181,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->off_,
+        auto res = co_await manapi::fs::async_read(this->m_data->file.get(), slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -240,7 +207,7 @@ manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->off_,
+        auto res = co_await manapi::fs::async_write(this->m_data->file.get(), slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -291,17 +258,8 @@ manapi::future<ssize_t> manapi::fs::fstream::fwrite(manapi::slice_view slice) {
     co_return res;
 }
 
-manapi::future<manapi::ev::status> manapi::fs::fstream::close_and_wait() {
-    if (this->m_data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)
-        co_return manapi::ev::status_ok();
-    auto res = co_await ::m_fstream_close_(this->m_data->file);
-    this->m_data->file = -1;
-    co_return std::move(res);
-}
-
 void manapi::fs::fstream::close() {
-    manapi::async::run (::m_fstream_close_(this->m_data->file));
-    this->m_data->file = -1;
+    this->m_data->file.reset();
 }
 
 ssize_t manapi::fs::fstream::tellg() const {
@@ -309,13 +267,13 @@ ssize_t manapi::fs::fstream::tellg() const {
 }
 
 ssize_t manapi::fs::fstream::seekg(ssize_t pos, seek_flag_t flag) {
-    return ::m_fstream_seekg_(this->m_data.get(), pos, flag);
+    return ::m_fstream_seekg_(this->m_data, pos, flag);
 }
 
 manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::fstream::size() const {
     std::size_t size;
     bool failed{false};
-    auto res = co_await manapi::fs::async_fstat(this->m_data->file, [&size, &failed] (ev::stat_t *data)
+    auto res = co_await manapi::fs::async_fstat(this->m_data->file.get(), [&size, &failed] (ev::stat_t *data)
         -> void {
         if (data)
             size = data->st_size;

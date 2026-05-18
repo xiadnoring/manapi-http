@@ -235,14 +235,14 @@ manapi::future<manapi::status> manapi::net::http::request::file(std::string file
 
     auto f = status.unwrap();
 
-    auto res = co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC, flags);
+    auto res = co_await f->open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC, flags);
 
     if (!res.ok())
         co_return status_unknown("formdata:Failed to open file");
 
     res = co_await ::http_req_read_async_body_(this->m_worker.get(), this->m_conn, this->m_request_data,
         [f] (slice_view buffs, bool fin) mutable
-            -> manapi::future<ssize_t> { return f.write(buffs); });
+            -> manapi::future<ssize_t> { return f->write(buffs); });
 
     co_return std::move(res);
 }

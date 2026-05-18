@@ -185,11 +185,11 @@ manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(st
         }
 
         while (true) {
-            if (stream.is_open())
-                co_return co_await stream.fwrite(buffs);
+            if (stream->is_open())
+                co_return co_await stream->fwrite(buffs);
 
 
-            auto res = co_await stream.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_NONBLOCK, mode);
+            auto res = co_await stream->open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_NONBLOCK, mode);
             if (!res.ok())
                 co_return -1;
         }
@@ -930,7 +930,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             if (!fstatus)
                 co_return fstatus.err();
             auto f = fstatus.unwrap();
-            status = co_await f.open(ev::FS_O_RDONLY);
+            status = co_await f->open(ev::FS_O_RDONLY);
 
             if (!status)
                 goto err;
@@ -942,10 +942,10 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             slice slices = res.unwrap();
 
             try {
-                auto fsize = manapi::unwrap(co_await f.size());
+                auto fsize = manapi::unwrap(co_await f->size());
 
                 while (fsize) {
-                    auto rhs = co_await f.read(slices);
+                    auto rhs = co_await f->read(slices);
 
                     if (rhs < 0)
                         co_return status_internal("formdata:Read data failed");
@@ -970,7 +970,7 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
                 status = manapi::status_internal("data2multipart:Failed");
             }
 
-            f.close();
+            f->close();
 
             param.second.data = {};
 

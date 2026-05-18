@@ -216,7 +216,7 @@ namespace manapi {
          * @param n source mapped object
          */
         template<typename T, typename S>
-        json (std::map<std::string, T, S> n) {
+        json (std::map<std::string, T, S> n) : json(json::object()) {
             while (!n.empty()) {
                 auto e = n.extract(n.begin());
                 this->insert({std::move(e.key()), std::move(e.mapped())});
@@ -229,7 +229,7 @@ namespace manapi {
          * @param n source mapped object
          */
         template<typename T>
-        json (std::unordered_map<std::string, T> n) {
+        json (std::unordered_map<std::string, T> n) : json(json::object()) {
             while (!n.empty()) {
                 auto e = n.extract(n.begin());
                 this->insert({std::move(e.key()), std::move(e.mapped())});
