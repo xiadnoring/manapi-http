@@ -1,5 +1,9 @@
 #pragma once
 
+#include <map>
+#include <string>
+#include <memory>
+
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../std/ManapiCancellation.hpp"
