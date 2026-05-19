@@ -89,7 +89,7 @@ namespace manapi::net::http {
 
     std::string stringify_header (const std::pair<std::string_view, std::string_view> &header);
 
-    std::size_t stringify_header (char *buff, const std::pair<std::string_view, std::string_view> &header);
+    std::size_t stringify_header (char *buff, std::size_t sz, const std::pair<std::string_view, std::string_view> &header);
 
     std::size_t stringify_header_size (const std::pair<std::string_view, std::string_view> &header);
 

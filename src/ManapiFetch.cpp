@@ -1315,7 +1315,7 @@ manapi::status manapi::net::fetch::headers(std::map<std::string, std::string, st
 #else
             char m_data[ss + 1];
 #endif
-            auto hv = manapi::net::http::stringify_header(m_data, val);
+            auto hv = manapi::net::http::stringify_header(m_data, ss, val);
             assert(ss == hv);
             m_data[ss]='\0';
             this->m_data->curl_headers.reset(curl_slist_append(this->m_data->curl_headers.release(), m_data));
@@ -1395,7 +1395,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
 #else
             char m_data[ss + 1];
 #endif
-            auto hv = manapi::net::http::stringify_header(m_data, val);
+            auto hv = manapi::net::http::stringify_header(m_data, ss, val);
             assert(ss==hv);
             m_data[ss] = '\0';
             this->m_data->curl_headers.reset(curl_slist_append(this->m_data->curl_headers.release(), m_data));

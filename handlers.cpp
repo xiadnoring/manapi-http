@@ -160,7 +160,10 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
                 auto res = co_await fs->fread(buffs2);
                 assert(res == buffs.size());
                 auto cmp = buffs.cmp(buffs2);
-                assert(!cmp);
+                if (cmp) {
+                    perror("buffs.cmp failed!!!");
+                    co_return -1;
+                }
 
                 //sum += size;
                 //std::cout << sum << " " << size << " " << fin << "\n";
