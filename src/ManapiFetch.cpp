@@ -36,7 +36,9 @@ enum m_curl_status_flags {
     M_CURL_FLAG_DATA_EOF = 1<<9,
     M_CURL_FLAG_DATA_CLOSED = 1<<10,
     M_CURL_FLAG_CALLBACK_SYNC = 1<<11,
-    M_CURL_FLAG_ASYNC_RECV_NODELAY = 1<<12
+    M_CURL_FLAG_ASYNC_RECV_NODELAY = 1<<12,
+    M_CURL_FLAG_PERFORMED = 1<<13,
+    M_CURL_FLAG_HEADERS_VERIFIED = 1<<14
 };
 
 static constexpr uint32_t status_flags_methods = 0xFFFFFFE0;
@@ -460,12 +462,11 @@ static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fet
         else {
             flg = true;
         }
+        data->flags |= M_CURL_FLAG_HEADERS_VERIFIED;
     }
     catch (std::exception const &e) {
         manapi_log_error("%s: %s failed due to %s", "fetch", "handle_body_verify", e.what());
     }
-
-    data->headers = nullptr;
 
     if (!flg) {
         data->async_buffer_size = 0;
@@ -883,6 +884,7 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
                 });
             }
 
+            this->m_data->flags |= M_CURL_FLAG_PERFORMED;
             resp = co_await fetch_async_curl_perform(grab, this->m_data.get());
         }
         catch (std::exception const &e) {
@@ -930,7 +932,7 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
             else if (this->m_data->handler_headers) {
                 this->m_data->handler_headers->operator()(this->shared_from_this());
             }
-            this->m_data->headers = nullptr;
+            this->m_data->flags |= M_CURL_FLAG_HEADERS_VERIFIED;
         }
 
         if ((status=curl_easy_getinfo(this->m_data->curl.get(), CURLINFO_HTTP_CODE, &this->m_data->status_code_))!=CURLE_OK)
@@ -967,7 +969,8 @@ void manapi::net::fetch::clear() {
 }
 
 manapi::status manapi::net::fetch::handle_body(std::move_only_function<ssize_t(char *, std::size_t)> handler) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_HEADERS_VERIFIED)
+        return manapi::status_already_exists("fetch:headers is processed");
 
     std::unique_ptr<decltype(handler)> cb;
 
@@ -1035,7 +1038,8 @@ manapi::future<manapi::status_or<manapi::json>> manapi::net::fetch::json() {
 
 
 manapi::status manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_HEADERS_VERIFIED)
+        return manapi::status_already_exists("fetch:headers is processed");
 
     if (this->m_data->async_buffer.empty())
         this->m_data->async_buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
@@ -1055,7 +1059,9 @@ manapi::status manapi::net::fetch::handle_async_body(std::move_only_function<man
 }
 
 manapi::status manapi::net::fetch::handle_headers(std::move_only_function<bool(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+        return manapi::status_already_exists("fetch:data is processed");
+
     try {
         this->m_data->handler_headers = std::make_unique<decltype(handler)>(std::move(handler));
         if (this->m_data->async_handler_headers) { this->m_data->async_handler_headers = {nullptr}; }
@@ -1067,7 +1073,9 @@ manapi::status manapi::net::fetch::handle_headers(std::move_only_function<bool(c
 }
 
 manapi::status manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+        return manapi::status_already_exists("fetch:data is processed");
+
     try {
         this->m_data->async_handler_headers
         = std::make_unique<decltype(handler)>(std::move(handler));
@@ -1104,7 +1112,9 @@ manapi::status manapi::net::fetch::enable_http1_1() {
 }
 
 manapi::status manapi::net::fetch::body(fetch_formdata params) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+        return manapi::status_already_exists("fetch:data is processed");
+
 
     try {
         if (!this->m_data->body_formdata_)
@@ -1121,7 +1131,9 @@ manapi::status manapi::net::fetch::body(fetch_formdata params) MANAPIHTTP_NOEXCE
 
 
 manapi::status manapi::net::fetch::method(std::string_view method) MANAPIHTTP_NOEXCEPT {
-    
+    if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+        return manapi::status_already_exists("fetch:data is processed");
+
 
     uint32_t flag = 0;
 
@@ -1164,6 +1176,9 @@ manapi::status manapi::net::fetch::body(std::string m_data) MANAPIHTTP_NOEXCEPT 
     
 
     try {
+        if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+            return manapi::status_already_exists("fetch:data is processed");
+
         this->m_data->body_ = BODY_PLAIN;
         if (!this->m_data->body_default_)
             this->m_data->body_default_ = std::make_unique<std::string>(std::move(m_data));
@@ -1178,6 +1193,8 @@ manapi::status manapi::net::fetch::body(std::string m_data) MANAPIHTTP_NOEXCEPT 
 }
 
 manapi::future<manapi::status> manapi::net::fetch::body(http::file_transfer_info file_info) {
+    if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+        co_return manapi::status_already_exists("fetch:data is processed");
 
     auto fileres = manapi::fs::fstream::create (file_info.filelocal());
     if (!fileres)
@@ -1217,6 +1234,8 @@ manapi::status manapi::net::fetch::async_body(std::move_only_function<manapi::fu
     
 
     try {
+        if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+            return manapi::status_already_exists("fetch:data is processed");
 
         if (this->m_data->flags & M_CURL_FLAG_CALLBACK_SYNC) {
             this->m_data->flags ^= M_CURL_FLAG_CALLBACK_SYNC;
@@ -1245,6 +1264,9 @@ manapi::status manapi::net::fetch::body(std::move_only_function<ssize_t(char *, 
     
 
     try {
+        if (this->m_data->flags & M_CURL_FLAG_PERFORMED)
+            return manapi::status_already_exists("fetch:data is processed");
+
         auto cb = std::make_unique<decltype(handler)>(std::move(handler));
 
         if (this->m_data->async_handler_send_body)

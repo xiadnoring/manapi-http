@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
         manapi::async::run([]() -> manapi::future<> {
             auto fetch = manapi::unwrap(co_await manapi::net::fetch2::fetch(
                 "http://example.com"));
-            auto body = manapi::unwrap(co_await fetch.text());
+            auto body = manapi::unwrap(co_await fetch->text());
             manapi_log_debug("%s", body.data());
         });
 

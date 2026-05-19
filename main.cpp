@@ -383,11 +383,13 @@ int main () {
         init_http_server (router, folder);
 
         router->GET ("/form", +[] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-            manapi::net::formdata_send send;
-            send.set_file("file", "hello.world");
-            send.set_text("text", "Hello World!");
-            resp.form(std::move(send)).unwrap();
-            co_return resp.text("OK").unwrap();
+            auto res = manapi::unwrap(co_await manapi::net::fetch2::fetch("https://127.0.0.1:8000", {}, req.cancellation().sub().tm(5000)));
+            resp.callback_stream([res](manapi::net::http::response::resp_stream_cb cb) mutable -> manapi::future<> {
+                manapi::unwrap(co_await res->callback_async([&cb] (manapi::slice_view sv, bool fin) -> manapi::future<ssize_t> {
+                    // writes |sv| totally
+                    return cb (sv, fin);
+                }));
+            }).unwrap();
         });
 
         manapi::async::run([router, db] () mutable -> manapi::future<> {

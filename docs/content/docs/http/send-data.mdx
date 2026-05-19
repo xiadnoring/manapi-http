@@ -52,13 +52,70 @@ The result is
 }
 ```
 
-### FormData
+### Form Data
 
 To send form data use ```net::http::response::form```
 
 ```c++
 manapi::net::formdata_send send;
 send.set_file("file", "hello.world");
-send.set_text("text", "Hello World!");
+send.set_text("text", "Hello ");
+send.set_text("text", "World!");
 resp.form(std::move(send)).unwrap();
+```
+
+The result is
+
+```text
+file=hello.world
+text=Hello 
+text=World!
+```
+
+```net::formdata_send``` supports ```erase``` and ```contains``` methods.
+
+### Custom Sync Callback
+
+Use ```net::http::response::callback_sync``` to send binary data in synchronous mode
+
+```c++
+resp.callback_sync([sz = (size_t)100](char *buf, std::size_t s, bool &f) mutable -> ssize_t {
+    auto copy = std::min(sz, s);
+    ::memset(buf, '1', copy);
+    sz -= copy;
+    if (!sz) f = true;
+    return (ssize_t)copy;
+}).unwrap();
+```
+
+### Custom Async Callback
+
+Use ```net::http::response::callback_async``` to send binary data in asynchronous mode
+
+```c++
+auto fz = manapi::fs::fstream::create("data.txt", req.cancellation().sub().tm(5000)).unwrap();
+resp.header (std::string{manapi::net::http::H_CONTENT_LENGTH}, std::to_string(manapi::unwrap(co_await fz->size()))).unwrap();
+resp.callback_async([fz](manapi::slice_view sv, bool &f) mutable -> manapi::future<ssize_t> {
+    auto res = co_await fz->fread(sv);
+    if (res != sv.size()) f = true;
+    co_return res;
+}).unwrap();
+```
+
+### Stream Callback
+
+Use ```net::http::response::callback_stream``` to send binary data in stream mode
+
+```c++
+auto res = manapi::unwrap(co_await manapi::net::fetch2::fetch("https://127.0.0.1:8000", 
+    {}, req.cancellation().sub().tm(5000)));
+
+resp.callback_stream([res](manapi::net::http::response::resp_stream_cb cb) mutable 
+        -> manapi::future<> {
+    manapi::unwrap(co_await res->callback_async([&cb] (manapi::slice_view sv, bool fin) 
+            -> manapi::future<ssize_t> {
+        // writes |sv| totally
+        return cb (sv, fin);
+    }));
+}).unwrap();
 ```

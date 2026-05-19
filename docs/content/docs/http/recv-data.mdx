@@ -112,7 +112,8 @@ Example: POST request on ```/form``` with form data
 
 ```text
 name=Medved
-age=78
+age=7
+age=8
 ```
 
 ```c++
@@ -120,6 +121,7 @@ router->POST ("/form", +[] (manapi::net::http::request &req, manapi::net::http::
     std::string name, age;
     manapi::unwrap(co_await req.form([&] (std::string key) 
             -> manapi::net::formdata_recv::ondata_cb_t {
+        // calls 3 times
         std::string *s;
         if (key == "name") 
             s = &name;
@@ -127,7 +129,7 @@ router->POST ("/form", +[] (manapi::net::http::request &req, manapi::net::http::
             s = &age;
         return manapi::net::formdata_recv::save_string(s, /* max len */ 10000);
     }));
-    std::cout << name << "\n"; // prints Medved
+    std::cout << name << " " << age << "\n"; // prints Medved 78
     ...
 });
 ```
