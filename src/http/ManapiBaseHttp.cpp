@@ -74,7 +74,7 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
 
 
         // set time
-        res->header(std::string{H_DATE}, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
+        res->header(std::string{H_DATE}, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time()))).unwrap();
         if (res->request_data()->http < versions::HTTP_v2) {
             auto const keepalive = cdata->worker->config()->keep_alive;
             if (keepalive) {
@@ -262,7 +262,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
-                res->header(std::string{H_ACCEPT_RANGES}, "bytes");
+                res->header(std::string{H_ACCEPT_RANGES}, "bytes").unwrap();
 
                 ssize_t start = 0,
                         back = fileSize - 1,
@@ -295,8 +295,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
                 size = back - start + 1;
 
-                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size));
-                res->header(std::string{H_CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize));
+                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size)).unwrap();
+                res->header(std::string{H_CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize)).unwrap();
 
                 auto task = mask_response(res.get(), size == 0);
                 manapi::async::run<int>(std::move(task),
@@ -317,7 +317,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 });
             }
             else {
-                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(dynamicFileSize));
+                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(dynamicFileSize)).unwrap();
 
                 if (fileSize) {
                     auto task = mask_response(res.get(), false);
@@ -385,10 +385,10 @@ manapi::future<void> manapi::net::http::internal::send_response_text(std::unique
             }
         }
 
-        res->header(std::string{H_CONTENT_LENGTH}, std::to_string(plaintext.size()));
+        res->header(std::string{H_CONTENT_LENGTH}, std::to_string(plaintext.size())).unwrap();
 
         if (!res->headers().contains(H_CONTENT_TYPE)) {
-            res->header(std::string{H_CONTENT_TYPE}, "text/html; charset=UTF-8");
+            res->header(std::string{H_CONTENT_TYPE}, "text/html; charset=UTF-8").unwrap();
         }
 
         auto task = mask_response(res.get(), plaintext.empty());
@@ -445,13 +445,13 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         proxy_data->fetch->headers({{"ranges", "0-"}});
 
         proxy_data->fetch->handle_async_headers (
-            [p = proxy_data.get()](std::map<std::string, std::string, std::less<>> headers) mutable
+            [p = proxy_data.get()](const std::shared_ptr<manapi::net::fetch> &f) mutable
             -> manapi::future<bool> {
                 try {
                     p->resp->status_code(p->fetch->status_code());
 
-                    auto it = headers.find(H_CONTENT_LENGTH);
-                    if (it != headers.end()) {
+                    auto it = f->headers().find(H_CONTENT_LENGTH);
+                    if (it != f->headers().end()) {
                         char *strend = nullptr;
                         p->content_length = std::strtoll(it->second.data(), &strend, 10);
                         if (!p->resp->header(std::string{H_CONTENT_LENGTH}, it->second))
@@ -549,9 +549,15 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
         auto size_res = co_await formdata->payload_size();
         auto size = size_res.unwrap();
 
+        auto boundary = formdata->generate_boundary();
+        size += formdata->multipart_size(boundary.size()).unwrap();
+
+        res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size)).unwrap();
+        res->header(std::string{H_CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}})).unwrap();
+
         auto task = mask_response(res.get(), false);
         manapi::async::run<int> (std::move(task),
-            [size, formdata = std::move(formdata), res = std::move(res)] (std::exception_ptr err, int *result) mutable
+            [boundary = std::move(boundary), formdata = std::move(formdata), res = std::move(res)] (std::exception_ptr err, int *result) mutable
             -> void {
                 if (err) {
                     /* failed */
@@ -560,12 +566,6 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
 
 
                 if (result && *result == ERR_OK) {
-                    auto boundary = formdata->generate_boundary();
-                    size += formdata->multipart_size(boundary.size()).unwrap();
-
-                    res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size));
-                    res->header(std::string{H_CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
-
                     auto task = formdata->data2multipart(std::move(boundary),
                         res->config()->buffer_size,
                         [res = res.get()] (manapi::slice_view slice, bool fin)
@@ -863,7 +863,7 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
     auto const cdata = res->connection_data();
 
     if (http_v1_1_is_chunked_data(res.get()))
-        res->header(std::string{http::H_TRANSFER_ENCODING}, "chunked");
+        res->header(std::string{http::H_TRANSFER_ENCODING}, "chunked").unwrap();
 
     auto task = mask_response(res.get(), false);
     manapi::async::run<int> (std::move(task),

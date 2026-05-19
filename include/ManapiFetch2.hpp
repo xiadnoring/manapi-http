@@ -38,15 +38,17 @@ namespace manapi::net {
 
         MANAPIHTTP_NODISCARD uint16_t status () const MANAPIHTTP_NOEXCEPT;
 
-        std::map<std::string, std::string, std::less<>> headers () MANAPIHTTP_NOEXCEPT;
+        std::map<std::string, std::string, std::less<>> &headers () MANAPIHTTP_NOEXCEPT;
 
-        manapi::future<manapi::status> callback_async (std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb);
+        manapi::future<manapi::status> callback_async (std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb);
 
-        manapi::future<manapi::status> callback_sync (std::function<ssize_t(char *buffer, std::size_t size)> cb);
+        manapi::future<manapi::status> callback_sync (std::move_only_function<ssize_t(char *buffer, std::size_t size)> cb);
 
         manapi::future<manapi::status_or<std::string>> text ();
 
         manapi::future<manapi::json_error::status_or<manapi::json>> json ();
+
+        manapi::future<manapi::status> form (formdata_recv::onparam_cb_t cb);
     private:
         std::unique_ptr <fetch_data> fetchdata;
     };

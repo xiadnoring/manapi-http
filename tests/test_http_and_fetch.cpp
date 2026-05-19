@@ -314,18 +314,32 @@ UTEST(http_and_fetch, formdata_response) {
         ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
 
-        auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
-            /**
-             * TODO: cURL FormData support with some tests
-             */
-            return size;
-        });
+        std::string txt, hello;
+        manapi::unwrap(co_await fetch->form([&txt, &hello] (std::string name)
+            -> manapi::net::formdata_recv::ondata_cb_t {
+            std::string *msg;
+            if (name == "txt") msg = &txt;
+            else if (name == "hello") msg = &hello;
+            else {
+                return nullptr;
+            }
+            return manapi::net::formdata_recv::save_string(msg, 1000);
+        }));
+
+#define return co_return
+        ASSERT_TRUE_MSG(txt == "Hello world!", "check response value");
+#undef return
+#define return co_return
+        ASSERT_TRUE_MSG(hello == "world", "check response value");
+#undef return
+
     });
 
     router->GET ("/formdata", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          manapi::net::formdata_send send;
+         send.set_text("txt", "Hello ").unwrap();
+         send.set_text("txt", "world!").unwrap();
          send.set_text("hello", "world").unwrap();
-         send.set_text("hello2", "world2").unwrap();
          co_return resp.form(std::move(send)).unwrap();
     }).unwrap();
 

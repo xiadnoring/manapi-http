@@ -211,8 +211,13 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::r
 
 manapi::future<manapi::status> manapi::net::http::request::form (formdata_recv::onparam_cb_t cb) {
     try {
-        formdata_recv fdata (http_req_read_async_body_, this->m_worker.get(), this->m_conn, this->m_request_data);
-        co_return co_await fdata.get(std::move(cb));
+        formdata_recv fdata ([wrk = this->m_worker.get(), conn = this->m_conn, req_data = this->m_request_data]
+                (formdata_recv::req_data_cb_t cb) -> manapi::future<manapi::status> {
+            return ::http_req_read_async_body_ (wrk, conn, req_data, std::move(cb));
+        });
+        auto hit = this->m_request_data->headers.find(H_CONTENT_TYPE);
+        co_return co_await fdata.get((hit == this->m_request_data->headers.end() ? std::string_view{} : hit->second),
+            std::move(cb));
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "req:Form failed", e.what());

@@ -88,8 +88,8 @@ struct manapi::net::fetch::data_t {
 
     std::unique_ptr<std::move_only_function<ssize_t(char *buffer, std::size_t size)>> sync_user_body_cb;
     std::unique_ptr<std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool finish)>> async_user_body_cb;
-    std::unique_ptr<std::move_only_function <manapi::future<bool>(std::map <std::string, std::string, std::less<>>)>> async_handler_headers;
-    std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string, std::less<>>)>> handler_headers;
+    std::unique_ptr<std::move_only_function <manapi::future<bool>(const std::shared_ptr<manapi::net::fetch> &)>> async_handler_headers;
+    std::unique_ptr<std::move_only_function <bool(const std::shared_ptr<manapi::net::fetch> &)>> handler_headers;
     std::unique_ptr<std::move_only_function <ssize_t(char *, std::size_t)>> handler_send_body;
     std::unique_ptr<std::move_only_function <manapi::future<ssize_t>(slice_view buffs, bool &fin)>> async_handler_send_body;
 };
@@ -450,12 +450,12 @@ static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fet
     try {
         if (data->async_handler_headers) {
             auto const cb = std::move(data->async_handler_headers);
-            flg = co_await cb->operator()(std::move(*data->headers));
+            flg = co_await cb->operator()(parent);
         }
 
         else if (data->handler_headers) {
             auto const cb = std::move(data->handler_headers);
-            flg = cb->operator()(std::move(*data->headers));
+            flg = cb->operator()(parent);
         }
         else {
             flg = true;
@@ -925,10 +925,10 @@ manapi::future<manapi::status> manapi::net::fetch::async_doit() {
             }
 
             if (this->m_data->async_handler_headers) {
-                co_await this->m_data->async_handler_headers->operator()(std::move(*this->m_data->headers));
+                co_await this->m_data->async_handler_headers->operator()(this->shared_from_this());
             }
             else if (this->m_data->handler_headers) {
-                this->m_data->handler_headers->operator()(std::move(*this->m_data->headers));
+                this->m_data->handler_headers->operator()(this->shared_from_this());
             }
             this->m_data->headers = nullptr;
         }
@@ -954,8 +954,8 @@ fin:
     co_return std::move(rstatus);
 }
 
-std::map <std::string, std::string, std::less<>> manapi::net::fetch::headers() {
-    return std::move(*std::exchange(this->m_data->headers, nullptr));
+std::map <std::string, std::string, std::less<>> &manapi::net::fetch::headers() {
+    return *this->m_data->headers;
 }
 
 void manapi::net::fetch::clear() {
@@ -1054,7 +1054,7 @@ manapi::status manapi::net::fetch::handle_async_body(std::move_only_function<man
     return manapi::status_ok();
 }
 
-manapi::status manapi::net::fetch::handle_headers(std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::fetch::handle_headers(std::move_only_function<bool(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT {
     
     try {
         this->m_data->handler_headers = std::make_unique<decltype(handler)>(std::move(handler));
@@ -1066,7 +1066,7 @@ manapi::status manapi::net::fetch::handle_headers(std::move_only_function<bool(s
     return manapi::status_ok();
 }
 
-manapi::status manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT {
     
     try {
         this->m_data->async_handler_headers

@@ -1,4 +1,6 @@
 #include "ManapiFetch2.hpp"
+
+#include "http/ManapiHttpTypes.hpp"
 #include "std/ManapiAsyncParallelRun.hpp"
 #include "std/ManapiAsyncPromise.hpp"
 #include "std/ManapiScopePtr.hpp"
@@ -149,7 +151,7 @@ static manapi::future<manapi::status> fetch2_response(std::shared_ptr<manapi::ne
         using promise = manapi::async::promise_sync<manapi::status>;
         status = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             try {
-                data->data->handle_async_headers([fetchdata = data, resolve] (std::map<std::string, std::string, std::less<>> headers) mutable
+                data->data->handle_async_headers([fetchdata = data, resolve] (const std::shared_ptr<manapi::net::fetch> &) mutable
                     -> manapi::future<bool> {
                     auto resolve_ = std::move(resolve);
 
@@ -332,11 +334,11 @@ uint16_t manapi::net::fetch2::status() const MANAPIHTTP_NOEXCEPT {
     return this->fetchdata->data->status_code();
 }
 
-std::map<std::string, std::string, std::less<>> manapi::net::fetch2::headers() MANAPIHTTP_NOEXCEPT {
+std::map<std::string, std::string, std::less<>> &manapi::net::fetch2::headers() MANAPIHTTP_NOEXCEPT {
     return this->fetchdata->data->headers();
 }
 
-manapi::future<manapi::status> manapi::net::fetch2::callback_async(std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
+manapi::future<manapi::status> manapi::net::fetch2::callback_async(std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
     if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
         co_return status_resource_exhausted("null");
 
@@ -351,7 +353,7 @@ manapi::future<manapi::status> manapi::net::fetch2::callback_async(std::function
     co_return co_await fetch2_continue_receiving(this->shared_from_this(), scope_ptr(this->fetchdata.get(), false));
 }
 
-manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, std::size_t size)> cb) {
+manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::move_only_function<ssize_t(char *buffer, std::size_t size)> cb) {
     if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
         co_return status_resource_exhausted("null");
 
@@ -394,7 +396,7 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::fetch2:
     try {
         manapi::json_builder builder;
 
-        auto res =co_await this->callback_sync([&builder] (char *buffer, std::size_t size) -> ssize_t { assert(size >= 0);
+        auto res =co_await this->callback_sync([&builder] (char *buffer, std::size_t size) -> ssize_t {
             auto res = builder.parse(std::string_view(buffer, (size)));
             if (!res)
                 return -1;
@@ -405,6 +407,23 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::fetch2:
             co_return json_error::status{std::move(res)};
 
         co_return builder.get();
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace("%s due to %s", "fetch2:json failed", e.what());
+        co_return json_error::status{status_internal("fetch2:json failed")};
+    }
+}
+
+manapi::future<manapi::status> manapi::net::fetch2::form(formdata_recv::onparam_cb_t cb) {
+    try {
+        manapi::net::formdata_recv fd_recv ([this] (formdata_recv::req_data_cb_t cb)
+            -> manapi::future<manapi::status> {
+            return this->callback_async(std::move(cb));
+        });
+
+        auto hit = this->headers().find(http::H_CONTENT_TYPE);
+        co_return co_await fd_recv.get( hit == this->headers().end() ? std::string_view{} : hit->second,
+             std::move(cb) );
     }
     catch (std::exception const &e) {
         manapi_log_trace("%s due to %s", "fetch2:json failed", e.what());

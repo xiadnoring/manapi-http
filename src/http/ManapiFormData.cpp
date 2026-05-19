@@ -54,11 +54,7 @@ struct manapi::net::formdata_recv::formdata_recv_headers_t {
     std::string s1, s2;
 };
 
-manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req) : ctx_() {
-    this->worker_ = worker;
-    this->onrecv_cb_ = onrecv_cb;
-    this->conn_ = conn;
-    this->req_ = req;
+manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb) : ctx_(), onrecv_cb_(std::move(onrecv_cb)) {
 }
 
 manapi::net::formdata_recv::~formdata_recv() = default;
@@ -67,7 +63,7 @@ manapi::net::formdata_recv::formdata_recv(formdata_recv &&n) MANAPIHTTP_NOEXCEPT
 
 manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) {
+manapi::future<manapi::status> manapi::net::formdata_recv::get(std::string_view content_type, onparam_cb_t cb) {
     assert(this->onparam_cb_ == nullptr);
     manapi::status status;
 
@@ -76,12 +72,10 @@ manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) 
         int type = CONTENT_TYPE_NONE;
 
         {
-            auto const hit = this->req_->headers.find(http::H_CONTENT_TYPE);
-
-            if (hit == this->req_->headers.end())
+            if (content_type.empty())
                 co_return status_invalid_argument("formdata:Content-Type header is missing");
 
-            auto rhs = http::parse_header_value(hit->second);
+            auto rhs = http::parse_header_value(content_type);
             auto hparams = rhs.unwrap();
             if (hparams.size() != 1) {
                 status = status_invalid_argument("formdata:Content-Type header is invalid");
@@ -110,8 +104,7 @@ manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) 
 
         switch (type) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
-                status = co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                status = co_await this->onrecv_cb_ ([this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                         co_return co_await this->onrecv_multipart_(buffs);
                 });
 
@@ -121,8 +114,7 @@ manapi::future<manapi::status> manapi::net::formdata_recv::get(onparam_cb_t cb) 
                 break;
             }
             case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: {
-                status = co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                status = co_await this->onrecv_cb_ ([this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                         return this->onrecv_urlencoded_(buffs);
                 });
 
@@ -720,9 +712,9 @@ manapi::status manapi::net::formdata_send::set_file(const std::string &name, std
         auto filename = manapi::fs::path::basename(filepath);
         auto filemime = manapi::mime::mime_by_file_path(filename);
 
-        auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
-        if (!res.second)
-            return status_already_exists("formdata:param exists");
+        this->data[name].push_back({DATA_FILE,
+            std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}});
+
         return status_ok();
     }
     catch (...) {
@@ -732,9 +724,9 @@ manapi::status manapi::net::formdata_send::set_file(const std::string &name, std
 
 manapi::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT {
     try {
-        auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
-        if (!res.second)
-            return status_already_exists("formdata:param exists");
+        this->data[name].push_back({DATA_FILE,
+            std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}});
+
         return status_ok();
     }
     catch (...) {
@@ -744,9 +736,8 @@ manapi::status manapi::net::formdata_send::set_file(const std::string &name, std
 
 manapi::status manapi::net::formdata_send::set_text(const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT {
     try {
-        auto const res = this->data.insert({name, {DATA_PLAIN, std::move(data), {}}});
-        if (!res.second)
-            return status_already_exists("formdata:param exists");
+        this->data[name].push_back({DATA_PLAIN,
+            std::move(data), data_file_storage{}});
         return status_ok();
     }
     catch (...) {
@@ -766,20 +757,22 @@ bool manapi::net::formdata_send::contains(std::string_view name) const MANAPIHTT
 
 manapi::future<manapi::status_or<std::size_t>> manapi::net::formdata_send::payload_size() const {
     std::size_t s = 0;
-    for (const auto &param : this->data) {
-        switch (param.second.type) {
-            case DATA_FILE: {
-                auto res = co_await manapi::fs::async_file_size(param.second.data);
-                if (!res.ok())
-                    co_return res.err();
-                s += res.unwrap();
-                break;
+    for (const auto &params : this->data) {
+        for (const auto &param : params.second) {
+            switch (param.type) {
+                case DATA_FILE: {
+                    auto res = co_await manapi::fs::async_file_size(param.data);
+                    if (!res.ok())
+                        co_return res.err();
+                    s += res.unwrap();
+                    break;
+                }
+                case DATA_PLAIN:
+                    s += (param.data.size());
+                    break;
+                default:
+                    break;
             }
-            case DATA_PLAIN:
-                s += (param.second.data.size());
-            break;
-            default:
-                break;
         }
     }
     co_return s;
@@ -788,32 +781,34 @@ manapi::future<manapi::status_or<std::size_t>> manapi::net::formdata_send::paylo
 manapi::status_or<std::size_t> manapi::net::formdata_send::multipart_size(std::size_t boundary_size) const MANAPIHTTP_NOEXCEPT {
     try {
         auto s = (boundary_size + (sizeof ("--\r\n") - 1));
-        for (const auto &param : this->data) {
-            s +=(boundary_size + (sizeof ("\r\n") - 1));
-            if (param.second.type == DATA_PLAIN) {
-                std::string const name = json{param.first}.dump();
-                std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
-                std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
-                s += (header.size());
+        for (const auto &params : this->data) {
+            for (const auto &param : params.second) {
+                s +=(boundary_size + (sizeof ("\r\n") - 1));
+                if (param.type == DATA_PLAIN) {
+                    std::string const name = json{params.first}.dump();
+                    std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
+                    std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
+                    s += (header.size());
+                    s += (sizeof ("\r\n") - 1);
+                }
+                else if (param.type == DATA_FILE) {
+                    std::string const name = json{params.first}.dump();
+                    std::string const filename = json{param.file.filename}.dump();
+                    std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
+                    std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
+                    s += (header.size());
+                    s += (sizeof ("\r\n") - 1);
+
+                    val = http::stringify_header_value({{param.file.filemime}});
+                    header = http::stringify_header({http::H_CONTENT_TYPE, val});
+                    s += (header.size());
+                    s += (sizeof ("\r\n") - 1);
+                }
+
+                s += (sizeof ("\r\n") - 1);
+                /* ... */
                 s += (sizeof ("\r\n") - 1);
             }
-            else if (param.second.type == DATA_FILE) {
-                std::string const name = json{param.first}.dump();
-                std::string const filename = json{param.second.file.value().filename}.dump();
-                std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
-                std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
-                s += (header.size());
-                s += (sizeof ("\r\n") - 1);
-
-                val = http::stringify_header_value({{param.second.file.value().filemime}});
-                header = http::stringify_header({http::H_CONTENT_TYPE, val});
-                s += (header.size());
-                s += (sizeof ("\r\n") - 1);
-            }
-
-            s += (sizeof ("\r\n") - 1);
-            /* ... */
-            s += (sizeof ("\r\n") - 1);
         }
         return s;
     }
@@ -840,32 +835,11 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
 
     slice_part_t part{};
 
-    for (auto &param : this->data) {
-        part.buff.base = boundary.data();
-        part.buff.len = static_cast<decltype(part.buff.len)>(boundary.size());
+    for (auto &params : this->data) {
+        for (auto &param : params.second) {
+            part.buff.base = boundary.data();
+            part.buff.len = static_cast<decltype(part.buff.len)>(boundary.size());
 
-        status = co_await write (slice_view(&part), false);
-        if (!status)
-            goto err;
-
-        part.buff.base = (char*)nline;
-        part.buff.len = sizeof (nline) - 1;
-        status = co_await write (slice_view(&part), false);
-        if (!status)
-            goto err;
-
-        if (param.second.type == DATA_PLAIN) {
-            std::string const name = json{param.first}.dump();
-            std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", name}}}})});
-
-            part.buff.base = header.data();
-            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
             status = co_await write (slice_view(&part), false);
             if (!status)
                 goto err;
@@ -876,109 +850,132 @@ manapi::future<manapi::status> manapi::net::formdata_send::data2multipart(std::s
             if (!status)
                 goto err;
 
+            if (param.type == DATA_PLAIN) {
+                std::string const name = json{params.first}.dump();
+                std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION,
+                    http::stringify_header_value({{"form-data", {{"name", name}}}})});
 
-            part.buff.base = param.second.data.data();
-            part.buff.len = static_cast<decltype(part.buff.len)>(param.second.data.size());
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
-            param.second.data = {};
+                part.buff.base = header.data();
+                part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
 
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
-        }
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
 
-        if (param.second.type == DATA_FILE) {
-            std::string name = json{param.first}.dump();
-            std::string const filename = json{std::move(param.second.file.value().filename)}.dump();
-            std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
-            std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
-            part.buff.base = header.data();
-            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
 
-            val = http::stringify_header_value({{std::move(param.second.file.value().filemime)}});
-            header = http::stringify_header({http::H_CONTENT_TYPE, val});
-            part.buff.base = header.data();
-            part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
+                part.buff.base = param.data.data();
+                part.buff.len = static_cast<decltype(part.buff.len)>(param.data.size());
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
+                param.data = {};
 
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
-            status = co_await write (slice_view(&part), false);
-            if (!status)
-                goto err;
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
+            }
 
-            auto fstatus = manapi::fs::fstream::create (param.second.data);
-            if (!fstatus)
-                co_return fstatus.err();
-            auto f = fstatus.unwrap();
-            status = co_await f->open(ev::FS_O_RDONLY);
+            if (param.type == DATA_FILE) {
+                std::string name = json{params.first}.dump();
+                std::string const filename = json{std::move(param.file.filename)}.dump();
+                std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
+                std::string header = http::stringify_header({http::H_CONTENT_DISPOSITION, val});
+                part.buff.base = header.data();
+                part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
 
-            if (!status)
-                goto err;
+                val = http::stringify_header_value({{std::move(param.file.filemime)}});
+                header = http::stringify_header({http::H_CONTENT_TYPE, val});
+                part.buff.base = header.data();
+                part.buff.len = static_cast<decltype(part.buff.len)>(header.size());
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
 
-            auto res = manapi::async::current()->memory_fabric().slice(65536);
-            if (!res.ok())
-                co_return res.err();
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), false);
+                if (!status)
+                    goto err;
 
-            slice slices = res.unwrap();
+                auto fstatus = manapi::fs::fstream::create (param.data);
+                if (!fstatus)
+                    co_return fstatus.err();
+                auto f = fstatus.unwrap();
+                status = manapi::status (co_await f->open(ev::FS_O_RDONLY));
 
-            try {
-                auto fsize = manapi::unwrap(co_await f->size());
+                if (!status)
+                    goto err;
 
-                while (fsize) {
-                    auto rhs = co_await f->read(slices);
+                auto res = manapi::async::current()->memory_fabric().slice(65536);
+                if (!res.ok())
+                    co_return res.err();
 
-                    if (rhs < 0)
-                        co_return status_internal("formdata:Read data failed");
+                slice slices = res.unwrap();
 
-                    if (rhs == 0) {
-                        continue;
+                try {
+                    auto fsize = manapi::unwrap(co_await f->size());
+
+                    while (fsize) {
+                        auto rhs = co_await f->read(slices);
+
+                        if (rhs < 0)
+                            co_return status_internal("formdata:Read data failed");
+
+                        if (rhs == 0) {
+                            continue;
+                        }
+
+                        fsize -= static_cast<std::size_t>(rhs);
+
+                        auto slice = slices.subslice(0, static_cast<std::size_t>(rhs));
+                        if (!slice)
+                            co_return slice.err();
+
+                        status = co_await write (slice.unwrap(), false);
+                        if (!status)
+                            goto err;
                     }
-
-                    fsize -= static_cast<std::size_t>(rhs);
-
-                    auto slice = slices.subslice(0, static_cast<std::size_t>(rhs));
-                    if (!slice)
-                        co_return slice.err();
-
-                    status = co_await write (slice.unwrap(), false);
-                    if (!status)
-                        goto err;
                 }
+                catch (std::exception const &e) {
+                    manapi_log_error("%s due to %s", "data2multipart:Failed", e.what());
+                    status = manapi::status_internal("data2multipart:Failed");
+                }
+
+                f->close();
+
+                param.data = {};
+
+                part.buff.base = (char*)nline;
+                part.buff.len = sizeof (nline) - 1;
+                status = co_await write (slice_view(&part), true);
+                if (!status)
+                    goto err;
             }
-            catch (std::exception const &e) {
-                manapi_log_error("%s due to %s", "data2multipart:Failed", e.what());
-                status = manapi::status_internal("data2multipart:Failed");
-            }
-
-            f->close();
-
-            param.second.data = {};
-
-            part.buff.base = (char*)nline;
-            part.buff.len = sizeof (nline) - 1;
-            status = co_await write (slice_view(&part), true);
-            if (!status)
-                goto err;
         }
     }
 

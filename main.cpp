@@ -383,11 +383,10 @@ int main () {
         init_http_server (router, folder);
 
         router->GET ("/form", +[] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-            auto s = manapi::fs::fstream::create("test.bin").unwrap();
-            manapi::unwrap(co_await s->open(manapi::ev::FS_O_WRONLY, 0755));
-            manapi::unwrap(co_await req.callback_async([s] (manapi::slice_view sv, bool fin) -> manapi::future<ssize_t> {
-                co_return co_await s->fwrite(sv);
-            }));
+            manapi::net::formdata_send send;
+            send.set_file("file", "hello.world");
+            send.set_text("text", "Hello World!");
+            resp.form(std::move(send)).unwrap();
             co_return resp.text("OK").unwrap();
         });
 

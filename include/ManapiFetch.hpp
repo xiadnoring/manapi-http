@@ -159,14 +159,14 @@ namespace manapi::net {
          *
          * @param handler the callback
          */
-        manapi::status handle_headers (std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT;
+        manapi::status handle_headers (std::move_only_function<bool(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the async callback to recv headers from the request
          *
          * @param handler the callback
          */
-        manapi::status handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT;
+        manapi::status handle_async_headers (std::move_only_function<manapi::future<bool>(const std::shared_ptr<manapi::net::fetch> &)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of ALPN
@@ -331,7 +331,7 @@ namespace manapi::net {
          * Get the headers from the response
          * @return
          */
-        std::map <std::string, std::string, std::less<>> headers();
+        std::map <std::string, std::string, std::less<>> &headers();
 
         /**
          * clear current state

@@ -1,0 +1,64 @@
+---
+
+title: Send Data
+description: Methods to send data over the HTTP response
+
+---
+
+## Headers
+
+To work headers use ```net::http::response```
+
+```c++
+router->GET("/", [] (http::req &req, http::resp &resp) 
+    -> manapi::future<> {
+    // set header
+    resp.header("content-type", "text/plain").unwrap();
+    // remove header
+    resp.remove_header("content-type");
+    // check header existence
+    if (resp.contains_header("content-type")) { ... }
+    // get non-const reference to headers
+    auto headers = resp.headers();
+    ...
+});
+```
+
+## Body
+Send body content
+
+### Plain Text
+
+To send plain text use ```net::http::response::text```
+
+```c++
+resp.text("Hello World!").unwrap();
+```
+
+### JSON Data
+
+To send JSON data use ```net::http::response::json```
+
+```c++
+resp.json({ { "ok", true }, { "message": "Hello World!" } }).unwrap();
+```
+
+The result is
+
+```json
+{
+    "ok": true,
+    "message": "Hello World!"
+}
+```
+
+### FormData
+
+To send form data use ```net::http::response::form```
+
+```c++
+manapi::net::formdata_send send;
+send.set_file("file", "hello.world");
+send.set_text("text", "Hello World!");
+resp.form(std::move(send)).unwrap();
+```

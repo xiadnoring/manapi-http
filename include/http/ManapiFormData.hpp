@@ -1,11 +1,9 @@
 #pragma once
 
-#include "./ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../http/ManapiHttpUtils.hpp"
+#include "../std/ManapiCancellation.hpp"
 #include "../std/ManapiAsyncContext.hpp"
-#include "../worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net {
     struct file_data_t {
@@ -36,9 +34,9 @@ namespace manapi::net {
 
         typedef std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> req_data_cb_t;
 
-        typedef manapi::future<manapi::status> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
+        typedef std::move_only_function<manapi::future<manapi::status>(req_data_cb_t handler)> onrecv_cb_t;
 
-        formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
+        formdata_recv (onrecv_cb_t onrecv_cb);
 
         ~formdata_recv ();
 
@@ -46,7 +44,7 @@ namespace manapi::net {
 
         formdata_recv &operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT;
 
-        manapi::future<manapi::status> get (onparam_cb_t cb);
+        manapi::future<manapi::status> get (std::string_view content_type, onparam_cb_t cb);
 
         static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::ctoken cancellation = nullptr);
 
@@ -61,9 +59,6 @@ namespace manapi::net {
         ondata_cb_t ondata_cb_;
         onrecv_cb_t onrecv_cb_;
         formdata_recv_ctx_t ctx_;
-        worker::base *worker_;
-        worker::shared_conn *conn_;
-        http::request_data_t *req_;
     };
 
     class formdata_send {
@@ -102,9 +97,9 @@ namespace manapi::net {
         struct data_storage {
             int type;
             std::string data;
-            std::optional<data_file_storage> file;
+            data_file_storage file;
         };
 
-        std::map<std::string, data_storage, std::less<>> data{};
+        std::map<std::string, std::vector<data_storage>, std::less<>> data{};
     };
 }
