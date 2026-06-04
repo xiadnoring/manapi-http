@@ -3,6 +3,7 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
+#include "json/ManapiJsonInternal.hpp"
 
 #define BIT_AT(n, i, t) ((n >> (sizeof(t) * 8 - (i + 1))) & 1)
 
@@ -73,16 +74,89 @@ bool manapi::unicode::is_space_symbol (char32_t symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
-// char manapi::unicode::hex2dec(char a) {
-//     a = static_cast<char> (std::toupper(a));
-//     return static_cast <char>(a >= 'A' ? a - 'A' + 10 : a - '0');
-// }
+void manapi::unicode::escape_string(std::string_view str, char *out) {
+    //auto const p = out;
+    *out++ = '"';
+    for (auto const c : str) {
+        switch (c) {
+            case '\n':
+                *out++ = '\\';
+                *out++ = 'n';
+            break;
+            case '\r':
+                *out++ = '\\';
+                *out++ = 'r';
+            break;
+            case '\f':
+                *out++ = '\\';
+                *out++ = 'f';
+            break;
+            case '\b':
+                *out++ = '\\';
+                *out++ = 'b';
+            break;
+            case '\t':
+                *out++ = '\\';
+                *out++ = 't';
+            break;
+            case '\"':
+                *out++ = '\\';
+                *out++ = '\"';
+            break;
+            case '\\':
+                *out++ = '\\';
+                *out++ = '\\';
+            break;
+            default:
+                *out++ = c;
+            break;
+        }
+    }
+    *out++ = '"';
+}
 
-std::string manapi::unicode::escape_string (std::string_view str, char quotes) {
+void manapi::unicode::escape_string(std::string_view str, manapi::json_dump_buffer *out) {
+    out->push_back('"');
+    for (auto const c : str) {
+        switch (c) {
+            case '\n':
+                out->push_back('\\');
+                out->push_back('n');
+                break;
+            case '\r':
+                out->push_back('\\');
+                out->push_back('r');
+                break;
+            case '\f':
+                out->push_back('\\');
+                out->push_back('f');
+                break;
+            case '\b':
+                out->push_back('\\');
+                out->push_back('b');
+                break;
+            case '\t':
+                out->push_back('\\');
+                out->push_back('t');
+                break;
+            case '\"':
+                out->push_back('\\');
+                out->push_back('\"');
+                break;
+            case '\\':
+                out->push_back('\\');
+                out->push_back('\\');
+                break;
+            default:
+                out->push_back(c);
+            break;
+        }
+    }
+    out->push_back('"');
+}
+
+std::size_t manapi::unicode::escape_string_size(std::string_view str) {
     std::size_t size = str.size() + 2;
-
-    // int utf_size = 0;
-    // uint8_t utf_tmp = 0;
 
     for (auto & c : str) {
         switch (c) {
@@ -96,106 +170,22 @@ std::string manapi::unicode::escape_string (std::string_view str, char quotes) {
                 size++;
             break;
             default:
-                // if (utf_size) {
-                //     if ((c & 0xC0)!=0x80)
-                //         throw std::runtime_error("utf8 invalid");
-                //
-                //     utf_size--;
-                // }
-                // else if (!isprint(c)) {
-                //     utf_size = count_of_octet(c);
-                //
-                //     if(utf_size > 3)
-                //         throw std::runtime_error("utf8 invalid");
-                //
-                //     size += sizeof ("\u0000") - 1 - utf_size;
-                //
-                //     utf_size--;
-                // }
-
-            break;
+                break;
         }
     }
+
+    return size;
+}
+
+// char manapi::unicode::hex2dec(char a) {
+//     a = static_cast<char> (std::toupper(a));
+//     return static_cast <char>(a >= 'A' ? a - 'A' + 10 : a - '0');
+// }
+
+std::string manapi::unicode::escape_string (std::string_view str) {
     std::string s;
-    s.reserve(size);
-    s.push_back('"');
-    for (auto & c : str) {
-        switch (c) {
-            case '\n':
-                s.append("\\n");
-            break;
-            case '\r':
-                s.append("\\r");
-            break;
-            case '\f':
-                s.append("\\f");
-            break;
-            case '\b':
-                s.append("\\b");
-            break;
-            case '\t':
-                s.append("\\t");
-            break;
-            case '\"':
-                s.append("\\\"");
-            break;
-            case '\\':
-                s.append("\\\\");
-            break;
-            default:
-                s.push_back(c);
-                // if (utf_size) {
-                //     switch (utf_size) {
-                //         case 1:
-                //             s.push_back(static_cast<char>(onedec2hex(((utf_tmp << 2) | (c & 0x30)))));
-                //             s.push_back(static_cast<char>(onedec2hex(c & 0x0F)));
-                //
-                //             utf_tmp = 0;
-                //             break;
-                //
-                //         case 2:
-                //             s.push_back(static_cast<char>(onedec2hex(c & 0x3C)));
-                //             utf_tmp = c & 0x3;
-                //             break;
-                //
-                //         default:
-                //             break;
-                //     }
-                //     s.push_back(static_cast<char>(onedec2hex((c >> 4))));
-                //
-                //     utf_size--;
-                // }
-                // else if (!isprint(c)) {
-                //     utf_size = count_of_octet(c);
-                //
-                //     s.append("\\u");
-                //
-                //     switch (utf_size) {
-                //         case 1:
-                //             s.append("00");
-                //             s.push_back(static_cast<char>(onedec2hex((c >> 4))));
-                //             s.push_back(static_cast<char>(onedec2hex((c & 0x0F))));
-                //             break;
-                //         case 2:
-                //             s.push_back('0');
-                //             s.push_back(static_cast<char>(onedec2hex((c & 0x1C) >> 2)));
-                //             utf_tmp = (c & 0x3);
-                //             break;
-                //         case 3:
-                //             s.push_back(static_cast<char>(onedec2hex((c & 0x0F))));
-                //             break;
-                //
-                //         default:
-                //             break;
-                //     }
-                //
-                //     utf_size--;
-                // }
-            break;
-        }
-    }
-    s.push_back('"');
-
+    s.resize(unicode::escape_string_size(str));
+    unicode::escape_string(str, s.data());
     return std::move(s);
 }
 

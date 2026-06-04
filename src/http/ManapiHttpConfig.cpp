@@ -20,7 +20,7 @@ enum http_version_bits {
 };
 
 
-manapi::net::http::config::config(const json &config) {
+manapi::net::http::config::config(const json &config) : server_addr{} {
     this->http_versions = 0;
     this->server_len = 0;
     this->init_proto_timeout = get_config_param<std::size_t> (config, "init_proto_timeout", 8000);
@@ -74,15 +74,15 @@ manapi::net::http::config::config(const json &config) {
 
     /* http versions */
     if (config.contains("http")) {
-        for (const auto &version : config["http"].as_array() ) {
+        for (const auto &version : config["http"].each() ) {
             uint32_t num = 0;
-            if (version == "0.9")           num = HTTP_VER_BIT_0_9;
-            else if (version == "1.0")      num = HTTP_VER_BIT_1_0;
-            else if (version == "1.1")      num = HTTP_VER_BIT_1_1;
-            else if (version == "2"
-                || version == "2.0")        num = HTTP_VER_BIT_2;
-            else if (version == "3"
-                || version == "3.0")        num = HTTP_VER_BIT_3;
+            if (version==("0.9"))           num = HTTP_VER_BIT_0_9;
+            else if (version==("1.0"))      num = HTTP_VER_BIT_1_0;
+            else if (version==("1.1"))      num = HTTP_VER_BIT_1_1;
+            else if (version==("2")
+                || version==("2.0"))        num = HTTP_VER_BIT_2;
+            else if (version==("3")
+                || version==("3.0"))        num = HTTP_VER_BIT_3;
             else {
                 manapi_log_trace("http:http version ('%s') is incorrect", version.as_string().data());
             }

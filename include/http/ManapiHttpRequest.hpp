@@ -43,7 +43,7 @@ namespace manapi::net::http {
 
         future<manapi::status_or<std::string>> text ();
 
-        future<manapi::json_error::status_or<manapi::json>> json (const manapi::json_mask *mask = nullptr);
+        future<manapi::json_error::status_or<manapi::json>> json (manapi::json_mask *mask = nullptr);
 
         future<manapi::status> form (formdata_recv::onparam_cb_t cb);
 

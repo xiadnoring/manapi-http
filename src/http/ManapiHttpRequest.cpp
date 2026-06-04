@@ -135,7 +135,7 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::request::text(
     }
 }
 
-manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(const manapi::json_mask *mask)
+manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(manapi::json_mask *mask)
 {
     try {
         struct builder_callback_data_t {

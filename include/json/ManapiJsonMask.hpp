@@ -6,6 +6,10 @@
 #include "./ManapiJson.hpp"
 
 namespace manapi {
+    class json_mask_object_t;
+
+    class json_mask_path_t;
+
     namespace json_error {
         class status : public manapi::status {
         public:
@@ -89,40 +93,30 @@ namespace manapi {
 
         ~json_mask();
 
-        MANAPIHTTP_NODISCARD bool is_enabled () const;
-
-        void set_enabled (bool status);
+        MANAPIHTTP_NODISCARD bool enabled () const;
 
         MANAPIHTTP_NODISCARD manapi::json_error::status valid (const json &obj) const;
+
+        MANAPIHTTP_NODISCARD manapi::json_error::status valid (const json &obj, manapi::json_mask_path_t *orig, uint32_t orig_len, const json_mask_object_t **out) const;
 
         MANAPIHTTP_NODISCARD manapi::json_error::status valid (const std::map <std::string, std::string> &obj) const;
 
         MANAPIHTTP_NODISCARD manapi::json_error::status valid (const std::map <std::string, std::string, std::less<>> &obj) const;
 
-        MANAPIHTTP_NODISCARD const json &get_api_tree () const;
+        MANAPIHTTP_NODISCARD const json_mask_object_t* api_tree () const;
 
-        void set_api_tree (json tree);
+        void api_tree (const json_mask_object_t* tree, bool own);
 
-        static json OR (json data, bool none = false);
+        static json Or (json data, bool none = false);
 
-        static json ARRAY (json data, ssize_t min, ssize_t max, bool none = false);
+        static json Array (json data, ssize_t min, ssize_t max, bool none = false);
 
-        static json ARRAY (json data, bool none = false);
+        static json Array (json data, bool none = false);
 
-        void set_complete_status (bool complete);
+        void complete_status (bool state);
     private:
-        bool enabled;
+        int m_flags;
 
-        bool complete = true;
-
-        json information;
-
-        static void set_status_prepared_ (json &data);
-
-        static void insert_meta_row_ (json &information, const std::string &key, const json &value);
-
-        static void initial_resolve_information (json &obj);
-
-        MANAPIHTTP_NODISCARD manapi::json_error::status recursive_valid (const json &obj, const json &information, bool is_complex, std::vector<ev::buff_t> *path) const;
+        const json_mask_object_t *m_data;
     };
 }

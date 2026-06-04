@@ -242,6 +242,13 @@ namespace manapi {
          */
         manapi::status push_back (const void *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
+        /**
+         * Adds |buffer| to the slices chain
+         * @param buffer buffer
+         * @return Ok if success, otherwise, ResourceExhausted
+         */
+        manapi::status push_back (std::string_view buffer) MANAPIHTTP_NOEXCEPT;
+
         void clear () MANAPIHTTP_NOEXCEPT;
 
         void remove_shift () MANAPIHTTP_NOEXCEPT;

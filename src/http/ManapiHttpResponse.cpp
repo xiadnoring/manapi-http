@@ -114,7 +114,7 @@ manapi::status manapi::net::http::response::json(manapi::json data, size_t space
         auto res = header(std::string{H_CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
         if (!res)
             return std::move(res);
-        return text(std::move(data.dump (static_cast<int>(spaces))));
+        return text(std::move(data.dump (static_cast<uint32_t>(spaces))));
     }
     catch (std::exception const &) {
         return status_resource_exhausted();

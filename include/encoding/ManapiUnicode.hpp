@@ -5,6 +5,10 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiErrors.hpp"
 
+namespace manapi {
+    class json_dump_buffer;
+}
+
 namespace manapi::unicode {
     /**
      * get a count of the provided octets
@@ -44,10 +48,32 @@ namespace manapi::unicode {
     /**
      * Escape string. It works like as std::quoted() function
      * @param str source string
-     * @param quotes delimiter
      * @return escaped string
      */
-    std::string escape_string (std::string_view str, char quotes = '"');
+    std::string escape_string (std::string_view str);
+
+    /**
+     * Escape string. It works like as std::quoted() function
+     * @param str source string
+     * @param out output string
+     * @return status
+     */
+    void escape_string (std::string_view str, char *out);
+
+    /**
+     * Escape string. It works like as std::quoted() function
+     * @param str source string
+     * @param out output buffer
+     * @return status
+     */
+    void escape_string (std::string_view str, manapi::json_dump_buffer *out);
+
+    /**
+     * Get size of the escaped string.
+     * @param str source string
+     * @return size of the escaped string
+     */
+    std::size_t escape_string_size (std::string_view str);
 
     uint8_t onehex2dec (uint8_t c) MANAPIHTTP_NOEXCEPT;
 

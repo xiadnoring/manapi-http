@@ -54,6 +54,7 @@ struct manapi::net::wgrpc::server::data_t {
     std::shared_ptr<wgrpc::config> config;
     std::size_t finishid;
     uint8_t flags;
+    manapi::async::mutex mx;
 };
 
 enum manapi_engine_flags {
@@ -1534,6 +1535,8 @@ void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
 
 static manapi::future<> wgrpc_server_stop( std::shared_ptr<manapi::net::wgrpc::server> p,  manapi::net::wgrpc::server::data_t * data) {
     try {
+        auto lk = co_await data->mx.lock_guard();
+
         if (data->worker)
             co_await data->ctx->storage().unsubscribe(std::move(data->worker));
 
@@ -1632,6 +1635,8 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
             co_return;
         });
 
+        auto lk = this->m_data->mx.lock_guard();
+
         res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
         if (!res.ok())
             goto err;
@@ -1699,6 +1704,8 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config_object(manapi:
             co_return;
         });
 
+        auto lk = this->m_data->mx.lock_guard();
+
         res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
         if (!res.ok())
             goto err;
@@ -1751,12 +1758,14 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
 
         this->m_data->flags |= MANAPI_GRPC_SERVER_IS_RUNNING;
 
+        auto lk = this->m_data->mx.lock_guard();
+
         if (!this->m_data->worker) {
-            res = co_await wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
+            res = co_await ::wgrpc_server_subscribe(this->shared_from_this(), this->m_data.get());
             if (!res)
                 goto err;
 
-            res = wgrpc_server_setup_user_config(this->m_data.get());
+            res = ::wgrpc_server_setup_user_config(this->m_data.get());
             if (!res)
                 goto err;
         }
@@ -1832,7 +1841,7 @@ manapi::status manapi::net::wgrpc::server::stop() {
         this->m_data->flags |= MANAPI_GRPC_SERVER_IS_STOPPING;
 
         manapi::async::current()->eventloop()->unsubscribe_finish(std::exchange(this->m_data->finishid, 0));
-        manapi::async::run(wgrpc_server_stop(this->shared_from_this(), this->m_data.get()));
+        manapi::async::run(::wgrpc_server_stop(this->shared_from_this(), this->m_data.get()));
 
         return status_ok();
     }

@@ -799,6 +799,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/std/ManapiRef.hpp
         include/std/ManapiScopePtr.hpp
         include/cache/ManapiTL.hpp
+        include/json/ManapiJsonInternal.hpp
 )
 
 set(MANAPIHTTP_MODULES

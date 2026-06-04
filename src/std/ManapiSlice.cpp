@@ -996,6 +996,10 @@ manapi::status manapi::slice::push_back(const void *buffer, std::size_t size) MA
     return status_resource_exhausted();
 }
 
+manapi::status manapi::slice::push_back(std::string_view buffer) MANAPIHTTP_NOEXCEPT {
+    return this->push_back(buffer.data(), buffer.size());
+}
+
 
 void manapi::slice::clear() MANAPIHTTP_NOEXCEPT {
     auto cur = this->first;

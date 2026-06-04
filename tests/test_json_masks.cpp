@@ -55,6 +55,32 @@ UTEST(json_masks, simple_mask_3) {
     ASSERT_TRUE(!res.ok());
 }
 
+UTEST(json_masks, simple_mask_4) {
+    manapi::json_mask mask = {
+        {"name", "{string(>=3 <=20)}"},
+        {"age", "{integer(>=18 <=99)}"},
+        {"work", R"({string("engineer")|string("worker")|string("CEO")})"}
+    };
+    manapi::json man = {
+        {"name", "RichMan"},
+        {"age", 78},
+        {"work", "CEO"}
+    };
+    ASSERT_TRUE(mask.valid(man).ok());
+    man = {
+        {"name", "SmartMan"},
+        {"age", 18},
+        {"work", "worker"}
+    };
+    ASSERT_TRUE(mask.valid(man).ok());
+    man = {
+        {"name", "Rober"},
+        {"age", 20},
+        {"work", "spy"}
+    };
+    ASSERT_TRUE(!mask.valid(man).ok());
+}
+
 UTEST(json_masks, str_condition_mask_max_mean) {
     manapi::json_mask mask = {
         {"hello", "{string(<=5)}"}
@@ -222,7 +248,7 @@ UTEST(json_masks, stream_str_condition_mask_max_mean) {
     manapi::json_builder builder (mask);
     builder << R"({"hello)";
     builder << R"(": "hello)";
-    ASSERT_EXCEPTION(builder << R"(helllooo"})", std::exception);
+    ASSERT_EXCEPTION(builder << R"(helllooo"})", manapi::exception);
 
 }
 
@@ -241,7 +267,7 @@ UTEST(json_masks, stream_str_condition_mask_max_mean_2) {
 
 UTEST(json_masks, str_condition_mask_with_or) {
     manapi::json_mask mask = {
-        {"hello", manapi::json_mask::OR(manapi::json::array({R"({string("world")})", R"({integer(>5 <=100)})"}))}
+        {"hello", manapi::json_mask::Or(manapi::json::array({R"({string("world")})", R"({integer(>5 <=100)})"}))}
     };
 
     ASSERT_TRUE(mask.valid(manapi::json {{"hello", "world"}}).ok());
@@ -251,8 +277,9 @@ UTEST(json_masks, str_condition_mask_with_or) {
 }
 
 UTEST(json_masks, str_condition_mask_with_array) {
+    manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
     manapi::json_mask mask = {
-        {"hello", manapi::json_mask::ARRAY(manapi::json{"{string(>=5 <10)}"}, 1, 3)}
+        {"hello", manapi::json_mask::Array(manapi::json{"{string(>=5 <10)}"}, 1, 3)}
     };
 
     auto res = mask.valid(manapi::json {{"hello", manapi::json::array({"world", "world", "world"})}});
@@ -300,7 +327,7 @@ UTEST(json_masks, stream_bool_condition_mask_with_arr) {
     jb << R"([true, true, true, true, true]})";
     ASSERT_TRUE(jb.is_ready());
     ASSERT_TRUE(jb.get().unwrap()["hello"].size() == 5);
-
+    jb.set(mask);
     jb << R"({"hello": )";
     jb << R"([true, true, true)";
     ASSERT_EXCEPTION(jb << R"(, true, true, true]})", std::exception);
@@ -308,7 +335,7 @@ UTEST(json_masks, stream_bool_condition_mask_with_arr) {
 
 UTEST(json_masks, stream_condition_mask_with_or) {
     manapi::json_mask mask = {
-        {"hello", manapi::json_mask::OR({"{string(>=5)}", "{integer(5)}", "{bool(false)}"}, true)}
+        {"hello", manapi::json_mask::Or({"{string(>=5)}", "{integer(5)}", "{bool(false)}"}, true)}
     };
 
     std::string_view start = R"({"hello": )";
@@ -317,26 +344,27 @@ UTEST(json_masks, stream_condition_mask_with_or) {
     manapi::json_builder jb (mask);
     jb << start <<  R"("hello world")" << end;
     ASSERT_TRUE(jb.get().unwrap()["hello"] == "hello world");
-
+    jb.set(mask);
     jb << start << "5" << end;
     ASSERT_TRUE(jb.get().unwrap()["hello"] == 5);
-
+    jb.set(mask);
     jb << "{}";
     ASSERT_TRUE(jb.get().unwrap().empty());
 
-
+    jb.set(mask);
     jb << start << "false" << end;
     ASSERT_TRUE(jb.get().unwrap()["hello"] == false);
 
+    jb.set(mask);
     ASSERT_EXCEPTION(jb << start << "true" << end, std::exception);
 }
 
 UTEST(json_masks, stream_condition_mask_with_or_2) {
     manapi::json_mask mask = {
-        {"data", manapi::json_mask::OR({"{string(=2)}", {
+        {"data", manapi::json_mask::Or({"{string(=2)}", {
             {"res", "{string(<=5)}"}
         },
-        manapi::json_mask::ARRAY("{string(<=5)}", 0, 4)})}
+        manapi::json_mask::Array("{string(<=5)}", 0, 4)})}
     };
 
     std::string_view start = R"({"data": )";
@@ -346,18 +374,19 @@ UTEST(json_masks, stream_condition_mask_with_or_2) {
     jb << start << R"("OK")" << end;
     ASSERT_TRUE(jb.get().ok());
 
+    jb.set(mask);
     jb << start << R"({"res": "2+2=4"})" << end;
     ASSERT_TRUE(jb.get().ok());
 
-
+    jb.set(mask);
     jb << start << R"(["2+2=4", "1+1=2", "0=0", "7=8"])" << end;
     ASSERT_TRUE(jb.get().ok());
 
+    jb.set(mask);
     jb << start << R"(["2+2=4", "1+1=2", "0=0", "7=8")";
     ASSERT_EXCEPTION(jb << R"(, "1=1"])" << end, std::exception);
 
-    jb.clear();
-
+    jb.set(mask);
     jb << start << R"(["2+2=4)";
     jb << R"(", "5+2" )";
     jb << R"(])" << end;
@@ -368,11 +397,11 @@ UTEST(json_masks, stream_smart_condition_1) {
     manapi::json_mask mask = {
         {"id", "{integer}"},
         {"zone", "{string(<=100)}"},
-        {"do", manapi::json_mask::ARRAY(
-            manapi::json_mask::OR (manapi::json::array({
+        {"do", manapi::json_mask::Array(
+            manapi::json_mask::Or (manapi::json::array({
                 {
                     {"type", "{string(\"force-set\")}"},
-                    {"graph", manapi::json_mask::ARRAY(
+                    {"graph", manapi::json_mask::Array(
                         manapi::json::array({"{string(<=150)}", "{integer(>=0)[<=1000]}", "{integer(>=0)}", "{integer(>=0)}",
                             "{integer()}", "{integer()}", "{string(<=2500)}"})
                     )},
@@ -392,11 +421,13 @@ UTEST(json_masks, stream_smart_condition_1) {
     for (auto c : data)
         jb << c;
     ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
     data = R"({"id": 1254, "zone": "PANDA", "do": [{"type": "restart"}, {"type": "force-set", "graph": [
 ["naming", [1, 2, 3, 4, 5, 6, 7], 56, 78, -78, 34, "descriptinodfgdgfdfgd fgdfgdfdg f"]
 ], "versions": [[56, 23], [12, 67], [0,0]]})";
     for (auto c : data)
         jb << c;
+    jb.set(mask);
     ASSERT_EXCEPTION(
     data = R"(, {"type": "restArt"}]})";
     for (auto c : data){

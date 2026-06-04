@@ -382,14 +382,19 @@ int main () {
 
         init_http_server (router, folder);
 
-        router->GET ("/form", +[] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-            auto res = manapi::unwrap(co_await manapi::net::fetch2::fetch("https://127.0.0.1:8000", {}, req.cancellation().sub().tm(5000)));
-            resp.callback_stream([res](manapi::net::http::response::resp_stream_cb cb) mutable -> manapi::future<> {
-                manapi::unwrap(co_await res->callback_async([&cb] (manapi::slice_view sv, bool fin) -> manapi::future<ssize_t> {
-                    // writes |sv| totally
-                    return cb (sv, fin);
-                }));
-            }).unwrap();
+        router->GET ("/form1", +[] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+            manapi::json_mask m = {
+                {"name", "{string(>=5 <=20)}"},
+                {"age", "{integer(>=18 <=30)}"},
+                {"data", manapi::json_mask::Array("{string(>=3 <=15)[<=20]|none}", true)}
+            };
+
+            auto data_res = (co_await req.json(&m));
+            if (!data_res.ok()) {
+                co_return resp.text(std::format("failed due to {}", data_res.err().fullmsg())).unwrap();
+            }
+
+            co_return resp.json(data_res.unwrap()).unwrap();
         });
 
         manapi::async::run([router, db] () mutable -> manapi::future<> {
@@ -447,7 +452,7 @@ int main () {
             });
             // (co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
-            (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-exe/config.json")).unwrap();
+            (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
             (co_await router->start()).unwrap();
 
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");

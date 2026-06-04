@@ -69,7 +69,6 @@ manapi::net::http::server::~server() = default;
 struct manapi::net::http::server::data_t {
     pools_t pools;
     std::size_t next_pool_id;
-    std::shared_ptr<ev::async> init_watcher;
     uint8_t flags;
     std::shared_ptr<multithread_storage::worker_t> server_config;
     std::shared_ptr<manapi::json> config_;
@@ -81,7 +80,7 @@ struct manapi::net::http::server::data_t {
     std::unique_ptr<std::map <std::string, compress_str_cb_t, std::less<>>> compressors_for_string{};
     std::unique_ptr<std::map <std::string, std::map <std::string, implement_create_cb>>> transport_protocol_workers{};
     std::unique_ptr<std::map <http::versions::http, std::map <std::string, implemenet_http_cb>>> http_protocol_workers{};
-    std::mutex loopmx{};
+    manapi::async::mutex mx;
 };
 
 static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
@@ -399,34 +398,6 @@ static manapi::future<> http_server_init_pool(std::shared_ptr<manapi::net::http:
     }
 }
 
-static manapi::status http_server_pool(std::shared_ptr<manapi::net::http::server> srv, manapi::net::http::server::data_t *m_data, std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
-    try {
-        auto wres = manapi::async::current()->eventloop()->create_watcher_async(
-            [srv, m_data, cb = std::move(cb)] (const std::shared_ptr<manapi::ev::async> &w) mutable
-            -> void {
-            cb();
-
-            auto wz = std::move(m_data->init_watcher);
-            manapi::async::current()->eventloop()->stop_watcher(std::move(wz));
-        });
-
-        if (!wres)
-            return manapi::status{wres.code(), wres.status_msg()};
-
-        m_data->init_watcher = wres.unwrap();
-
-        if (auto rhs = m_data->init_watcher->send())
-            manapi_log_error("%s due to %s", "http:Failed", manapi::ev::strerror(rhs));
-
-        return manapi::status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "http:Failed", e.what());
-        return manapi::status_internal("http:Failed");
-    }
-}
-
-
 manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
     this->m_data = std::make_unique <data_t>();
     this->m_data->config_ = std::make_shared<manapi::json>(manapi::json::object());
@@ -516,6 +487,8 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
         if (this->m_data->event_id)
             co_return status_already_exists("http:config already exists");
 
+        auto lk = co_await this->m_data->mx.lock_guard();
+
         this->m_data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p = this->shared_from_this()] () mutable
             -> future<> {
             auto res = co_await p->stop();
@@ -596,6 +569,8 @@ manapi::future<manapi::status> manapi::net::http::server::config_object(json con
         if (this->m_data->event_id)
             co_return status_already_exists("http:config already exists");
 
+        auto lk = co_await this->m_data->mx.lock_guard();
+
         this->m_data->event_id = async::current()->eventloop()->subscribe_finish(-1, [p = this->shared_from_this()] () mutable
             -> future<> {
             auto res = co_await p->stop();
@@ -674,22 +649,11 @@ manapi::future<manapi::status> manapi::net::http::server::start() {
             co_return status_already_exists("http:already running");
         }
 
+        auto lk = co_await this->m_data->mx.lock_guard();
+
         this->m_data->flags |= MANAPI_HTTP_SERVER_FLAG_RUNNING;
 
-        co_await http_server_init_pool(this->shared_from_this(), this->m_data.get());
-
-        typedef async::promise_sync<manapi::status> promise;
-        res = co_await promise([srv = this->shared_from_this()] (const promise::resolve_t& resolve, const promise::reject_t& reject) -> void {
-            auto res = http_server_pool(srv, srv->m_data.get(), [resolve] () mutable -> void {
-                resolve (status_ok());
-            });
-
-            if (!res)
-                resolve(std::move(res));
-        });
-
-        if (!res)
-            goto err;
+        co_await ::http_server_init_pool(this->shared_from_this(), this->m_data.get());
 
         co_return std::move(res);
     }
@@ -745,6 +709,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
             goto err;
         }
 
+        auto lk = co_await this->m_data->mx.lock_guard();
 
         // короч. мне лень. это проблема не сегодняшнего меня
         // АААА. Я делаю рефакторинг в рандомный день 30 Apr 2026
@@ -758,7 +723,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
             auto config = pool.second->config();
             manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool %.*s:%.*s #%zu is stopping...",
                 config->address.size(), config->address.data(), config->port.size(), config->port.data(), pool.first);
-            auto res= co_await pool.second->stop();
+            res= co_await pool.second->stop();
             if (!res.ok())
                 res.log();
             manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool #%zu stopped successfully", pool.first);
@@ -791,14 +756,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
             co_await this->m_data->sctx->storage().unsubscribe(std::move(this->m_data->server_config));
         }
 
-        if (this->m_data->init_watcher) {
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:unwatch_async(this->m_data->init_watcher)");
-            async::current()->eventloop()->stop_watcher(std::move(this->m_data->init_watcher));
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:finish unwatch_async(this->m_data->init_watcher)");
-        }
-
-
-        http_server_clean_up(this->m_data.get());
+        ::http_server_clean_up(this->m_data.get());
 
         if (this->m_data->flags & MANAPI_HTTP_SERVER_FLAG_RUNNING)
             this->m_data->flags ^= MANAPI_HTTP_SERVER_FLAG_RUNNING;
@@ -1032,15 +990,7 @@ manapi::future<manapi::status> manapi::net::http::server::set_compressed_cache_f
 
                 if (!del.empty()) {
                     manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(std::move(del),
-                        manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
-                            if (err) {
-                                /* ignore :) */
-                                return;
-                            }
-                            if (!s->ok()) {
-                                s->log();
-                            }
-                    });
+                        manapi::ctokens::timeout(5000)));
                 }
 
                 return true;
@@ -1093,7 +1043,9 @@ manapi::future<manapi::status> manapi::net::http::server::set_locked_cache_file(
                 auto const res = n.insert({algorithm, json::object()});
                 it = res.first;
             }
+
             auto fit = it->second.find(file);
+
             if (lock) {
                 if (fit == it->second.end<json::OBJECT>()) {
                     it->second.insert({file, false});
@@ -1103,14 +1055,7 @@ manapi::future<manapi::status> manapi::net::http::server::set_locked_cache_file(
                         auto compressit = fit->second.find("compressed");
                         if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
                             manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(compressit->second.as_string(),
-                                manapi::ctokens::timeout(5000)), [] (std::exception_ptr err, manapi::ev::status *s) -> void {
-                                    if (err) {
-                                        /* ignore :) */
-                                        return;
-                                    }
-                                    if (!s->ok())
-                                        s->log();
-                            });
+                                manapi::ctokens::timeout(5000)));
                         }
                     }
                     else {
