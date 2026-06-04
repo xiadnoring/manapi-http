@@ -205,6 +205,8 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
     if (recursive) {
         auto parts = manapi::string::split(path, path::delimiter);
         std::size_t size = 0;
+        bool prev_exists = true;
+
         for (const auto &part : parts) {
             size += 1;
 
@@ -213,9 +215,26 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
 
             size += part.size();
 
-            ctoken cancellation2 = ctoken::unit (cancellation);
+            auto z = path.substr(0, size);
 
-            auto err = co_await async_fs_operation<manapi::ev::status>([path = path.substr(0, size), mode](std::shared_ptr<ev::fs> w) mutable
+            if (prev_exists) {
+                auto res = co_await manapi::fs::async_exists(z, cancellation.sub());
+
+                if (res) {
+                    if (res.unwrap())
+                        continue;
+                }
+                else {
+                    auto st = res.err();
+                    if (st.syserr() == ev::ERR_ACCES) {
+                        co_return std::move(st);
+                    }
+                }
+
+                prev_exists = false;
+            }
+
+            auto err = co_await async_fs_operation<manapi::ev::status>([path = std::move(z), mode](std::shared_ptr<ev::fs> w) mutable
                 -> bool {
                     return !w->mkdir(path.data(), mode);
                 },
@@ -228,7 +247,8 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
                         }
                     }
                     resolve(ev::status_ok());
-                }, cancellation2);
+                }, cancellation.sub());
+
             if (!err.ok())
                 co_return std::move(err);
         }
@@ -314,51 +334,6 @@ struct async_write_data_t {
     int64_t offset;
     async_fs_operation_event_cb<manapi::ev::status_or<ssize_t>> event_cb;
 };
-
-// struct fileno_deleter {
-//     manapi::ev::file fileno;
-//
-//     ~fileno_deleter() {
-//         std::move_only_function<void(std::exception_ptr, manapi::ev::status *)> cb;
-//
-//         auto b = manapi::ctokens::timeout(64000);
-//         MANAPIHTTP_MUST_ALLOC_START
-//         cb = [fileno = this->fileno] (std::exception_ptr err, manapi::ev::status *s)
-//             -> void {
-//             if (err) {
-//                 int errnum;
-//                 char msg[256];
-//                 std::size_t msg_size = sizeof (msg);
-//                 std::string_view constexpr status = "exception";
-//
-//                 manapi::extract_exception_ptr(std::move(err), &errnum, msg, &msg_size);
-//                 manapi_log_error("fs(%.*s):fd %d close failed %.*s",
-//                     status.size(), status.data(),
-//                     fileno, msg_size, msg);
-//             }
-//             else {
-//                 if (s->ok()) {
-//                     return;
-//                 }
-//
-//                 auto const status = s->status_msg();
-//                 auto const msg = s->msg();
-//                 manapi_log_error("fs(%.*s):fd %d close failed %.*s",
-//                      status.size(), status.data(),
-//                     fileno, msg.size(), msg.data());
-//             }
-//         };
-//         MANAPIHTTP_MUST_ALLOC_END
-//
-//         manapi::future<manapi::ev::status> task(nullptr);
-//
-//         MANAPIHTTP_MUST_ALLOC_START
-//         task = manapi::fs::async_close(this->fileno, b);
-//         MANAPIHTTP_MUST_ALLOC_END
-//
-//         manapi::async::run<manapi::ev::status>(std::move(task), std::move(cb));
-//     }
-// };
 
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, void *data, std::size_t size, int64_t offset, manapi::ctoken cancellation) {
     ev::buff_t buff;
@@ -789,7 +764,7 @@ std::string_view manapi::fs::path::back (std::string_view str) {
     return str;
 }
 
-static void append_ (std::string &path, std::string_view next, bool delimiter, bool root) {
+static void fs_path_append (std::string &path, std::string_view next, bool delimiter, bool root) {
     using namespace manapi::fs;
 
     if (delimiter) {
@@ -798,7 +773,7 @@ static void append_ (std::string &path, std::string_view next, bool delimiter, b
             if (it == std::string_view::npos)
                 break;
             if (it) {
-                append_(path, next.substr(0, it), false, root && path.empty());
+                fs_path_append(path, next.substr(0, it), false, root && path.empty());
             }
             else if (path.empty() || path.back() != path::delimiter) {
                 path.push_back(path::delimiter);
@@ -855,8 +830,8 @@ void manapi::fs::path::append(std::string &path, std::string_view next, bool roo
 #endif
     memcpy (c, path.data(), c_size);
     path.resize(0);
-    append_(path, std::string_view(c, c_size), true, root);
-    append_(path, next, true, false);
+    fs_path_append(path, std::string_view(c, c_size), true, root);
+    fs_path_append(path, next, true, false);
 }
 
 std::string manapi::fs::path::current_path() {
@@ -865,7 +840,7 @@ std::string manapi::fs::path::current_path() {
 
 std::string manapi::fs::path::serialize (std::string_view str) {
     std::string path;
-    append_ (path, str, true, true);
+    fs_path_append (path, str, true, true);
     return std::move(path);
 }
 
@@ -885,6 +860,102 @@ manapi::future<manapi::ev::status> manapi::fs::async_unlink (std::string path, c
 manapi::future<manapi::ev::status> manapi::fs::async_rmdir (std::string path, ctoken cancellation) {
     co_return co_await async_fs_simple_operation ([path = std::move(path)] (std::shared_ptr<ev::fs> w)
         -> bool { return !w->rmdir(path.data()); }, std::move(cancellation));
+}
+
+manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path, ctoken cancellation) {
+    std::unique_ptr<manapi::ev::dirent_t, manapi::ev::impl_array_deleter<manapi::ev::dirent_t>> dirents (new manapi::ev::dirent_t[32]);
+    std::vector<std::string> folders;
+    std::vector<std::unique_ptr<uv_dir_s, ev::dir_deleter_t>> dirs;
+    std::vector<std::string> paths;
+
+    std::exception_ptr err{nullptr};
+
+    auto fd_res = co_await manapi::fs::async_opendir(path, cancellation.sub());
+    if (!fd_res) co_return fd_res.err();
+
+    dirs.push_back(fd_res.unwrap());
+    paths.push_back(path);
+
+    while (!dirs.empty()) {
+        auto &b = dirs.back();
+
+        if (!b) {
+            auto rm_res = co_await manapi::fs::async_rmdir(paths.back(), cancellation.sub());
+            if (!rm_res)
+                co_return std::move(rm_res);
+
+            dirs.pop_back();
+            paths.pop_back();
+
+            continue;
+        }
+
+        b->dirents = dirents.get();
+        b->nentries = 32;
+
+        std::vector<std::string> files;
+
+        while (true) {
+            auto res = co_await manapi::fs::async_readdir(b.get(), [&] (ev::dir_t *handle, std::size_t cnt) -> void {
+                try {
+                    for (std::size_t i = 0; i < cnt; i++) {
+                        std::string_view name = handle->dirents[i].name;
+                        auto type = handle->dirents[i].type;
+
+                        if (type == UV_DIRENT_DIR) {
+                            folders.push_back(manapi::fs::path::join(paths.back(), name));
+                        }
+                        else if (type == UV_DIRENT_LINK) {
+                            files.emplace_back(name);
+                        }
+                        else {
+                            files.emplace_back(name);
+                        }
+                    }
+                }
+                catch (...) {
+                    err = std::current_exception();
+                }
+            }, cancellation.sub());
+
+            if (!res)
+                co_return res.err();
+
+            if (err)
+                std::rethrow_exception(std::move(err));
+
+            while (!files.empty()) {
+                auto &z = files.back();
+
+                auto rmres = co_await manapi::fs::async_unlink(manapi::fs::path::join(paths.back(), z), cancellation.sub());
+                if (!rmres)
+                    co_return std::move(rmres);
+
+                files.pop_back();
+            }
+
+            if (res.unwrap() != b->nentries) {
+                dirs.back() = nullptr;
+
+                break;
+            }
+
+            if (!folders.empty())
+                break;
+        }
+
+        if (!folders.empty()) {
+            fd_res = co_await manapi::fs::async_opendir(folders.back(), cancellation.sub());
+            if (!fd_res) co_return fd_res.err();
+
+            dirs.push_back(fd_res.unwrap());
+            paths.push_back(folders.back());
+
+            folders.pop_back();
+        }
+    }
+
+    co_return manapi::status_ok();
 }
 
 manapi::future<manapi::ev::status> manapi::fs::async_closedir (manapi::ev::dir_t *directory, ctoken cancellation) {

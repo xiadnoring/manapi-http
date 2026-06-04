@@ -164,5 +164,69 @@ UTEST(fs, read_and_write_1) {
 
     wait_ctx(ctx);
 }
+UTEST(fs, mkdir_1) {
+    auto ctx = init_ctx(utest_result);
+
+    manapi::async::run ([&] () -> manapi::future<> {
+        co_await manapi::fs::async_mkdir(manapi::fs::path::join(".", "mkdir-1", "mkdir-1-1", "mkdir-1-1-1"), 0755, true);
+
+#define return co_return
+        ASSERT_TRUE_MSG (manapi::unwrap(co_await manapi::fs::async_exists(
+            manapi::fs::path::join("mkdir-1", "mkdir-1-1", "mkdir-1-1-1"))), "check mkdir-1-1-1 existence");
+#undef return
+
+        std::filesystem::remove_all("mkdir-1");
+
+        co_await ctx->stop();
+    });
+
+    wait_ctx(ctx);
+}
+UTEST(fs, rm_dir_all_1) {
+    auto ctx = init_ctx(utest_result);
+
+    manapi::async::run ([&] () -> manapi::future<> {
+        co_await manapi::fs::async_mkdir("rmdir-test-1");
+        co_await manapi::fs::async_mkdir(manapi::fs::path::join("rmdir-test-1", "hello"));
+        co_await manapi::fs::async_write(manapi::fs::path::join("rmdir-test-1", "hello", "test.txt"), "hello world", 0755);
+        co_await manapi::fs::async_write(manapi::fs::path::join("rmdir-test-1", "test.txt"), "hello world", 0755);
+
+        manapi::unwrap(co_await manapi::fs::async_rmdir_all("rmdir-test-1"));
+
+#define return co_return
+        ASSERT_TRUE_MSG (!manapi::unwrap(co_await manapi::fs::async_exists("rmdir-test-1")), "check rmdir-test-1 existence");
+#undef return
+
+        co_await ctx->stop();
+    });
+
+    wait_ctx(ctx);
+}
+UTEST(fs, rm_dir_all_2) {
+    auto ctx = init_ctx(utest_result);
+
+    manapi::async::run ([&] () -> manapi::future<> {
+        co_await manapi::fs::async_mkdir("rmdir-test-2-nodelete");
+        co_await manapi::fs::async_mkdir("rmdir-test-2");
+        co_await manapi::fs::async_mkdir(manapi::fs::path::join("rmdir-test-2-nodelete", "nodelete.please"));
+        co_await manapi::fs::async_mkdir(manapi::fs::path::join("rmdir-test-2", "hello"));
+        co_await manapi::fs::async_write(manapi::fs::path::join("rmdir-test-2", "hello", "test.txt"), "hello world", 0755);
+        co_await manapi::fs::async_write(manapi::fs::path::join("rmdir-test-2", "test.txt"), "hello world", 0755);
+        co_await manapi::fs::async_symlink("../rmdir-test-2-nodelete", manapi::fs::path::join("rmdir-test-2", "shared.lnk"), UV_FS_SYMLINK_DIR);
+
+        manapi::unwrap(co_await manapi::fs::async_rmdir_all("rmdir-test-2"));
+
+#define return co_return
+        ASSERT_TRUE_MSG (!manapi::unwrap(co_await manapi::fs::async_exists("rmdir-test-2")), "check rmdir-test-2 existence");
+        ASSERT_TRUE_MSG (manapi::unwrap(co_await manapi::fs::async_exists("rmdir-test-2-nodelete")), "check rmdir-test-2-nodelete existence");
+#undef return
+
+        manapi::unwrap(co_await manapi::fs::async_rmdir_all("rmdir-test-2-nodelete"));
+
+        co_await ctx->stop();
+    });
+
+    wait_ctx(ctx);
+}
 
 MANAPIHTTP_TESTS_MAIN

@@ -8,7 +8,7 @@
 namespace manapi {
     class json_mask_object_t;
 
-    class json_mask_path_t;
+    struct json_mask_path_t;
 
     namespace json_error {
         class status : public manapi::status {

@@ -149,16 +149,22 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
     }
 
     try {
-        if (cache_path.empty())
-            cache_path = manapi::fs::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
-
-        {
-            auto mkdir_res = co_await manapi::fs::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
-            mkdir_res.unwrap();
+        auto &cache_rm = n["cache_rm"];
+        if (cache_path.empty()) {
+            // temp directory
+            cache_path = manapi::unwrap(co_await manapi::fs::async_mkdtemp(
+                manapi::fs::path::join(std::filesystem::temp_directory_path(), "manapihttp-cache-XXXXXX")));
+            cache_rm = true;
         }
+        else {
+            cache_rm = false;
+        }
+
+        manapi::unwrap(co_await manapi::fs::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true));
 
         manapi::fs::path::append_delimiter(cache_path);
         auto path = manapi::fs::path::join(cache_path, std::string{http_default_config_name});
+
         try {
             auto exists = co_await manapi::fs::async_exists(path);
             if (!exists.ok() || exists.unwrap()) {
@@ -167,12 +173,11 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
             }
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
+            manapi_log_error("%s failed due to %s", "http:cache restore", e.what());
         }
     }
     catch (manapi::exception const &e) {
-        manapi::async::current()->logger()->error(e.err_num(), "The configuration directory ({}) couldn't be created due to {}.",
-         cache_path, e.what());
+        manapi_log_error("%s failed due to %s", "http:cache dir", e.what());
     }
 
     n["cache_path"] = std::move(cache_path);
@@ -664,7 +669,7 @@ manapi::future<manapi::status> manapi::net::http::server::start() {
         manapi_log_error("%s due to %s", "start() failed", e.what());
         res = status_internal("start() failed");
     }
-err:
+
     this->m_data->flags ^= MANAPI_HTTP_SERVER_FLAG_RUNNING;
     co_return std::move(res);
 }
@@ -737,12 +742,16 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
                         if (data.contains("site_path")
                             && data["site"].contains("save")
                             && data["site"]["save"] == true)
-                            co_await http_server_save(p, p->m_data.get());
+                            co_await ::http_server_save(p, p->m_data.get());
 
                         // cache config
-                        co_await manapi::fs::async_write(fs::path::join(data["cache_path"].as_string(), std::string{http_default_config_name}),
-                            data["cache"].dump(),
-                            ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                        if (data["cache_rm"].as_bool()) {
+                            manapi::unwrap(co_await manapi::fs::async_rmdir_all(fs::path::join(data["cache_path"].as_string())));
+                        }
+                        else {
+                            manapi::unwrap(co_await manapi::fs::async_write(fs::path::join(data["cache_path"].as_string(), std::string{::http_default_config_name}),
+                                data["cache"].dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY));
+                        }
                     }
 
                     co_return false;
