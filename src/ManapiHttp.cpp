@@ -153,7 +153,7 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
         if (cache_path.empty()) {
             // temp directory
             cache_path = manapi::unwrap(co_await manapi::fs::async_mkdtemp(
-                manapi::fs::path::join(std::filesystem::temp_directory_path(), "manapihttp-cache-XXXXXX")));
+                manapi::fs::path::join(std::filesystem::temp_directory_path().string(), "manapihttp-cache-XXXXXX")));
             cache_rm = true;
         }
         else {
