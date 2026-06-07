@@ -183,8 +183,6 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
 
                         thr->timerpool()->stop();
 
-                        manapi::clear_tools::grpc_clear();
-
                         thr->eventloop()->wait_all(false);
                     });
 
@@ -194,8 +192,6 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                     thr->eventloop()->m_etaskpool->join();
 
                     manapi::async::context::current(nullptr);
-
-                    manapi::clear_tools::ssl_library_thread_clear();
                 });
             });
         }
@@ -214,8 +210,6 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
             ctx->start().unwrap();
 
             ctx->timerpool_->stop();
-
-            manapi::clear_tools::grpc_clear();
 
             ctx->eventloop_->wait_all(false);
 
