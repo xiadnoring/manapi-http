@@ -119,6 +119,17 @@ void manapi::init_tools::log_name_enable(const char *name, bool enable) {
     manapi::debug::set_log_name_enabled(name, enable);
 }
 
+void manapi::clear_tools::clear_all() MANAPIHTTP_NOEXCEPT {
+    clear_tools::curl_library_clear();
+    clear_tools::ssl_library_clear();
+    clear_tools::grpc_clear();
+    clear_tools::ev_library_clear();
+}
+
+void manapi::clear_tools::clear_thread_all() MANAPIHTTP_NOEXCEPT {
+    clear_tools::ssl_library_thread_clear();
+}
+
 void manapi::clear_tools::grpc_clear() MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_GRPC_DEPENDENCY
     net::wgrpc::server_ctx::clean();

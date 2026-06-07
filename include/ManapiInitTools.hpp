@@ -44,6 +44,10 @@ namespace manapi::init_tools {
 }
 
 namespace manapi::clear_tools {
+    void clear_all () MANAPIHTTP_NOEXCEPT;
+
+    void clear_thread_all () MANAPIHTTP_NOEXCEPT;
+
     void grpc_clear () MANAPIHTTP_NOEXCEPT;
 
     void ssl_library_thread_clear () MANAPIHTTP_NOEXCEPT;

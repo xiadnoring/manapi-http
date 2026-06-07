@@ -192,6 +192,8 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                     thr->eventloop()->m_etaskpool->join();
 
                     manapi::async::context::current(nullptr);
+
+                    manapi::clear_tools::ssl_library_thread_clear();
                 });
             });
         }
