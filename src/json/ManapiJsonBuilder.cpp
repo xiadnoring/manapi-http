@@ -156,6 +156,9 @@ static bool json_builder_check_type(manapi::json_builder::data_t *data, const ma
         auto const obj = types->types[data->paths[path_indx].type].get();
         auto const type = obj->type;
 
+        if (type == -1)
+            return true;
+
         if (data->state == JSON_CALLBACK_BUILD_NUMERIC) {
             if (
                 type == manapi::json::type_decimal ||
@@ -871,22 +874,36 @@ static manapi::json_error::status json_builder_build_object(manapi::json_builder
                 if (data->flags & JSON_FLAG_IS_KEY) {
                     data->flags ^= JSON_FLAG_IS_KEY;
                     // is value
-                    data->state = JSON_CALLBACK_CHECK_TYPE;
 
                     if (!(data->flags & JSON_FLAG_SKIP_TYPE)) {
-                        auto &b = data->paths.back();
-                        auto &type = data->types->types[b.type];
+                        while (true) {
+                            auto &b = data->paths.back();
+                            auto &type = data->types->types[b.type];
 
-                        if (type->mean.is_object()) {
-                            auto d = dynamic_cast<manapi::json_mask_object_t *>(&type->mean[b.it->first].as_source());
-                            assert(d);
-                            data->types = d;
-                        }
-                        else {
-                            data->skip_types = static_cast<uint32_t>(data->paths.size());
-                            data->flags |= JSON_FLAG_SKIP_TYPE;
+                            if (type->mean.is_object()) {
+                                auto mit = type->mean.find(b.it->first);
+                                if (mit == type->mean.end<manapi::json::OBJECT>()) {
+                                    if (!::json_builder_fail_type(data)) {
+                                        return manapi::json_error::status_invalid_argument("json_mask: key is invalid",
+                                            std::format("key({})", b.it->first), data->i, manapi::json_format_path2(data->paths));
+                                    }
+
+                                    continue;
+                                }
+                                auto d = dynamic_cast<manapi::json_mask_object_t *>(&mit->second.as_source());
+                                assert(d);
+                                data->types = d;
+                            }
+                            else {
+                                data->skip_types = static_cast<uint32_t>(data->paths.size());
+                                data->flags |= JSON_FLAG_SKIP_TYPE;
+                            }
+
+                            break;
                         }
                     }
+
+                    data->state = JSON_CALLBACK_CHECK_TYPE;
 
                     j++;
                     data->i++;
@@ -1055,6 +1072,7 @@ static void json_builder_reset(manapi::json_builder::data_t *data) {
     data->types = nullptr;
     data->tindx = 0;
     data->paths.clear();
+    data->object = nullptr;
     data->skip_types = std::numeric_limits<uint32_t>::max();
 
     ::json_builder_check_flags(data);
@@ -1097,9 +1115,11 @@ manapi::json_error::status_or<manapi::json> manapi::json_builder::get() {
     if (this->m_data->flags & JSON_FLAG_FAILED)
         return manapi::json_error::status {manapi::status_invalid_argument("json:build was failed")};
 
+    manapi::json result;
     this->m_data->flags |= JSON_FLAG_FIN;
     try {
         if (this->is_ready()) {
+            result = std::move(this->m_data->object);
             this->clear();
         }
         else {
@@ -1110,17 +1130,19 @@ manapi::json_error::status_or<manapi::json> manapi::json_builder::get() {
                 this->clear();
                 return std::move(res);
             }
+
             if (!this->is_ready()) {
                 res = ::json_unexpected_end(this->m_data->i);
 
                 this->clear();
                 return std::move(res);
             }
+
+            result = std::move(this->m_data->object);
+            this->clear();
         }
 
-        this->m_data->flags ^= JSON_FLAG_FIN;
-
-        return std::move(this->m_data->object);
+        return std::move(result);
     }
     catch (...) {
         if (this->m_data->flags & JSON_FLAG_FIN)

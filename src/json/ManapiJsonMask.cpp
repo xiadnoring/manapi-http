@@ -147,7 +147,7 @@ static std::unique_ptr<manapi::json_mask_object_t> json_mask_initial_resolve_dat
 repeat:
 
         std::string type;
-        ssize_t ntype;
+        int ntype;
 
         bool bracket = false;
         bool square_bracket = false;
@@ -760,6 +760,11 @@ static manapi::json_error::status json_mask_valid_val (int flags, const manapi::
         return manapi::json_error::status_ok();
     }
 
+    if (p.type == -1) {
+        // any type
+        return manapi::json_error::status_ok();
+    }
+
     return manapi::json_error::status_ok();
 }
 
@@ -1028,8 +1033,14 @@ static manapi::json_error::status json_mask_valid (int flags, const manapi::json
             if (&b != &paths.back()) {
                 if (orig) {
                     if (p2indx + 1 < orig_len && paths.back().p == orig[p2indx + 1].p) {
+                        auto &bp = paths.back();
                         p2indx++;
-                        paths.back().type = orig[p2indx].type;
+                        bp.type = orig[p2indx].type;
+
+                        // if (flags & JSON_MASK_FLAG_INCOMPLETE && bp.p->is_null()) {
+                        //     paths.pop_back();
+                        //     continue;
+                        // }
                     }
                 }
 

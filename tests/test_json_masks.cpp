@@ -108,6 +108,23 @@ UTEST(json_masks, str_condition_mask_min_mean) {
     ASSERT_TRUE(!res.ok());
 }
 
+UTEST(json_masks, any_condition_mask) {
+    manapi::json_mask mask = {
+        {"hello", "{any}"}
+    };
+
+    auto res = mask.valid(manapi::json {{"hello", "world"}});
+    ASSERT_TRUE(res.ok());
+
+
+    res = mask.valid(manapi::json {{"hello", 67}});
+    ASSERT_TRUE(res.ok());
+
+
+    res = mask.valid(manapi::json::object());
+    ASSERT_TRUE(!res.ok());
+}
+
 UTEST(json_masks, str_condition_mask_mean) {
     manapi::json_mask mask = {
         {"hello", R"({string(=3)})"}
@@ -317,6 +334,39 @@ UTEST(json_masks, bool_condition_mask_with_arr) {
     ASSERT_TRUE(!res.ok());
 }
 
+UTEST(json_masks, any_сondition_mask) {
+    manapi::json_mask mask = {
+        {"test", manapi::json_mask::Or(manapi::json::array({
+            manapi::json::object({
+                {"hello", "{bool(true)}"},
+            }),
+            manapi::json::object({
+                {"z", "{any}"}
+            })
+        }))}
+    };
+
+    manapi::json_builder jb (mask);
+    jb << R"({"test": {"hello": true}})";
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    ASSERT_EXCEPTION(jb << R"({"test": {"hello": false}})", std::exception);
+    jb.set(mask);
+    jb << R"({"test": {"z": []}})";
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    jb << R"({"test": {"z": null}})";
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    jb << R"({"test": {"z": [1]}})";
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    jb << R"({"test": {"z": {"morez": "data", "more": {"more": {"more": "info"}}}}})";
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    ASSERT_EXCEPTION(jb << R"({"test": {"b": {"morez": "data", "more": {"more": {"more": "info"}}}}})", std::exception);
+}
+
 UTEST(json_masks, stream_bool_condition_mask_with_arr) {
     manapi::json_mask mask = {
         {"hello", "{bool(true)[=5]}"}
@@ -357,6 +407,75 @@ UTEST(json_masks, stream_condition_mask_with_or) {
 
     jb.set(mask);
     ASSERT_EXCEPTION(jb << start << "true" << end, std::exception);
+}
+
+UTEST(json_masks, stream_condition_mask_none1) {
+    manapi::json_mask mask = {
+        {"hello", "{string|none}"}
+    };
+
+    manapi::json_builder jb (mask);
+    jb << R"({"hello":"world"})";
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == "world");
+
+    jb.set(mask);
+    jb << R"({})";
+    ASSERT_TRUE(jb.get().unwrap().empty());
+}
+
+UTEST(json_masks, stream_condition_mask_none2) {
+    manapi::json_mask mask = {
+        {"hello", manapi::json_mask::Or(manapi::json::array({
+            "{string}", "{integer}"
+        }), true)}
+    };
+
+    manapi::json_builder jb (mask);
+    jb << R"({"hello":"world"})";
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == "world");
+
+    jb.set(mask);
+    jb << R"({"hello":78})";
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == 78);
+
+    jb.set(mask);
+    jb << R"({})";
+    ASSERT_TRUE(jb.get().unwrap().empty());
+
+    jb.set(mask);
+    ASSERT_EXCEPTION(jb << R"({"hello":78.5})", std::exception);
+}
+
+UTEST(json_masks, stream_condition_mask_none3) {
+    manapi::json_mask mask = {
+        {"man", manapi::json_mask::Or(manapi::json::array({
+            {
+                {"name", "{string(>=5 <=60)}"},
+                {"age", "{integer}"}
+            }
+        }), true)},
+        {"time", "{integer(>=0)}"}
+    };
+
+    manapi::json_builder jb (mask);
+    jb << R"({"man":{"name":"Timur", "age": 78}, "time": 78})";
+    ASSERT_TRUE(jb.get().ok());
+
+    jb.set(mask);
+    jb << R"({"time": 78})";
+    ASSERT_TRUE(jb.get().ok());
+
+    jb.set(mask);
+    jb << R"({"man":{"name":"Leo)";
+    ASSERT_EXCEPTION(jb << R"(", "age": 78}, "time": 78})", std::exception);
+
+    jb.set(mask);
+    jb << R"({"man":{"name":"Leonardo", "age": 78})";
+    ASSERT_EXCEPTION(jb << R"(})", std::exception);
+
+    jb.set(mask);
+    jb << R"({)";
+    ASSERT_EXCEPTION(jb << R"(})", std::exception);
 }
 
 UTEST(json_masks, stream_condition_mask_with_or_2) {
