@@ -108,7 +108,7 @@ UTEST(json_masks, str_condition_mask_min_mean) {
     ASSERT_TRUE(!res.ok());
 }
 
-UTEST(json_masks, any_condition_mask) {
+UTEST(json_masks, any_condition_mask1) {
     manapi::json_mask mask = {
         {"hello", "{any}"}
     };
@@ -334,7 +334,7 @@ UTEST(json_masks, bool_condition_mask_with_arr) {
     ASSERT_TRUE(!res.ok());
 }
 
-UTEST(json_masks, any_сondition_mask) {
+UTEST(json_masks, any_condition_mask2) {
     manapi::json_mask mask = {
         {"test", manapi::json_mask::Or(manapi::json::array({
             manapi::json::object({
