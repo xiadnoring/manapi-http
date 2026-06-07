@@ -964,6 +964,7 @@ int manapi::ev::status::syserr() const {
 }
 
 std::string_view manapi::ev::status::sysname() const {
+    if (!this->m_syserr) return "OK";
     return ev::namerror(this->m_syserr);
 }
 
