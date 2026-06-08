@@ -163,7 +163,7 @@ namespace manapi {
         if (!(this->m_data->m_flags & 0b1)) {
             return;
         }
-        this->m_data->m_flags ^= 0b1;
+        this->m_data->m_flags.fetch_xor(0b1);
         this->m_data->m_cv.notify_all();
     }
 
@@ -209,7 +209,7 @@ namespace manapi {
             return;
         }
 
-        this->m_data->m_flags |= 0b1;
+        this->m_data->m_flags.fetch_or(0b1);
 
         for (std::size_t i = 0; i < this->m_data->m_threadnum; ++i) {
             this->m_data->m_threads.emplace_back(mthreadpool_worker, this->m_data.get(), i);
