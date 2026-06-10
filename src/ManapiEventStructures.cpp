@@ -1001,7 +1001,7 @@ manapi::ev::status manapi::ev::status_ok() {
     return ev::status{ERR_OK, "OK", 0};
 }
 
-manapi::ev::unique_file::unique_file() : m_fd({}) {
+manapi::ev::unique_file::unique_file() {
 }
 
 manapi::ev::unique_file::unique_file(ev::file fd) : m_fd(fd) {

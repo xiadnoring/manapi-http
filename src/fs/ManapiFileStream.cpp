@@ -73,17 +73,17 @@ manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode
         this->m_data->file = res.unwrap();
     }
     catch (std::bad_alloc const  &) {
-        this->m_data->file = -1;
+        this->m_data->file.reset();
         co_return manapi::ev::status_resource_exhausted();
     }
     catch (manapi::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
-        this->m_data->file = -1;
+        this->m_data->file.reset();
         co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
-        this->m_data->file = -1;
+        this->m_data->file.reset();
         co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
 

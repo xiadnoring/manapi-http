@@ -202,11 +202,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                     send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
                     co_return;
                 }
-                else {
-                    force_compress = true;
-                    manapi_log_error("Failed to open the file: {}", filepath);
-                }
-                continue;
+
+                cdata->router = std::move(cdata->router->error);
+                uq_handle_data_t uq_cdata (res->connection_data_release());
+                send_error_response(std::move(uq_cdata), http::NOT_FOUND_404);
+
+                manapi_log_warn("Failed to open the file: %s", filepath.data());
+
+                co_return;
             }
 
             // set headers
