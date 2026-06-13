@@ -881,7 +881,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path,
 
         if (!b) {
             auto rm_res = co_await manapi::fs::async_rmdir(paths.back(), cancellation.sub());
-            if (rm_res.syserr() != ev::ERR_NOENT)
+            if (!rm_res && rm_res.syserr() != ev::ERR_NOENT)
                 co_return std::move(rm_res);
 
             dirs.pop_back();
@@ -928,7 +928,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path,
                 auto &z = files.back();
 
                 auto rmres = co_await manapi::fs::async_unlink(manapi::fs::path::join(paths.back(), z), cancellation.sub());
-                if (rmres.syserr() != ev::ERR_NOENT)
+                if (!rmres && rmres.syserr() != ev::ERR_NOENT)
                     co_return std::move(rmres);
 
                 files.pop_back();
