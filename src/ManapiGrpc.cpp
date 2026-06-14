@@ -1167,7 +1167,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
             }
 
             auto conn = wres.unwrap();
-            manapi_log_trace2("manapihttp::grpc", "wgrpc:connection tcp: %p", conn.get());
+            manapi_log_trace2("manapihttp::grpc", "wgrpc:accept tcp: %p", conn.get());
 
             if (conn->accept(w.get())) {
                 manapi::async::current()->eventloop()->stop_watcher(std::move(conn));

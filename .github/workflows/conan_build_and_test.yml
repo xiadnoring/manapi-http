@@ -142,12 +142,12 @@ jobs:
         c_compiler: [ msvc ]
         library_type: [ "SHARED", "STATIC" ]
         include:
-          - os: windows-latest
+          - os: windows-2022
             c_compiler: msvc
             cpp_compiler: msvc
             library_type: SHARED
             build_type: Release
-          - os: windows-latest
+          - os: windows-2022
             c_compiler: msvc
             cpp_compiler: msvc
             library_type: STATIC
