@@ -326,6 +326,7 @@ void manapi::net::wgrpc::net_listener::shutdown(net_listener *id, manapi::ev::sh
 
 manapi::status manapi::net::wgrpc::net_listener::set(ev::shared_tcp connection) {
     try {
+        manapi_log_trace2("manapihttp::grpc", "wgrpc:listener tcp: %p", connection.get());
         auto res = wgrpc_storage.wgrpc_tcp_listeners.insert(this).second;
         assert(res);
     }
@@ -1165,6 +1166,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
             }
 
             auto conn = wres.unwrap();
+            manapi_log_trace2("manapihttp::grpc", "wgrpc:connection tcp: %p", conn.get());
 
             if (conn->accept(w.get())) {
                 manapi::async::current()->eventloop()->stop_watcher(std::move(conn));
