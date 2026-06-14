@@ -877,6 +877,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
             [ref]
             (const std::shared_ptr<manapi::ev::tcp> &w, int status) mutable
             -> void {
+                manapi_log_trace2("manapihttp::grpc", "wgrpc:connect tcp: %p", w.get());
                 std::unique_ptr<wgrpc_connection_data_t> conn_data{nullptr};
 
                 auto conn_row = wgrpc_storage.wgrpc_connect_exists.find(ref->index);
