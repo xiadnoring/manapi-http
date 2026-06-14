@@ -241,7 +241,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
                 +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
                 -> void {
                     auto rhs = w->result();
-                    if (rhs != ev::ERR_EXIST && rhs != ev::ERR_PERM) {
+                    if (rhs != ev::ERR_EXIST ) {
                         if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
                             return;
                         }
@@ -262,7 +262,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
             +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
             -> void {
                 auto rhs = w->result();
-                if ((rhs != ev::ERR_EXIST&&rhs != ev::ERR_PERM)) {
+                if ((rhs != ev::ERR_EXIST)) {
                     if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
                         return;
                     }

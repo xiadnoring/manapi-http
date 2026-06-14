@@ -203,6 +203,9 @@ namespace manapi::ext::pq {
         INT8MULTIRANGEARRAYOID = 6157,
         CSTRINGARRAYOID = 1263
     };
+
+    class uuid : public std::string {};
+
     class text : public std::string_view {
     public:
         text (const char *a, const size_t &s) : std::string_view(a, s) {}

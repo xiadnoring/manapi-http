@@ -250,8 +250,14 @@ manapi::future<ssize_t> manapi::fs::fstream::fwrite(manapi::slice_view slice) {
         if (rhs <= 0)
             co_return -1;
 
-        if (!slice.shift_add(static_cast<std::size_t>(rhs)).ok())
+        // if (!slice.shift_add(static_cast<std::size_t>(rhs)).ok())
+        //     co_return -1;
+
+        auto z = slice.subslice(static_cast<std::size_t>(rhs));
+        if (!z)
             co_return -1;
+
+        slice = z.unwrap();
 
         res += rhs;
     }

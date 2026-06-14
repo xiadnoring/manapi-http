@@ -11,8 +11,6 @@
 
 
 namespace manapi::ext::pq {
-    class uuid : public std::string {};
-
     inline void _reverse_seq (std::string_view ctx) {
         auto s = ctx.size() - 1;
         for (std::size_t i = 0; i < ctx.size() / 2; i++) {

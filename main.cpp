@@ -397,66 +397,23 @@ int main () {
             co_return resp.json(data_res.unwrap()).unwrap();
         });
 
-        manapi::async::run([router, db] () mutable -> manapi::future<> {
-            manapi::async::run ([] () -> manapi::future<> {
-                manapi::async::run ([] () -> manapi::future<> {
-                    manapi::async::run ([] () -> manapi::future<> {
-                        manapi::async::run ([] () -> manapi::future<> {
-                            manapi::async::run ([] () -> manapi::future<> {
-                    manapi::async::run ([] () -> manapi::future<> {
-                        manapi_log_trace("hello\n");
-                        co_return;
-                    });
-                        manapi_log_trace("hello\n");
-                        co_return;
-                    });
-                    manapi_log_trace("hello\n");
-                    co_return;
-                });
-                    manapi_log_trace("hello\n");
-                    co_return;
-                });
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-            manapi::async::run ([] () -> manapi::future<> {
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-            manapi::async::run ([] () -> manapi::future<> {
-                manapi::async::run ([] () -> manapi::future<> {
-                    manapi::async::run ([] () -> manapi::future<> {
-                manapi::async::run ([] () -> manapi::future<> {
-                    manapi_log_trace("hello\n");
-                    co_return;
-                });
-                    manapi_log_trace("hello\n");
-                    co_return;
-                });
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-            manapi::async::run ([] () -> manapi::future<> {
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-            manapi::async::run ([] () -> manapi::future<> {
-                manapi_log_trace("hello\n");
-                co_return;
-            });
-            // (co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
-            (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
-            (co_await router->start()).unwrap();
-
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
+        manapi::async::run ([] () -> manapi::future<> {
+            auto z = manapi::unwrap(co_await manapi::fs::async_open("./test.fallocate", manapi::ev::FS_O_CREAT|manapi::ev::FS_O_RDWR, 0755));
+            std::size_t mb = 512;
+            ::posix_fallocate(z.get(), 0, mb * 1024 * 1024);
+            manapi::unwrap(co_await manapi::fs::async_write(z.get(), "hello world!", sizeof ("hello world!") - 1));
         });
+
+        // manapi::async::run([router, db] () mutable -> manapi::future<> {
+        //
+        //     // (co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
+        //
+        //     (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
+        //     (co_await router->start()).unwrap();
+        //
+        //     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
+        // });
 
         bind();
     }).unwrap();
