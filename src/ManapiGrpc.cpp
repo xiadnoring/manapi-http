@@ -66,30 +66,34 @@ enum manapi_grpc_server_flags {
     MANAPI_GRPC_SERVER_IS_STOPPING = 1<<1
 };
 
+thread_local wgrpc_thread_local_storage_t wgrpc_storage;
+
 #ifdef _WIN32
 __declspec(dllexport)
 #else
 __attribute__((visibility("default")))
 #endif
-thread_local wgrpc_thread_local_storage_t wgrpc_storage;
+wgrpc_thread_local_storage_t &current_wgrpc_storage () {
+    return ::wgrpc_storage;
+}
 
 struct wgrpc_current_ctx_deleter_t {
     wgrpc_current_ctx_deleter_t (std::shared_ptr<manapi::async::cthread> ctx) {
-        assert(!wgrpc_storage.ctx);
-        wgrpc_storage.ctx = std::move(ctx);
+        assert(!current_wgrpc_storage().ctx);
+        current_wgrpc_storage().ctx = std::move(ctx);
     }
 
     ~wgrpc_current_ctx_deleter_t () {
-        wgrpc_storage.ctx = nullptr;
+        current_wgrpc_storage().ctx = nullptr;
     }
 };
 
 static std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_tasks_exists.find(static_cast<std::size_t>(keys[1]));
+    return current_wgrpc_storage().wgrpc_tasks_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
 static std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_connect_exists.find(static_cast<std::size_t>(keys[1]));
+    return current_wgrpc_storage().wgrpc_connect_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
 static void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
@@ -161,12 +165,12 @@ static void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::sha
 
 static bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle &handle) {
     auto it = wgrpc_tasks_find(handle.keys);
-    if (it == wgrpc_storage.wgrpc_tasks_exists.end())
+    if (it == current_wgrpc_storage().wgrpc_tasks_exists.end())
         return false;
 
     /* timer */
     std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (it->second));
-    wgrpc_storage.wgrpc_tasks_exists.erase(it);
+    current_wgrpc_storage().wgrpc_tasks_exists.erase(it);
 
 
     if (!timer)
@@ -186,11 +190,11 @@ static bool task_handle_cancel (manapi::async::cthread *t, std::size_t idx) {
 
 static bool task_connect_cancel (grpc_event_engine::experimental::EventEngine::ConnectionHandle &keys) {
     auto it = wgrpc_connect_find(keys.keys);
-    if (it == wgrpc_storage.wgrpc_connect_exists.end())
+    if (it == current_wgrpc_storage().wgrpc_connect_exists.end())
         return false;
 
     std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (it->second));
-    wgrpc_storage.wgrpc_connect_exists.erase(it);
+    current_wgrpc_storage().wgrpc_connect_exists.erase(it);
 
     if (!p)
         return true;
@@ -311,7 +315,7 @@ void manapi::net::wgrpc::net_listener::shutdown(net_listener *id, manapi::ev::sh
         if (conn) {
             auto &s = async::internal::current_();
             if (s == ev) {
-                wgrpc_storage.wgrpc_tcp_listeners.erase(id);
+                current_wgrpc_storage().wgrpc_tcp_listeners.erase(id);
                 unbind_net_listener(std::move(conn), ev, std::move(on_shutdown_cb));
             }
             else {
@@ -333,7 +337,7 @@ void manapi::net::wgrpc::net_listener::shutdown(net_listener *id, manapi::ev::sh
 manapi::status manapi::net::wgrpc::net_listener::set(ev::shared_tcp connection) {
     try {
         manapi_log_trace2("manapihttp::grpc", "wgrpc:listener tcp: %p", connection.get());
-        auto res = wgrpc_storage.wgrpc_tcp_listeners.insert(this).second;
+        auto res = current_wgrpc_storage().wgrpc_tcp_listeners.insert(this).second;
         assert(res);
     }
     catch (std::exception const &) {
@@ -357,7 +361,7 @@ void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_
 #if true || MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
     auto ctx = manapi::async::internal::current_();
     if (!ctx) {
-        ctx = wgrpc_storage.ctx;
+        ctx = current_wgrpc_storage().ctx;
     }
 
     std::move_only_function<void()> cb = [on_resolve = std::move(on_resolve), name, default_port, ctx] (/*const ev::shared_work &w*/) mutable  -> void {
@@ -890,10 +894,11 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                 manapi_log_trace2("manapihttp::grpc", "wgrpc:connect tcp: %p", w.get());
                 std::unique_ptr<wgrpc_connection_data_t> conn_data{nullptr};
 
-                auto conn_row = wgrpc_storage.wgrpc_connect_exists.find(ref->index);
-                if (conn_row != wgrpc_storage.wgrpc_connect_exists.end()) {
+                auto &zb = current_wgrpc_storage();
+                auto conn_row = zb.wgrpc_connect_exists.find(ref->index);
+                if (conn_row != zb.wgrpc_connect_exists.end()) {
                     conn_data.reset(reinterpret_cast<wgrpc_connection_data_t *>(conn_row->second));
-                    wgrpc_storage.wgrpc_connect_exists.erase(conn_row);
+                    zb.wgrpc_connect_exists.erase(conn_row);
                 }
 
                 if (!ref->on_connect_cb) {
@@ -970,10 +975,11 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                 -> void {
                 std::unique_ptr<wgrpc_connection_data_t> conn_data{nullptr};
 
-                auto conn_row = wgrpc_storage.wgrpc_connect_exists.find(ref->index);
-                if (conn_row != wgrpc_storage.wgrpc_connect_exists.end()) {
+                auto &zb = current_wgrpc_storage();
+                auto conn_row = zb.wgrpc_connect_exists.find(ref->index);
+                if (conn_row != zb.wgrpc_connect_exists.end()) {
                     conn_data.reset(reinterpret_cast<wgrpc_connection_data_t *>(conn_row->second));
-                    wgrpc_storage.wgrpc_connect_exists.erase(conn_row);
+                    zb.wgrpc_connect_exists.erase(conn_row);
                 }
                 if (ref->connect && ref->connect->is_active()) {
                     manapi::async::current()->eventloop()->stop_watcher(std::move(ref->connect));
@@ -994,13 +1000,14 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
         while (true) {
             auto const time = static_cast<std::size_t>(std::chrono::steady_clock::now().time_since_epoch().count());
-            std::size_t indx = (static_cast<std::size_t>(wgrpc_storage.current_connect_index++) << 32) | (time & 0x0000FFFF);
-            if (wgrpc_storage.current_connect_index == std::numeric_limits<uint32_t>::max()) {
-                wgrpc_storage.current_connect_index = 0;
+            auto &zb = current_wgrpc_storage();
+            std::size_t indx = (static_cast<std::size_t>(zb.current_connect_index++) << 32) | (time & 0x0000FFFF);
+            if (zb.current_connect_index == std::numeric_limits<uint32_t>::max()) {
+                zb.current_connect_index = 0;
             }
 
             try {
-                auto insert_res = wgrpc_storage.wgrpc_connect_exists.insert(
+                auto insert_res = zb.wgrpc_connect_exists.insert(
                     {indx, reinterpret_cast<std::uintptr_t>(data.get())});
 
                 if (!insert_res.second) {
@@ -1024,7 +1031,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         }
     }
 
-    auto cur = (wgrpc_storage.ctx);
+    auto cur = (current_wgrpc_storage().ctx);
     if (!cur) {
         cur = this->primary;
     }
@@ -1074,7 +1081,7 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(absl::AnyInvocable<void()> cl
     if (ctx)
         ctx->etaskpool()->append_task(std::move(closure));
     else {
-        auto cur = wgrpc_storage.ctx;
+        auto cur = current_wgrpc_storage().ctx;
         if (!cur) {
             cur = this->primary;
         }
@@ -1101,7 +1108,7 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
         ctx->etaskpool()->append_task([closure] ()
             -> void { closure->Run(); });
     else {
-        auto cur = wgrpc_storage.ctx;
+        auto cur = current_wgrpc_storage().ctx;
         if (!cur) {
             cur = this->primary;
         }
@@ -1222,7 +1229,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
 
         return std::move(b);
     }
-    auto cur = wgrpc_storage.ctx;
+    auto cur = current_wgrpc_storage().ctx;
     if (!cur) {
         cur = this->primary;
     }
@@ -1299,14 +1306,15 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
         while (true) {
             auto const time = static_cast<std::size_t>(std::chrono::steady_clock::now().time_since_epoch().count());
-            td->index = (static_cast<std::size_t>(wgrpc_storage.current_task_index++) << 32) | (time & 0x0000FFFF);
+            auto &zb = current_wgrpc_storage();
+            td->index = (static_cast<std::size_t>(zb.current_task_index++) << 32) | (time & 0x0000FFFF);
 
-            if (wgrpc_storage.current_task_index == std::numeric_limits<uint32_t>::max()) {
-                wgrpc_storage.current_task_index = 0;
+            if (zb.current_task_index == std::numeric_limits<uint32_t>::max()) {
+                zb.current_task_index = 0;
             }
 
 
-            auto res = wgrpc_storage.wgrpc_tasks_exists.insert(
+            auto res = zb.wgrpc_tasks_exists.insert(
                 {td->index, reinterpret_cast<std::uintptr_t>(timer.get())});
 
             if (!res.second) {
@@ -1322,7 +1330,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         }
     }
 
-    auto cur = wgrpc_storage.ctx;
+    auto cur = current_wgrpc_storage().ctx;
     if (!cur) {
         cur = this->primary;
     }
@@ -1372,8 +1380,8 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         auto const ms = std::max(static_cast<std::size_t>(1),
             static_cast<std::size_t>(when.count() / 1000000));
 
-        if (wgrpc_storage.current_task_index == std::numeric_limits<uint32_t>::max()) {
-            wgrpc_storage.current_task_index = 0;
+        if (current_wgrpc_storage().current_task_index == std::numeric_limits<uint32_t>::max()) {
+            current_wgrpc_storage().current_task_index = 0;
         }
 
         struct wgrpc_timer_data_t {
@@ -1398,9 +1406,9 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
         while (true) {
             auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
-            td->index = (static_cast<std::size_t>(wgrpc_storage.current_task_index++) << 32) | (time & 0x0000FFFF);
+            td->index = (static_cast<std::size_t>(current_wgrpc_storage().current_task_index++) << 32) | (time & 0x0000FFFF);
 
-            auto res = wgrpc_storage.wgrpc_tasks_exists.insert({td->index, reinterpret_cast<std::uintptr_t>(timer.get())});
+            auto res = current_wgrpc_storage().wgrpc_tasks_exists.insert({td->index, reinterpret_cast<std::uintptr_t>(timer.get())});
 
             if (!res.second) {
                 continue;
@@ -1415,7 +1423,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         }
     }
 
-    auto cur = (wgrpc_storage.ctx);
+    auto cur = (current_wgrpc_storage().ctx);
     if (!cur) {
         cur = this->primary;
     }
@@ -1537,13 +1545,14 @@ manapi::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool status) MA
 void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
     auto &ctx = manapi::async::internal::current_();
     if (ctx) {
-        while (!wgrpc_storage.wgrpc_tasks_exists.empty()) {
-            auto it = wgrpc_storage.wgrpc_tasks_exists.begin();
+        auto &zb = current_wgrpc_storage();
+        while (!zb.wgrpc_tasks_exists.empty()) {
+            auto it = zb.wgrpc_tasks_exists.begin();
             task_handle_cancel(ctx.get(), it->first);
         }
 
-        while (!wgrpc_storage.wgrpc_connect_exists.empty()) {
-            auto it = wgrpc_storage.wgrpc_connect_exists.begin();
+        while (!zb.wgrpc_connect_exists.empty()) {
+            auto it = zb.wgrpc_connect_exists.begin();
             task_connect_cancel(ctx.get(), it->first);
         }
     }
