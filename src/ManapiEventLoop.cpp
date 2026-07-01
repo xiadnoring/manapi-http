@@ -1489,24 +1489,38 @@ manapi::status manapi::event_loop::unpause_watch_curl(void *shared_curl) MANAPIH
 #endif
 
 void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
+    bool flg = true;
+    if (sig < 0) { sig = -sig; flg = false; }
     std::unique_lock <std::mutex> lk (event_loop::m_stop_mx, std::try_to_lock);
     if (!lk.owns_lock()) {
         manapi_log_trace(debug::LOG_TRACE_LOW, "interrupt:try_to_lock failed");
         switch (sig) {
             case SIGABRT:
             case SIGTERM:
-            case SIGINT:
-                break;
+            case SIGINT: break;
             /* well well well */
-            default:
-                print_stacktrace ();
+            default: print_stacktrace (); std::quick_exit(1); return;
+        }
+        if (flg) {
+            try {
+                auto current = manapi::async::internal::current_();
+                if (current) {
+                    current->etaskpool()->append_task([sig] ()
+                        -> void { manapi::event_loop::interrupt(-sig); });
+                    return;
+                }
+            }
+            catch (std::exception const &e) {
+                manapi_log_error ("%s failed due to %s", "interrupt:new task", e.what());
+                print_stacktrace();
                 std::quick_exit(1);
-            return;
+                return;
+            }
         }
         lk.lock();
     }
-    auto prev = event_loop::m_interrupted.exchange(true);
 
+    auto prev = event_loop::m_interrupted.exchange(true);
     switch (sig) {
         case SIGABRT:
         case SIGTERM:

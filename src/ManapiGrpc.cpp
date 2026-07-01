@@ -66,6 +66,11 @@ enum manapi_grpc_server_flags {
     MANAPI_GRPC_SERVER_IS_STOPPING = 1<<1
 };
 
+#ifdef _WIN32
+__declspec(dllexport)
+#else
+__attribute__((visibility("default")))
+#endif
 thread_local wgrpc_thread_local_storage_t wgrpc_storage;
 
 struct wgrpc_current_ctx_deleter_t {
@@ -79,15 +84,15 @@ struct wgrpc_current_ctx_deleter_t {
     }
 };
 
-std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
+static std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
     return wgrpc_storage.wgrpc_tasks_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
-std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
+static std::unordered_map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
     return wgrpc_storage.wgrpc_connect_exists.find(static_cast<std::size_t>(keys[1]));
 }
 
-void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
+static void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
     try {
         auto &s = manapi::async::internal::current_();
 
@@ -154,7 +159,7 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cth
     }
 }
 
-bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle &handle) {
+static bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle &handle) {
     auto it = wgrpc_tasks_find(handle.keys);
     if (it == wgrpc_storage.wgrpc_tasks_exists.end())
         return false;
@@ -172,14 +177,14 @@ bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandl
     return true;
 }
 
-bool task_handle_cancel (manapi::async::cthread *t, std::size_t idx) {
+static bool task_handle_cancel (manapi::async::cthread *t, std::size_t idx) {
     grpc_event_engine::experimental::EventEngine::TaskHandle handle{};
     handle.keys[0] = reinterpret_cast<std::intptr_t>(t);
     handle.keys[1] = static_cast<std::intptr_t>(idx);
     return task_handle_cancel(handle);
 }
 
-bool task_connect_cancel (grpc_event_engine::experimental::EventEngine::ConnectionHandle &keys) {
+static bool task_connect_cancel (grpc_event_engine::experimental::EventEngine::ConnectionHandle &keys) {
     auto it = wgrpc_connect_find(keys.keys);
     if (it == wgrpc_storage.wgrpc_connect_exists.end())
         return false;
@@ -201,7 +206,7 @@ bool task_connect_cancel (grpc_event_engine::experimental::EventEngine::Connecti
     return true;
 }
 
-bool task_connect_cancel (manapi::async::cthread *t, std::size_t idx) {
+static bool task_connect_cancel (manapi::async::cthread *t, std::size_t idx) {
     grpc_event_engine::experimental::EventEngine::ConnectionHandle handle{};
     handle.keys[0] = reinterpret_cast<std::intptr_t>(t);
     handle.keys[1] = static_cast<std::intptr_t>(idx);
@@ -272,6 +277,7 @@ manapi::net::wgrpc::net_listener::net_listener(absl::AnyInvocable<void(absl::Sta
 
 manapi::net::wgrpc::net_listener::~net_listener() {
     net_listener::shutdown(this, std::move(this->connection), std::move(this->on_shutdown), std::move(this->ev));
+    manapi_log_trace2("manapihttp::grpc", "wgrpc:delete net_listener: %p", this);
 }
 
 absl::StatusOr<int> manapi::net::wgrpc::net_listener::Bind(const grpc_event_engine::experimental::EventEngine::ResolvedAddress &addr) {
@@ -603,7 +609,7 @@ std::shared_ptr<grpc_event_engine::experimental::EventEngine::Endpoint::Telemetr
 
 #endif
 
-void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev) MANAPIHTTP_NOEXCEPT {
+static void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev) MANAPIHTTP_NOEXCEPT {
     try {
         auto &s = manapi::async::internal::current_();
         if (s == ev) {
@@ -626,6 +632,8 @@ void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_cth
 
 manapi::net::wgrpc::net_endpoint::~net_endpoint() {
     unbind_net_endpoint (this->conn, this->ev);
+
+    manapi_log_trace2("manapihttp::grpc", "wgrpc:delete net_endpoint: %p", this);
 }
 
 bool manapi::net::wgrpc::net_endpoint::Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer,
@@ -841,7 +849,9 @@ manapi::net::wgrpc::event_engine_wrapper::event_engine_wrapper() : grpc_event_en
     this->flags = 0;
 }
 
-manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() = default;
+manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() {
+    std::cout << "-1\n";
+}
 
 void manapi::net::wgrpc::event_engine_wrapper::magic(std::string_view m) MANAPIHTTP_NOEXCEPT {
     this->magic_ = m;
@@ -887,6 +897,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                 }
 
                 if (!ref->on_connect_cb) {
+                    manapi::async::eventloop()->stop_watcher(w);
                     return;
                 }
 
@@ -894,12 +905,18 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                     ref->timer->stop();
 
                     if (status) {
-                        /* error */
-                        switch (status) {
-                            case manapi::ev::ERR_AI_CANCELED: ref->on_connect_cb (absl::CancelledError()); break;
-                            default: ref->on_connect_cb(absl::UnknownError("wgrpc:Something gets wrong")); break;
+                        try {
+                            /* error */
+                            switch (status) {
+                                case manapi::ev::ERR_AI_CANCELED: ref->on_connect_cb (absl::CancelledError()); break;
+                                default: ref->on_connect_cb(absl::UnknownError("wgrpc:Something gets wrong")); break;
+                            }
+                        }
+                        catch (std::exception const &e) {
+                            manapi_log_error("%s due to %s", "wgrpc::Connect:onConnect", e.what());
                         }
                         ref->on_connect_cb = nullptr;
+                        manapi::async::eventloop()->stop_watcher(w);
                         return;
                     }
 
@@ -920,6 +937,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
                     ref->on_connect_cb(std::move(endpoint));
                     ref->on_connect_cb = nullptr;
+
                     return;
                 }
                 catch (std::exception const &e) {
@@ -1507,7 +1525,7 @@ manapi::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool status) MA
     auto engine = grpc_event_engine::experimental::GetDefaultEventEngine();
     if (engine) {
         auto manapi_engine = std::dynamic_pointer_cast<event_engine_wrapper>(engine);
-        if (manapi_engine->magic() != "MAGIC_MANAPI") {
+        if (!manapi_engine || manapi_engine->magic() != "MAGIC_MANAPI") {
             return manapi::status_internal("wgrpc:magic incorrect");
         }
         manapi_engine->enable_threadpool(status);
@@ -1622,7 +1640,10 @@ manapi::status_or<std::shared_ptr<manapi::net::wgrpc::server>> manapi::net::wgrp
     }
 }
 
-manapi::net::wgrpc::server::~server() = default;
+manapi::net::wgrpc::server::~server() {
+    //std::cout << "rm server\n";
+    manapi_log_trace2("manapihttp::grpc", "wgrpc:delete server: %p", this);
+}
 
 manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string path) {
     manapi::status res = manapi::status_ok();
@@ -1634,7 +1655,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config(std::string pa
                 -1, [p = this->shared_from_this()] () -> manapi::future<> {
             p->m_data->finishid = 0;
             co_await wgrpc_server_stop(p, p->m_data.get());
-            manapi_log_trace("grpc:Shutdown() finished");
+            manapi_log_trace2("manapihttp::grpc", "grpc:Shutdown() finished");
             co_return;
         });
 
@@ -1703,7 +1724,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::config_object(manapi:
                 -1, [p = this->shared_from_this()] () -> manapi::future<> {
             p->m_data->finishid = 0;
             co_await wgrpc_server_stop(p, p->m_data.get());
-            manapi_log_trace("grpc:Shutdown() finished");
+            manapi_log_trace2("manapihttp::grpc", "grpc:Shutdown() finished");
             co_return;
         });
 

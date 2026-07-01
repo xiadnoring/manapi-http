@@ -124,6 +124,7 @@ manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(std:
 }
 
 manapi::status manapi::async::context::run(std::size_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
+    // TODO: fix bad memory error here (2026)
     try {
         auto ctx = this->shared_from_this();
 
@@ -166,6 +167,17 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
         manapi::init_tools::ev_library_init();
         manapi::init_tools::curl_library_init();
 
+        manapi::ev::shared_async main_loop_waits{nullptr};
+        std::atomic<std::size_t> loops_active = loops;
+
+        if (loops) {
+            loops_active = loops;
+            main_loop_waits = manapi::async::eventloop()->create_watcher_async(
+                [&loops_active] (const manapi::ev::shared_async &w) mutable -> void {
+                if (!loops_active.load()) { w->unref(); }
+            }).unwrap();
+        }
+
         for (std::size_t i = 0; i < loops; ++i) {
             mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
                 -> void {
@@ -173,7 +185,7 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                 manapi::init_tools::ev_library_init();
                 manapi::init_tools::curl_library_init();
 
-                (*v)[i].push_back([callback, thr = ctx->loops_[i]] ()
+                (*v)[i].push_back([callback, thr = ctx->loops_[i], main_loop_waits, &loops_active] ()
                     -> void {
                     async::cthread::current(thr);
 
@@ -194,12 +206,17 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                     manapi::async::context::current(nullptr);
 
                     manapi::clear_tools::ssl_library_thread_clear();
+
+                    loops_active.fetch_sub(1);
+                    if (auto rhs = main_loop_waits->send()) {
+                        manapi_log_error ("%s failed due to %s", "ctx:fatal error context", ev::strerror(rhs));
+                    }
                 });
             });
         }
 
 
-        auto tres= manapi::async::current()->timerpool()->append_interval_sync(60 * 1000,
+        auto tres= manapi::async::current()->timerpool()->append_interval_sync(15 * 60 * 1000,
             [] (const manapi::timer &t) -> void {
             manapi::async::current()->memory_fabric().clear();
         });
@@ -217,10 +234,10 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
 
         });
 
+        manapi::async::eventloop()->stop_watcher(std::move(main_loop_waits));
         ctx->eventloop_->wait_all(true);
         ctx->eventloop()->m_etaskpool->stop();
         ctx->eventloop()->m_etaskpool->join();
-
         ctx->taskpool_->stop();
         ctx->taskpool_->join();
 

@@ -5,8 +5,8 @@
 #   define FOLDER ".\\data\\"
 #   define FOLDER2 ".\\data\\"
 #else
-#define FOLDER "/home/Timur/Downloads/anime-main/"
-#define FOLDER2 "/home/Timur/Documents/http2priorities/"
+#define FOLDER "/home/Timur/Downloads/RPG"
+#define FOLDER2 "/home/Timur/Downloads/RPG"
 #endif
 #include <cstring>
 
@@ -28,12 +28,6 @@
 //
 #include "ext/pq/AsyncPostgreClient.hpp"
 #include "std/ManapiRef.hpp"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wfloat-conversion"
-#pragma GCC diagnostic ignored "-Wsign-compare"
 
 static std::atomic<std::size_t> bbbb = 0;
 
@@ -140,8 +134,12 @@ private:
 
 
 int main () {
-    manapi::init_tools::log_name_enable("manapihttp", true);
-    manapi::init_tools::log_name_enable("manapihttp::fs", true);
+
+    int stmax = 300;
+    try { stmax = std::stoi(manapi::process::get_env("MANAPIHTTP_STMAX").unwrap()); }
+    catch (...) {  }
+
+    manapi::init_tools::max_coro_stack((size_t)stmax);
 
     int logtrace = 4;
     try { logtrace = std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()); }
@@ -149,16 +147,18 @@ int main () {
 
     manapi::init_tools::log_trace_init((manapi::debug::trace_level)logtrace);
 
-    std::size_t threads = 4;
-    try { threads = (std::size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
+    size_t threads = 4;
+    try { threads = (size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs(manapi::async::context::blockedsignals());
 
-    std::size_t loops = 0;
-    try { loops = (std::size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
+    size_t loops = 0;
+    try { loops = (size_t)std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
     catch (...) {  }
+
+    manapi::init_tools::log_name_enable("manapihttp::grpc", true);
 
     auto ctx = manapi::async::context::create(loops + 1).unwrap();
 
@@ -175,256 +175,229 @@ int main () {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
     ctx->run(loops, [&thrcnt, &a, server_ctx,grpc_server_ctx] (const std::function<void()> &bind) -> void {
-        using http = manapi::net::http::server;
-        auto db = manapi::ext::pq::connection::create().unwrap();
+        {
+            using http = manapi::net::http::server;
+           // auto db = manapi::ext::pq::connection::create().unwrap();
 
-        // /**
-        //  * grpc
-        //  */
-        //
-        // auto thrcntind = thrcnt.fetch_add(1);
-        //
-        // auto service = std::make_shared<GreeterServiceImpl>();
-        //
-        // auto grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
-        // manapi::async::run([grpc_server, service, thrcntind] () mutable -> manapi::future<> {
-        //     auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
-        //
-        //     res.log();
-        //
-        //     res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::status {
-        //         builder.RegisterService(service.get());
-        //         return manapi::status_ok();
-        //     });
-        //
-        //     res.log();
-        //     assert(res.ok());
-        //     if (res.ok()) {
-        //         auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
-        //         if (!creds.ok()) {
-        //             creds.err().log();
-        //             co_return;
-        //         }
-        //         auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #1";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #2";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client #2=" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #3";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client #3=" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #4";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client #4=" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #5";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client #5=" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
-        //             std::string user = "Xiadnoring Client #6";
-        //             auto res = co_await greeter->SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << "Xiadnoring Client #6=" << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //     }
-        //
-        // }, [] (std::exception_ptr err) -> void {
-        //     if (err)
-        //         std::rethrow_exception(err);
-        // });
+            // /**
+            //  * grpc
+            //  */
+            //
+            auto thrcntind = thrcnt.fetch_add(1);
 
-        /**
-         * http
-         */
+            auto service = std::make_shared<GreeterServiceImpl>();
 
-        auto folder_env = manapi::process::get_env("MANAPIHTTP_FOLDER");
-        std::string const folder = folder_env ? FOLDER : FOLDER2;
-        auto router = manapi::net::http::server::create (server_ctx).unwrap();
+            auto grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
+            manapi::async::run([grpc_server, service, thrcntind] () mutable -> manapi::future<> {
+                auto res = co_await grpc_server->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
 
-        router->GET("/+layer", [] (http::req &req, http::uresp resp) -> void {
-            resp->header(std::string{"alt-svc"}, R"(h3=":8888"; ma=86400)");
-            resp.finish();
-        }).unwrap();
+                res.log();
 
-        router->GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            co_return resp.text(std::format("ip: {} port: {} online: {} requests: {}",
-                req.ip_data().ip,
-                req.ip_data().port,
-                server_ctx->storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
-                a.load())).unwrap();
-        }).unwrap();
+                res = co_await grpc_server->start([&] (grpc::ServerBuilder &builder) -> manapi::status {
+                    builder.RegisterService(service.get());
+                    return manapi::status_ok();
+                });
 
-        router->GET("/timeout/[sec]", [] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            auto tmsec = (std::size_t)std::atoi(req.param("sec").unwrap().data());
-            co_await manapi::async::delay (tmsec * 1000, req.cancellation().sub());
-            co_return resp.text(std::format("Wait {} seconds", tmsec)).unwrap();
-        }).unwrap();
+                res.log();
+                assert(res.ok());
+                if (res.ok()) {
+                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                    if (!creds.ok()) {
+                        creds.err().log();
+                        co_return;
+                    }
 
-        router->GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
-            -> void {
-            a.fetch_add(1);
-            resp->text("");
-
-            resp.finish();
-        }).unwrap();
-
-        router->POST("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
-            auto data = (co_await req.text()).unwrap();
-            auto trailers = (co_await req.trailers()).unwrap();
-            for (auto &trailer : trailers)
-                printf("%.*s\n", trailer.second.size(), trailer.second.data());
-            resp.text("hello");
-        }, {
-            {"trailers", manapi::json::array({"test", "HMMM"})},
-            {"trailers_size", 500}
-        });
-
-        router->GET ("/fetch/+custom", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-            -> manapi::future<> {
-
-            auto path = std::vector<std::string> (std::next(req.path().begin()), req.path().end());
-            std::string url = "";
-            for (auto &p : path) {
-                url += '/';
-                url += p;
-            }
-
-            auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url), {
-                {"verify_peer", false},
-                {"verify_host", false},
-                {"verbose", true},
-                {"http", "2"},
-                {"headers", {
-                    {"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}
-                }}
-            }, req.cancellation().sub().tm(3000))).unwrap();
-            if (!response->ok()) {
-                co_return resp.text(std::string{manapi::net::http::status_to_string(response->status()).unwrap()}).unwrap();
-            }
-
-            co_return resp.text((co_await response->text()).unwrap()).unwrap();
-        }).unwrap();
-
-        router->GET ("/stop", [] (http::req &req, manapi::net::http::uresponse resp) mutable -> void {
-            resp->text("OK");
-
-            manapi::async::run (manapi::async::current()->stop());
-
-            resp.finish();
-        }).unwrap();
-
-        router->GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
-            -> void {
-            manapi::async::current()->timerpool()->append_timer_sync(1500,
-                [resp = std::move(resp)] (manapi::timer t) mutable  -> void {
-                    resp.finish();
-            }).unwrap();
-        }).unwrap();
-
-        router->GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
-            auto msg = req.param("id").unwrap();
-            char *end;
-            auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
-            if (!res1) {
-                if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
-                    res1.err().log();
-            }
-
-            auto res = co_await db->exec("SELECT * FROM for_test;");
-            if (res) {
-                std::string content = "b";
-                for (const auto &row: res.unwrap()) {
-                    content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+                    auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+                    manapi::async::current()->timerpool()->append_timer_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                        std::string user = "Xiadnoring Client #1";
+                        auto res = co_await greeter->SayHello(user);
+                        if (res.ok())
+                            std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
+                        else
+                            res.err().log();
+                    }).unwrap();
                 }
 
-                co_return resp.text(std::move(content)).unwrap();
-            }
+            });
+            //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+            //             std::string user = "Xiadnoring Client #2";
+            //             auto res = co_await greeter->SayHello(user);
+            //             if (res.ok())
+            //                 std::cout << "Xiadnoring Client #2=" << res.unwrap() << "\n";
+            //             else
+            //                 res.err().log();
+            //         });
+            //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+            //             std::string user = "Xiadnoring Client #3";
+            //             auto res = co_await greeter->SayHello(user);
+            //             if (res.ok())
+            //                 std::cout << "Xiadnoring Client #3=" << res.unwrap() << "\n";
+            //             else
+            //                 res.err().log();
+            //         });
+            //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+            //             std::string user = "Xiadnoring Client #4";
+            //             auto res = co_await greeter->SayHello(user);
+            //             if (res.ok())
+            //                 std::cout << "Xiadnoring Client #4=" << res.unwrap() << "\n";
+            //             else
+            //                 res.err().log();
+            //         });
+            //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+            //             std::string user = "Xiadnoring Client #5";
+            //             auto res = co_await greeter->SayHello(user);
+            //             if (res.ok())
+            //                 std::cout << "Xiadnoring Client #5=" << res.unwrap() << "\n";
+            //             else
+            //                 res.err().log();
+            //         });
+            //         manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+            //             std::string user = "Xiadnoring Client #6";
+            //             auto res = co_await greeter->SayHello(user);
+            //             if (res.ok())
+            //                 std::cout << "Xiadnoring Client #6=" << res.unwrap() << "\n";
+            //             else
+            //                 res.err().log();
+            //         });
+            //     }
+            //
+            // }, [] (std::exception_ptr err) -> void {
+            //     if (err)
+            //         std::rethrow_exception(err);
+            // });
 
-            co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
-        }).unwrap();
+            /**
+             * http
+             */
 
-        router->GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-            -> manapi::future<> {
-            manapi::init_tools::ev_library_init();
-            manapi::async::current()->memory_fabric().clear();
-            resp.compress_enabled(false);
-            co_return resp.text(std::format("requests: {}; active: {}", a.load(),
-                resp.connection_data()->worker->worker_data()->as<manapi::net::http::server_ctx::worker_data_t>()->count.load())).unwrap();
-        }).unwrap();
+            auto folder_env = manapi::process::get_env("MANAPIHTTP_FOLDER");
+            std::string const folder = folder_env ? FOLDER : FOLDER2;
+            auto router = manapi::net::http::server::create (server_ctx).unwrap();
 
-        init_http_server (router, folder);
+            router->GET("/+layer", [] (http::req &req, http::uresp resp) -> void {
+                resp->header(std::string{"alt-svc"}, R"(h3=":8888"; ma=86400)");
+                resp.finish();
+            }).unwrap();
 
-        router->GET ("/form1", +[] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-            manapi::json_mask m = {
-                {"name", "{string(>=5 <=20)}"},
-                {"age", "{integer(>=18 <=30)}"},
-                {"data", manapi::json_mask::Array("{string(>=3 <=15)[<=20]|none}", true)}
-            };
+            router->GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
+                co_return resp.text(std::format("ip: {} port: {} online: {} requests: {}",
+                    req.ip_data().ip,
+                    req.ip_data().port,
+                    server_ctx->storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
+                    a.load())).unwrap();
+            }).unwrap();
 
-            auto data_res = (co_await req.json(&m));
-            if (!data_res.ok()) {
-                co_return resp.text(std::format("failed due to {}", data_res.err().fullmsg())).unwrap();
-            }
+            router->GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
+                -> void {
+                a.fetch_add(1);
+                resp->text("");
 
-            co_return resp.json(data_res.unwrap()).unwrap();
-        });
+                resp.finish();
+            }).unwrap();
 
+            router->POST("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
+                auto data = (co_await req.text()).unwrap();
+                auto trailers = (co_await req.trailers()).unwrap();
+                for (auto &trailer : trailers)
+                    printf("%.*s\n", trailer.second.size(), trailer.second.data());
+                resp.text("hello");
+            }, {
+                {"trailers", manapi::json::array({"test", "HMMM"})},
+                {"trailers_size", 500}
+            });
 
-        manapi::async::run ([] () -> manapi::future<> {
-            auto z = manapi::unwrap(co_await manapi::fs::async_open("./test.fallocate", manapi::ev::FS_O_CREAT|manapi::ev::FS_O_RDWR, 0755));
-            std::size_t mb = 512;
-            ::posix_fallocate(z.get(), 0, mb * 1024 * 1024);
-            manapi::unwrap(co_await manapi::fs::async_write(z.get(), "hello world!", sizeof ("hello world!") - 1));
-        });
+            router->GET ("/fetch/+custom", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+                -> manapi::future<> {
 
-        // manapi::async::run([router, db] () mutable -> manapi::future<> {
-        //
-        //     // (co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
-        //
-        //     (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
-        //     (co_await router->start()).unwrap();
-        //
-        //     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
-        // });
+                auto path = std::vector<std::string> (std::next(req.path().begin()), req.path().end());
+                std::string url = "";
+                for (auto &p : path) {
+                    url += '/';
+                    url += p;
+                }
 
-        bind();
+                auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url), {
+                    {"verify_peer", false},
+                    {"verify_host", false},
+                    {"verbose", true},
+                    {"http", "2"},
+                    {"headers", {
+                        {"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}
+                    }}
+                })).unwrap();
+                if (!response->ok()) {
+                    co_return resp.text(std::string{manapi::net::http::status_to_string(response->status()).unwrap()}).unwrap();
+                }
+
+                co_return resp.text((co_await response->text()).unwrap()).unwrap();
+            }).unwrap();
+
+            router->GET ("/stop", [] (http::req &req, manapi::net::http::uresponse resp) mutable -> void {
+                resp->text("OK");
+
+                manapi::async::run (manapi::async::current()->stop());
+
+                resp.finish();
+            }).unwrap();
+
+            router->GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
+                -> void {
+                manapi::async::current()->timerpool()->append_timer_sync(1500,
+                    [resp = std::move(resp)] (manapi::timer t) mutable  -> void {
+                        resp.finish();
+                }).unwrap();
+            }).unwrap();
+
+            // router->GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
+            //     auto msg = req.param("id").unwrap();
+            //     char *end;
+            //     auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
+            //     if (!res1) {
+            //         if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
+            //             res1.err().log();
+            //     }
+            //
+            //     auto res = co_await db.exec("SELECT * FROM for_test;");
+            //     if (res) {
+            //         std::string content = "b";
+            //         for (const auto &row: res.unwrap()) {
+            //             content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+            //         }
+            //
+            //         co_return resp.text(std::move(content)).unwrap();
+            //     }
+            //
+            //     co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
+            // }).unwrap();
+
+            router->GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+                -> manapi::future<> {
+                manapi::init_tools::ev_library_init();
+                manapi::async::current()->memory_fabric().clear();
+                resp.compress_enabled(false);
+                co_return resp.text(std::format("requests: {}; active: {}", a.load(),
+                    resp.connection_data()->worker->worker_data()->as<manapi::net::http::server_ctx::worker_data_t>()->count.load())).unwrap();
+            }).unwrap();
+
+            init_http_server (router, folder);
+
+            manapi::async::run([router/*, db*/] () mutable -> manapi::future<> {
+                //(co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
+
+                (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
+                (co_await router->start()).unwrap();
+
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
+            });
+
+            bind();
+        }
     }).unwrap();
 
     manapi::clear_tools::curl_library_clear();
     manapi::clear_tools::ev_library_clear();
     manapi::clear_tools::ssl_library_clear();
-    manapi::clear_tools::grpc_clear();
 
 
     return 0;
 }
-
-#pragma GCC diagnostic pop

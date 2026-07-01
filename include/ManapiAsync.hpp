@@ -57,8 +57,6 @@ namespace manapi::async::internal {
 
     std::size_t max_stack_depth_crt () MANAPIHTTP_NOEXCEPT;
 
-    void max_stack_depth_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
-
     // void cnt_finish_inc () MANAPIHTTP_NOEXCEPT;
 
     bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
@@ -241,6 +239,7 @@ namespace manapi {
 
                 manapi::async::internal::current_stack_cnt_set (current_stack_cnt_ + 1);
                 async::coro_resume(this->handle);
+                manapi::async::internal::current_stack_cnt_set (current_stack_cnt_);
             }
 
             bool await_ready () {

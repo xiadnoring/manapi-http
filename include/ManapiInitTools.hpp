@@ -41,6 +41,11 @@ namespace manapi::init_tools {
      * Enable Log
      */
     void log_name_enable (const char *name, bool enable);
+
+    /**
+     * Max Coroutines Stack
+     */
+    void max_coro_stack (std::size_t sz) MANAPIHTTP_NOEXCEPT;
 }
 
 namespace manapi::clear_tools {

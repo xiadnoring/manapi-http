@@ -1,39 +1,44 @@
 #include "ManapiAsync.hpp"
 #include "ManapiThreadPool.hpp"
 #include "std/ManapiAsyncContext.hpp"
+#include "ManapiInitTools.hpp"
 
-static size_t max_stack_depth_ = 300;
+struct current_data_t {
+    std::size_t st_cnt = 0;
+    std::size_t st_max = 15;
+    std::shared_ptr<manapi::async::cthread> cthread;
+    std::coroutine_handle<> root;
+};
 
-thread_local std::size_t current_stack_cnt = 0;
+#ifdef _WIN32
+__declspec(dllexport)
+#else
+__attribute__((visibility("default")))
+#endif
+thread_local current_data_t ctxcurrent;
 
-thread_local std::shared_ptr<manapi::async::cthread> current_cthread = nullptr;
-
-thread_local std::coroutine_handle<> removed_root_coroutine_handle = nullptr;
-
-// thread_local std::size_t current_finish_cnt = 0;
+void manapi::init_tools::max_coro_stack(std::size_t sz) MANAPIHTTP_NOEXCEPT {
+    ::ctxcurrent.st_max = sz;
+}
 
 void manapi::async::internal::current_(std::shared_ptr<cthread> ctx) MANAPIHTTP_NOEXCEPT {
-    current_cthread = std::move(ctx);
+    ctxcurrent.cthread = std::move(ctx);
 }
 
 const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() MANAPIHTTP_NOEXCEPT {
-    return current_cthread;
+    return ctxcurrent.cthread;
 }
 
 std::size_t manapi::async::internal::current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT {
-    return current_stack_cnt;
+    return ctxcurrent.st_cnt;
 }
 
 void manapi::async::internal::current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT {
-    current_stack_cnt = cnt;
+    ctxcurrent.st_cnt = cnt;
 }
 
 std::size_t manapi::async::internal::max_stack_depth_crt () MANAPIHTTP_NOEXCEPT {
-    return max_stack_depth_;
-}
-
-void manapi::async::internal::max_stack_depth_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT {
-    max_stack_depth_ = cnt;
+    return ::ctxcurrent.st_max;
 }
 
 // void manapi::async::internal::cnt_finish_inc() MANAPIHTTP_NOEXCEPT {
@@ -91,6 +96,7 @@ void manapi::async::internal::future_final_awaiter_suspend(std::coroutine_handle
 
     manapi::async::internal::current_stack_cnt_set (current_stack_cnt_ + 1);
     async::coro_resume(original);
+    manapi::async::internal::current_stack_cnt_set (current_stack_cnt_);
 }
 
 
@@ -130,20 +136,20 @@ manapi::future<> manapi::async::internal::promise<void, manapi::future<>>::promi
 void manapi::async::coro_resume(std::coroutine_handle<> handle) {
     assert(handle);
 
-    if (::removed_root_coroutine_handle) {
+    if (::ctxcurrent.root) {
         handle.resume();
     }
     else {
         try {
             handle.resume();
 
-            if (::removed_root_coroutine_handle) {
-                std::exchange(::removed_root_coroutine_handle, nullptr).destroy();
+            if (::ctxcurrent.root) {
+                std::exchange(::ctxcurrent.root, nullptr).destroy();
             }
         }
         catch (std::exception const &) {
-            if (::removed_root_coroutine_handle) {
-                std::exchange(::removed_root_coroutine_handle, nullptr).destroy();
+            if (::ctxcurrent.root) {
+                std::exchange(::ctxcurrent.root, nullptr).destroy();
             }
 
             std::rethrow_exception(std::current_exception());
@@ -165,6 +171,6 @@ void manapi::async::coro_resume(std::coroutine_handle<> handle) {
 }
 
 void manapi::async::coro_finish(std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT {
-    assert(!::removed_root_coroutine_handle);
-    ::removed_root_coroutine_handle = handle;
+    assert(!::ctxcurrent.root);
+    ::ctxcurrent.root = handle;
 }
