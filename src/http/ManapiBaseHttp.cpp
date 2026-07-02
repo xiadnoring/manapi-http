@@ -549,8 +549,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
             co_return;
         }
 
-        auto size_res = co_await formdata->payload_size();
-        auto size = size_res.unwrap();
+        auto size = manapi::unwrap(co_await formdata->payload_size());
 
         auto boundary = formdata->generate_boundary();
         size += formdata->multipart_size(boundary.size()).unwrap();
@@ -583,7 +582,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
                         });
 
                     manapi::async::run<manapi::status>(std::move(task),
-                        [res = std::move(res)] (std::exception_ptr err, manapi::status *status) mutable
+                        [res = std::move(res), formdata = std::move(formdata)] (std::exception_ptr err, manapi::status *status) mutable
                         -> void {
                             if (err) {
                                 return;

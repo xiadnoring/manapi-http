@@ -24,6 +24,9 @@ static void free_response_data (uint8_t m_type, void *m_data) MANAPIHTTP_NOEXCEP
         case manapi::net::http::internal::RESPONSE_ASYNC_CALLBACK:
             delete static_cast<manapi::net::http::response::resp_callback_async *> (m_data);
         break;
+        case manapi::net::http::internal::RESPONSE_STREAM:
+            delete static_cast<manapi::net::http::response::resp_stream *> (m_data);
+        break;
         case manapi::net::http::internal::RESPONSE_FILE:
         case manapi::net::http::internal::RESPONSE_PROXY:
         case manapi::net::http::internal::RESPONSE_TEXT:
@@ -38,6 +41,8 @@ void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
     try {
         if (n && n->clean)
             n->clean(n->src);
+
+        delete n;
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "custom_data_deleter_t", e.what());
