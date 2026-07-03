@@ -489,6 +489,4 @@ int main () {
 
 ## Made in
 
-[![ГБОУ РИЛИ](assets/rili.png)](https://rilirb.ru)
-
 [![Башкортостан](assets/rb2.png)](https://ru.wikipedia.org/wiki/%D0%91%D0%B0%D1%88%D0%BA%D0%BE%D1%80%D1%82%D0%BE%D1%81%D1%82%D0%B0%D0%BD)
