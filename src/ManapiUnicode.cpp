@@ -1,4 +1,5 @@
 #include <utility>
+#include <array>
 
 #include "encoding/ManapiUnicode.hpp"
 #include "include/ManapiUtils.hpp"
@@ -18,8 +19,8 @@ static const unsigned char hextable2[] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
-static const uint8_t *escape_extra_bytes = [] {
-    static uint8_t tbl[256]{};
+static constexpr std::array<uint8_t, 256> escape_extra_bytes = [] {
+    std::array<uint8_t, 256> tbl{};
 
     tbl['\n'] = 1;
     tbl['\r'] = 1;
@@ -39,39 +40,37 @@ static const uint8_t *escape_extra_bytes = [] {
 }();
 
 struct escape_seq {
-    const char* str;
+    char str[6];
     uint8_t len;
 };
+static constexpr std::array<escape_seq, 256> escape_table = [] {
+    std::array<::escape_seq, 256> tbl{};
 
-static const ::escape_seq* escape_table = [] {
-    static struct ::escape_seq tbl[256]{};
+    tbl['\n'] = {{'\\', 'n'}, 2};
+    tbl['\r'] = {{'\\', 'r'}, 2};
+    tbl['\f'] = {{'\\', 'f'}, 2};
+    tbl['\b'] = {{'\\', 'b'}, 2};
+    tbl['\t'] = {{'\\', 't'}, 2};
+    tbl['\"'] = {{'\\', '"'}, 2};
+    tbl['\\'] = {{'\\', '\\'}, 2};
 
-    tbl['\n'] = {"\\n", 2};
-    tbl['\r'] = {"\\r", 2};
-    tbl['\f'] = {"\\f", 2};
-    tbl['\b'] = {"\\b", 2};
-    tbl['\t'] = {"\\t", 2};
-    tbl['\"'] = {"\\\"", 2};
-    tbl['\\'] = {"\\\\", 2};
-
-    static char hex_buf[256][6];
     for (int i = 0; i < 0x20; ++i) {
         if (tbl[i].len == 0) {
-            hex_buf[i][0] = '\\';
-            hex_buf[i][1] = 'u';
-            hex_buf[i][2] = '0';
-            hex_buf[i][3] = '0';
-            hex_buf[i][4] = static_cast<char>(hextable2[i >> 4]);
-            hex_buf[i][5] = static_cast<char>(hextable2[i & 0x0F]);
-            tbl[i] = {hex_buf[i], 6};
+            tbl[i].str[0] = '\\';
+            tbl[i].str[1] = 'u';
+            tbl[i].str[2] = '0';
+            tbl[i].str[3] = '0';
+            tbl[i].str[4] = static_cast<char>(hextable2[i >> 4]);
+            tbl[i].str[5] = static_cast<char>(hextable2[i & 0x0F]);
+            tbl[i].len = 6;
         }
     }
 
     return tbl;
 }();
 
-static const bool *needs_escape = [] {
-    static bool tbl[256]{};
+static constexpr std::array<bool, 256> needs_escape = [] {
+    std::array<bool, 256> tbl{};
     for (int i = 0; i < 256; ++i) {
         tbl[i] = (escape_table[i].len > 0);
     }
