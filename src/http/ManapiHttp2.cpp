@@ -111,19 +111,19 @@ struct http_v2_goaway_t {
 static constexpr char smlabel[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n";
 static constexpr std::size_t maxcnt = static_cast<std::size_t>(1e9);
 
-static std::map <int, manapi::json_mask> const allow_settings {
-        {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
-        {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
-        {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16384 <=16777215)}"}},
-        {HTTP2_SETTING_HEADER_TABLE_SIZE, manapi::json{"{integer(>=2048 <=65536)}"}},
-        {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=0 <=2147483647)}"}},
-        {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=262144)}"}},
-        {HTTP2_SETTING_TLS_RENEG_PERMITTED, manapi::json{"{integer(0)}"}},
-        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=2147483647)}"}},
-        {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, manapi::json{"{integer(>=0 <=1)}"}},
-        {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, manapi::json{"{integer(>=0 <=1)}"}},
-        {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
-};
+// static std::map <int, manapi::json_mask> const allow_settings {
+//         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
+//         {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
+//         {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16384 <=16777215)}"}},
+//         {HTTP2_SETTING_HEADER_TABLE_SIZE, manapi::json{"{integer(>=2048 <=65536)}"}},
+//         {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=0 <=2147483647)}"}},
+//         {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=262144)}"}},
+//         {HTTP2_SETTING_TLS_RENEG_PERMITTED, manapi::json{"{integer(0)}"}},
+//         {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=2147483647)}"}},
+//         {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, manapi::json{"{integer(>=0 <=1)}"}},
+//         {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, manapi::json{"{integer(>=0 <=1)}"}},
+//         {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
+// };
 
 static void stringify_stream_id(int stream_id, char *buffer) {
     int index = 0;
@@ -289,22 +289,38 @@ static int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx, int strea
 }
 
 static int http_v2_verify_setting (int key, int value) MANAPIHTTP_NOEXCEPT {
-    auto const it = allow_settings.find(key);
-    if (it != allow_settings.end()) {
-        try {
-            auto res = it->second.valid(value);
-            if (res.ok()) {
-                return 0;
-            }
-        }
-        catch (std::exception const &e) {
-            /* ignore */
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, e.what());
-        }
-        /* setting incorrect */
-        return manapi::ERR_INTERNAL;
+    //         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
+    //         {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
+    //         {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16384 <=16777215)}"}},
+    //         {HTTP2_SETTING_HEADER_TABLE_SIZE, manapi::json{"{integer(>=2048 <=65536)}"}},
+    //         {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=0 <=2147483647)}"}},
+    //         {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=262144)}"}},
+    //         {HTTP2_SETTING_TLS_RENEG_PERMITTED, manapi::json{"{integer(0)}"}},
+    //         {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=2147483647)}"}},
+    //         {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, manapi::json{"{integer(>=0 <=1)}"}},
+    //         {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, manapi::json{"{integer(>=0 <=1)}"}},
+    //         {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
+
+    int max_v, min_v;
+    switch (key) {
+        case HTTP2_SETTING_RESERVED: return manapi::ERR_INTERNAL;
+        case HTTP2_SETTING_ENABLE_PUSH: min_v = 0; max_v = 1; break;
+        case HTTP2_SETTING_MAX_FRAME_SIZE: min_v = 16384; max_v = 16777215; break;
+        case HTTP2_SETTING_HEADER_TABLE_SIZE: min_v = 2048; max_v = 65536; break;
+        case HTTP2_SETTING_INITIAL_WINDOW_SIZE: min_v = 0; max_v = 2147483647; break;
+        case HTTP2_SETTING_MAX_HEADER_LIST_SIZE: min_v = 1024; max_v = 262144; break;
+        case HTTP2_SETTING_TLS_RENEG_PERMITTED: min_v = 0; max_v = 0;
+        case HTTP2_SETTING_MAX_CONCURRENT_STREAMS: min_v = 1; max_v = 2147483647; break;
+        case HTTP2_SETTING_SETTINGS_ENABLE_METADATA: min_v = 0; max_v = 1; break;
+        case HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES: min_v = 0; max_v = 1; break;
+        case HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL: min_v = 0; max_v = 1; break;
+        default: return manapi::ERR_INTERNAL;
     }
-    return manapi::ERR_OK;
+
+    if (max_v >= value && value >= min_v)
+        return manapi::ERR_OK;
+
+    return manapi::ERR_INTERNAL;
 }
 
 

@@ -8,7 +8,7 @@
 #include "json/ManapiJsonInternal.hpp"
 
 namespace manapi {
-    manapi::json_error::status json_builder_valid_utf_string(std::string_view str);
+    // manapi::json_error::status json_builder_valid_utf_string(std::string_view str);
 
     std::string json_format_path2 (const std::vector<manapi::json_mask_path_t> &p);
 

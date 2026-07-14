@@ -542,12 +542,12 @@ manapi::json::json() : m_data{} {
 }
 
 manapi::json::json(STRING_VIEW str) : json() {
-    manapi::json_builder_valid_utf_string(str).unwrap();
+    // manapi::json_builder_valid_utf_string(str).unwrap();
     ::json_set_string_(this->m_type, this->m_data, str);
 }
 
 manapi::json::json(STRING str) : json() {
-    json_builder_valid_utf_string(str).unwrap();
+    // json_builder_valid_utf_string(str).unwrap();
     ::json_set_string_(this->m_type, this->m_data, std::move(str));
 }
 

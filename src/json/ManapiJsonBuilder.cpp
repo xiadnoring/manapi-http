@@ -145,7 +145,7 @@ struct manapi::json_builder::data_t {
     uint32_t surrogate_high{};
     int state{};
     json object;
-    unsigned char utf[6]{};
+    unsigned char utf[5]{};
     std::string buffer;
     std::vector<json_mask_path_t> paths;
     const manapi::json_mask_object_t *types{};
@@ -390,66 +390,6 @@ static int json_builder_check_type(manapi::json_builder::data_t *data, std::stri
     }
 
     return 0;
-}
-
-static int json_builder_valid_utf_char(manapi::json_builder::data_t *data, const std::string_view& plain_text, size_t i, uint8_t &left) {
-    const auto c = static_cast<uint8_t>(plain_text[i]);
-    const uint8_t type = utf8_octet_type[c];
-
-    if (type == 0){
-        if (left > 0) {
-            if (data) data->st = json_invalid_char(plain_text, data->i);
-            return 1;
-        }
-        return 0;
-    }
-
-    if (type == 1) {
-        if (left > 0) {
-            left--;
-            return 0;
-        }
-        if (data) data->st = json_invalid_char(plain_text, data->i);
-        return 1;
-    }
-
-    if (type >= 2 && type <= 4)  {
-        if (left > 0) {
-            if (data) data->st = json_invalid_char(plain_text, data->i);
-            return 1;
-        }
-
-        if (type == 2 && (c & 0xFE) == 0xC0) {
-            if (data) data->st = json_invalid_char(plain_text, data->i);
-            return 1;
-        }
-        if (type == 3 && c == 0xE0 &&
-            static_cast<uint8_t>(plain_text[i + 1]) < 0xA0) {
-                if (data) data->st = json_invalid_char(plain_text, data->i);
-                return 1;
-            }
-        if (type == 4 && c == 0xF0 &&
-            static_cast<uint8_t>(plain_text[i + 1]) < 0x90) {
-                if (data) data->st = json_invalid_char(plain_text, data->i);
-                return 1;
-            }
-
-        left = type - 1;
-        return 0;
-    }
-
-    if (data) data->st = json_invalid_char(plain_text, data->i);
-    return 1;
-}
-
-manapi::json_error::status manapi::json_builder_valid_utf_string(std::string_view str) {
-    uint8_t wchar_left = 0;
-    for (size_t i = 0; i < str.size(); i++) {
-        if (json_builder_valid_utf_char(nullptr, str, i, wchar_left))
-            return json_invalid_char(str, i);
-    }
-
-    return manapi::status_ok();
 }
 
 std::string manapi::json_format_path2(const std::vector<manapi::json_mask_path_t> &p) {
@@ -724,8 +664,6 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
     if (ctx) sz = manapi::async::memory_fabric()->area_size();
     else sz = std::numeric_limits<std::size_t>::max();
 
-    auto ptz = plain_text.size();
-
     if (data->flags & JSON_FLAG_IS_KEY) {
         data->buffer.reserve(256);
         zstr.set(&data->buffer);
@@ -742,7 +680,7 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
         }
     }
 
-    while (j < ptz) {
+    while (j < plain_text.size()) {
         if (data->utf[4] == 0 && !(data->flags & JSON_FLAG_ESCAPED))  {
             size_t next = j;
             while (next < plain_text.size() && !js_special[static_cast<unsigned char>(plain_text[next])]) {
@@ -761,49 +699,7 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
             }
         }
 
-         auto c = static_cast<uint8_t>(plain_text[j]);
-
-        {
-            const uint8_t type = utf8_octet_type[c];
-
-            if (type == 0)  {                     // ASCII
-                if (data->utf[5] > 0) {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-            } else if (type == 1)  {              // continuation byte
-                if (data->utf[5] > 0)  {
-                    data->utf[5]--;
-                } else {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-            } else if (type >= 2 && type <= 4)  {
-                if (data->utf[5] > 0) {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-                // overlong проверки
-                if (type == 2 && (c & 0xFE) == 0xC0) {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-                if (type == 3 && c == 0xE0 &&
-                    static_cast<uint8_t>(plain_text[j+1]) < 0xA0) {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-                if (type == 4 && c == 0xF0 &&
-                    static_cast<uint8_t>(plain_text[j+1]) < 0x90) {
-                    data->st = json_invalid_char(plain_text, data->i);
-                    return 1;
-                }
-                data->utf[5] = type - 1;   // continuation
-            } else {
-                data->st = json_invalid_char(plain_text, data->i);
-                return 1;
-            }
-        }
+        auto c = static_cast<uint8_t>(plain_text[j]);
 
         j++;
         data->i++;
@@ -861,7 +757,7 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
                 continue;
             } else {
                 data->st = manapi::json_error::status_invalid_argument(
-                    "json: bad unicode escape", data->i - 1,
+                    "json: bad unicode escape", data->i,
                     manapi::json_format_path2(data->paths));
                 return 1;
             }
@@ -880,7 +776,7 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
             if (c <= 0x1F) {
                 if (c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\b') {
                     data->st = manapi::json_error::status_invalid_argument(
-                        "json: bad control character", data->i - 1,
+                        "json: bad control character", data->i,
                         manapi::json_format_path2(data->paths));
                     return 1;
                 }
@@ -898,23 +794,23 @@ static int json_builder_build_string(manapi::json_builder::data_t *data, std::st
 
         if (data->flags & JSON_FLAG_OPENED_QUOTE)  {
             bf->push_back(static_cast<char>(c));
-            if (data->flags & (manapi::JSON_FLAG_SLICES << JSON_FLAG_MAX_SHIFT) &&
-                p->is_string() && p->size() >= sz) {
-                zsv.set(&p->cast_slice().as_slice());
-                bf = &zsv;
-            }
         } else {
             if (!js_is_space[c]) {
-                data->st = json_invalid_char(plain_text, data->i - 1);
+                data->st = json_invalid_char(plain_text, data->i);
                 return 1;
             }
         }
     }
 
+    if (data->flags & (manapi::JSON_FLAG_SLICES << JSON_FLAG_MAX_SHIFT) && p->is_string() && p->size() >= sz) {
+        zsv.set(&p->cast_slice().as_slice());
+        bf = &zsv;
+    }
 
     if (plain_text.size() != j || (data->flags & JSON_FLAG_FIN)) {
-        if (data->flags & JSON_FLAG_OPENED_QUOTE || data->flags & JSON_FLAG_ESCAPED) {
-            data->st =  json_unexpected_end(j);
+        if ((data->flags & JSON_FLAG_OPENED_QUOTE) || (data->flags & JSON_FLAG_ESCAPED) || (data->flags & JSON_FLAG_EXPECT_LOW_SURROGATE)
+                || data->utf[4] != 0) {
+            data->st =  json_unexpected_end(data->i);
             return 1;
         }
 
@@ -1001,11 +897,11 @@ static int json_builder_build_numeric(manapi::json_builder::data_t *data, std::s
         if (data->buffer.find_first_of(".eE") != std::string::npos) {
             long double d;
             auto [ptr, ec] = std::from_chars(data->buffer.data(), data->buffer.data() + data->buffer.size(), d);
-            *b.p = manapi::json(d);
             if (ec != std::errc{}) {
                 data->st= json_invalid_char(plain_text, data->i);
                 return 1;
             }
+            *b.p = manapi::json(d);
         }
         else {
             int64_t un;
@@ -1378,7 +1274,6 @@ static void json_builder_check_flags (manapi::json_builder::data_t *data) {
 static void json_builder_reset(manapi::json_builder::data_t *data) {
     // object can not be clean up here
     data->i = 0;
-    data->utf[5] = 0;
     data->utf[4] = 0;
     data->flags = 0;
     data->surrogate_high = 0;

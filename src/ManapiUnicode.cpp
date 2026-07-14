@@ -30,7 +30,7 @@ static constexpr std::array<uint8_t, 256> escape_extra_bytes = [] {
     tbl['\"'] = 1;
     tbl['\\'] = 1;
 
-    for (int i = 0; i < 0x20; ++i) {
+    for (uint8_t i = 0; i < (uint8_t)0x20; ++i) {
         if (tbl[i] == 0) {
             tbl[i] = 5;
         }
@@ -54,7 +54,7 @@ static constexpr std::array<escape_seq, 256> escape_table = [] {
     tbl['\"'] = {{'\\', '"'}, 2};
     tbl['\\'] = {{'\\', '\\'}, 2};
 
-    for (int i = 0; i < 0x20; ++i) {
+    for (uint8_t i = 0; i < (uint8_t)0x20; ++i) {
         if (tbl[i].len == 0) {
             tbl[i].str[0] = '\\';
             tbl[i].str[1] = 'u';
@@ -71,7 +71,7 @@ static constexpr std::array<escape_seq, 256> escape_table = [] {
 
 static constexpr std::array<bool, 256> needs_escape = [] {
     std::array<bool, 256> tbl{};
-    for (int i = 0; i < 256; ++i) {
+    for (uint32_t i = 0; i <= (uint32_t)255; ++i) {
         tbl[i] = (escape_table[i].len > 0);
     }
     return tbl;

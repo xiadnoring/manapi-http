@@ -208,6 +208,11 @@ UTEST(json, utf8_surrogate_pairs) {
     ASSERT_TRUE(res["old_italic"].as_string() == "𐌀𐌁𐌂𐌃");
 }
 
+UTEST(json, utf8_bad_parse1) {
+    auto rhs = manapi::json::parse(R"("hello\u0")");
+    ASSERT_TRUE(!rhs.ok());
+}
+
 UTEST(json, utf8_unicode_escape_mixed) {
     auto rhs = manapi::json::parse(R"({
         "mixed": "\u041F\u0440\u0438\u0432\u0435\u0442 World \uD83C\uDF0D",
