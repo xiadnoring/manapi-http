@@ -1361,7 +1361,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
         auto content_length = m.find(http::H_CONTENT_LENGTH);
         if (content_length != m.end()) {
             this->m_data->flags |= M_CURL_FLAG_CONTENT_LENGTH;
-            this->m_data->content_length_ = content_length->second.as_integer_cast();
+            this->m_data->content_length_ = content_length->second.cast_integer().as_integer();
             headers.erase(content_length);
         }
     }
@@ -1384,7 +1384,7 @@ manapi::status manapi::net::fetch::json_headers(manapi::json headers) MANAPIHTTP
             if (header.second.is_string())
                 val_view = header.second.as_string();
             else {
-                val_str = header.second.as_string_cast();
+                val_str = header.second.cast_string().as_string();
                 val_view = val_str;
             }
             auto val = std::make_pair<std::string_view, std::string_view>(header.first, {});

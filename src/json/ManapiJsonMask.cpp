@@ -296,18 +296,18 @@ repeat:
 
                     if (!special_type) {
                         if (ntype == manapi::json::type_decimal)
-                            parsed_buff = builder.get().unwrap().as_decimal_cast();
+                            parsed_buff = std::move(builder.get().unwrap().cast_decimal());
 
     #ifdef MANAPIHTTP_BIGINT_SUPPORT
                         else if (ntype == manapi::json::type_bigint)
-                            parsed_buff = builder.get().unwrap().as_bigint_cast();
+                            parsed_buff = std::move(builder.get().unwrap().cast_bigint());
 
     #endif
                         else if (ntype == manapi::json::type_boolean)
-                            parsed_buff = builder.get().unwrap().as_bool_cast();
+                            parsed_buff = std::move(builder.get().unwrap().cast_bool());
                         else
                             // others
-                            parsed_buff = builder.get().unwrap().as_integer_cast();
+                            parsed_buff = std::move(builder.get().unwrap().cast_integer());
 
                         auto &b = zres->types.back();
 
@@ -648,7 +648,7 @@ static manapi::json_error::status json_mask_valid_val (int flags, const manapi::
 
     if (p.type == manapi::json::type_string) {
         // invalid type
-        if (!z.is_string()) {
+        if (!z.is_string() && !z.is_slice()) {
             return manapi::json_error::status_invalid_argument("json_mask: must be a string", 0, manapi::json_format_path2(paths));
         }
 
@@ -1188,6 +1188,10 @@ manapi::json manapi::json_mask::Or(json data, bool none) {
 
     if (data.is_pair())
         data = manapi::json::array({std::move(data)});
+
+    if (!data.is_array()) {
+        throw std::runtime_error ("json_mask::Or accepts only array and pair");
+    }
 
     for (auto &item: data.each()) {
         auto z = ::json_mask_initial_resolve_data(std::move(item));

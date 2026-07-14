@@ -27,6 +27,9 @@ static void free_response_data (uint8_t m_type, void *m_data) MANAPIHTTP_NOEXCEP
         case manapi::net::http::internal::RESPONSE_STREAM:
             delete static_cast<manapi::net::http::response::resp_stream *> (m_data);
         break;
+        case manapi::net::http::internal::RESPONSE_SLICE:
+            delete static_cast<manapi::slice *> (m_data);
+        break;
         case manapi::net::http::internal::RESPONSE_FILE:
         case manapi::net::http::internal::RESPONSE_PROXY:
         case manapi::net::http::internal::RESPONSE_TEXT:
@@ -62,7 +65,7 @@ manapi::net::http::response::response(internal::handle_data_t *cdata, uint16_t s
 }
 
 manapi::net::http::response::~response() {
-    free_response_data (this->m_type, this->m_data);
+    ::free_response_data (this->m_type, this->m_data);
 
     delete this->m_cdata;
 }
@@ -104,7 +107,7 @@ manapi::status_or<std::string_view> manapi::net::http::response::header(std::str
 manapi::status manapi::net::http::response::text(std::string plain_text) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<std::string>(std::move(plain_text));
-        free_response_data(this->m_type, this->m_data);
+        ::free_response_data(this->m_type, this->m_data);
         this->m_type = internal::RESPONSE_TEXT;
         this->m_data = storage.release();
         return status_ok();
@@ -116,10 +119,12 @@ manapi::status manapi::net::http::response::text(std::string plain_text) MANAPIH
 
 manapi::status manapi::net::http::response::json(manapi::json data, size_t spaces) MANAPIHTTP_NOEXCEPT {
     try {
-        auto res = header(std::string{H_CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
+        auto res = this->header(std::string{H_CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
         if (!res)
             return std::move(res);
-        return text(std::move(data.dump (static_cast<uint32_t>(spaces))));
+        manapi::slice sv;
+        data.slice (&sv, static_cast<uint32_t>(spaces));
+        return this->slice(std::move(sv));
     }
     catch (std::exception const &) {
         return status_resource_exhausted();
@@ -129,7 +134,7 @@ manapi::status manapi::net::http::response::json(manapi::json data, size_t space
 manapi::status manapi::net::http::response::form(formdata_send formdata) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<formdata_send>(std::move(formdata));
-        free_response_data(this->m_type, this->m_data);
+        ::free_response_data(this->m_type, this->m_data);
 
         this->m_data = storage.release();
         this->m_type = internal::RESPONSE_FORMDATA;
@@ -151,9 +156,23 @@ void manapi::net::http::response::status(uint16_t _status_code) MANAPIHTTP_NOEXC
 manapi::status manapi::net::http::response::file(std::string path) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<std::string>(std::move(path));
-        free_response_data(this->m_type, this->m_data);
+        ::free_response_data(this->m_type, this->m_data);
 
         this->m_type = internal::RESPONSE_FILE;
+        this->m_data = storage.release();
+        return status_ok();
+    }
+    catch (std::exception const &) {
+        return status_resource_exhausted();
+    }
+}
+
+manapi::status manapi::net::http::response::slice(manapi::slice sv) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto storage = std::make_unique<manapi::slice>(std::move(sv));
+        ::free_response_data(this->m_type, this->m_data);
+
+        this->m_type = internal::RESPONSE_SLICE;
         this->m_data = storage.release();
         return status_ok();
     }
@@ -188,6 +207,10 @@ bool manapi::net::http::response::is_async_cb() const MANAPIHTTP_NOEXCEPT {
 
 bool manapi::net::http::response::is_sync_cb() const  MANAPIHTTP_NOEXCEPT{
     return this->m_type == internal::RESPONSE_SYNC_CALLBACK;
+}
+
+bool manapi::net::http::response::is_slice() const MANAPIHTTP_NOEXCEPT {
+    return this->m_type == internal::RESPONSE_SLICE;
 }
 
 bool manapi::net::http::response::has_ranges() const MANAPIHTTP_NOEXCEPT {
@@ -579,6 +602,13 @@ manapi::status_or<std::string *> manapi::net::http::response::url() MANAPIHTTP_N
     if (!err)
         return std::move(err);
     return &this->body();
+}
+
+manapi::status_or<manapi::slice *> manapi::net::http::response::slice() MANAPIHTTP_NOEXCEPT {
+    auto err = this->check_type_(internal::RESPONSE_SLICE);
+    if (!err)
+        return std::move(err);
+    return static_cast<manapi::slice *> (this->m_data);
 }
 
 bool manapi::net::http::response::contains_ranges() const MANAPIHTTP_NOEXCEPT {

@@ -554,4 +554,391 @@ UTEST(json_masks, stream_smart_condition_1) {
 }, std::exception);
 }
 
+UTEST(json_masks, array_min_max_conditions) {
+    manapi::json_mask mask = {
+        {"items", manapi::json_mask::Array("{integer(>=0 <=100)}", 2, 5)}
+    };
+
+    auto res = mask.valid(manapi::json {{"items", {1, 2, 3}}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"items", {1, 2}}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"items", {1, 2, 3, 4, 5}}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"items", {1}}});
+    ASSERT_TRUE(!res.ok());
+
+    res = mask.valid(manapi::json {{"items", {1, 2, 3, 4, 5, 6}}});
+    ASSERT_TRUE(!res.ok());
+
+    res = mask.valid(manapi::json {{"items", {1, 200, 3}}});
+    ASSERT_TRUE(!res.ok());
+}
+
+UTEST(json_masks, array_exact_length) {
+    manapi::json_mask mask = {
+        {"data", manapi::json_mask::Array("{string(>=3)}", 3, 3)}
+    };
+
+    auto res = mask.valid(manapi::json {{"data", {"one", "two", "three"}}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"data", {"one", "two"}}});
+    ASSERT_TRUE(!res.ok());
+
+    res = mask.valid(manapi::json {{"data", {"one", "two", "three", "four"}}});
+    ASSERT_TRUE(!res.ok());
+}
+
+UTEST(json_masks, nested_objects) {
+    manapi::json_mask mask = {
+        {"user", {
+            {"name", "{string(>=3 <=50)}"},
+            {"address", {
+                {"city", "{string(>=2)}"},
+                {"zip", "{integer(>=10000 <=99999)}"}
+            }},
+            {"contacts", {
+                {"email", "{string(>=5)}"},
+                {"phone", "{string(>=10)}"}
+            }}
+        }}
+    };
+
+    auto res = mask.valid(manapi::json {
+        {"user", {
+            {"name", "John Doe"},
+            {"address", {
+                {"city", "New York"},
+                {"zip", 10001}
+            }},
+            {"contacts", {
+                {"email", "john@example.com"},
+                {"phone", "+1234567890"}
+            }}
+        }}
+    });
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {
+        {"user", {
+            {"name", "John Doe"},
+            {"address", {
+                {"city", "NY"},
+                {"zip", 999}
+            }},
+            {"contacts", {
+                {"email", "john@example.com"},
+                {"phone", "+1234567890"}
+            }}
+        }}
+    });
+    ASSERT_TRUE(!res.ok());
+}
+
+UTEST(json_masks, optional_fields) {
+    manapi::json_mask mask = {
+        {"required", "{integer(>=0)}"},
+        {"optional", manapi::json_mask::Or(manapi::json::array({"{string}"}), true)}
+    };
+
+    auto res = mask.valid(manapi::json {{"required", 5}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"required", 5}, {"optional", "hello"}});
+    ASSERT_TRUE(res.ok());
+
+    res = mask.valid(manapi::json {{"required", 5}, {"optional", 123}});
+    ASSERT_TRUE(!res.ok());
+}
+
+UTEST(json_masks, complex_or_conditions) {
+    manapi::json_mask mask = {
+        {"value", manapi::json_mask::Or({
+            "{string(\"yes\")}",
+            "{string(\"no\")}",
+            "{integer(0)}",
+            "{integer(1)}",
+            "{bool(true)}",
+            "{bool(false)}"
+        })}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", "yes"}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", "no"}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", 0}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", 1}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", true}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", false}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"value", "maybe"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"value", 2}}).ok());
+}
+
+UTEST(json_masks, decimal_precision) {
+    manapi::json_mask mask = {
+        {"price", "{decimal(>=0.01 <1000)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"price", 99.99}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"price", 0.01}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"price", 999.99}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"price", 0.001}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"price", 1000.00}}).ok());
+}
+
+UTEST(json_masks, string_patterns) {
+    manapi::json_mask mask = {
+        {"username", "{string(>=3 <=20)}"},
+        {"password", "{string(>=8)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"username", "john_doe"}, {"password", "secret123"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"username", "jo"}, {"password", "secret123"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"username", "john_doe"}, {"password", "123"}}).ok());
+}
+
+UTEST(json_masks, mixed_array_types) {
+    manapi::json_mask mask = {
+        {"mixed", manapi::json_mask::Array(manapi::json_mask::Or({
+            "{string}",
+            "{integer}",
+            "{bool}"
+        }), 1, 5)}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"mixed", {"hello", 42, true, "world", 100}}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"mixed", {true, false, true}}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"mixed", {}}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"mixed", {1, 2, 3, 4, 5, 6}}}).ok());
+}
+
+UTEST(json_masks, deep_nesting_with_arrays) {
+    manapi::json_mask mask = {
+        {"root", {
+            {"level1", {
+                {"level2", manapi::json_mask::Array({
+                    {"id", "{integer(>=0)}"},
+                    {"name", "{string(>=2)}"},
+                    {"tags", manapi::json_mask::Array("{string(>=1)}", 0, 3)}
+                }, 1, 10)}
+            }}
+        }}
+    };
+
+    auto obj = manapi::json {
+        {"root", {
+            {"level1", {
+                {"level2", {
+                    {
+                        {"id", 1},
+                        {"name", "item1"},
+                        {"tags", manapi::json::array({"tag1", "tag2"})}
+                    },
+                    {
+                        {"id", 2},
+                        {"name", "item2"},
+                        {"tags", manapi::json::array()}
+                    }
+                }}
+            }}
+        }}
+    };
+    ASSERT_TRUE(mask.valid(obj).ok());
+}
+
+UTEST(json_masks, equal_condition) {
+    manapi::json_mask mask = {
+        {"status", "{string(\"active\")}"},
+        {"code", "{integer(200)}"},
+        {"flag", "{bool(true)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"status", "active"}, {"code", 200}, {"flag", true}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"status", "inactive"}, {"code", 200}, {"flag", true}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"status", "active"}, {"code", 404}, {"flag", true}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"status", "active"}, {"code", 200}, {"flag", false}}).ok());
+}
+
+UTEST(json_masks, range_with_exclusive) {
+    manapi::json_mask mask = {
+        {"age", "{integer(>0 <150)}"},
+        {"score", "{integer(>=0 <=100)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"age", 25}, {"score", 85}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"age", 0}, {"score", 85}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"age", 150}, {"score", 85}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"age", 25}, {"score", -1}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"age", 25}, {"score", 101}}).ok());
+}
+
+UTEST(json_masks, empty_array_validation) {
+    manapi::json_mask mask = {
+        {"items", manapi::json_mask::Array("{integer}", 0, 0)}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"items", manapi::json::array({})}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"items", manapi::json::array({1})}}).ok());
+}
+
+UTEST(json_masks, null_values) {
+    manapi::json_mask mask = {
+        {"nullable", manapi::json_mask::Or({
+            "{null}",
+            "{string}",
+            "{integer}"
+        })}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"nullable", nullptr}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"nullable", "text"}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"nullable", 42}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"nullable", true}}).ok());
+}
+
+UTEST(json_masks, array_of_objects) {
+    manapi::json_mask mask = {
+        {"users", manapi::json_mask::Array({
+            {"name", "{string(>=2)}"},
+            {"age", "{integer(>=0 <=120)}"}
+        }, 1, 100)}
+    };
+
+    auto obj = manapi::json {
+        {"users", {
+            {{"name", "Alice"}, {"age", 25}},
+            {{"name", "Bob"}, {"age", 30}}
+        }}
+    };
+    ASSERT_TRUE(mask.valid(obj).ok());
+
+    obj = manapi::json {{"users", {}}};
+    ASSERT_TRUE(!mask.valid(obj).ok());
+
+    obj = manapi::json {
+        {"users", {
+            {{"name", "A"}, {"age", 25}}
+        }}
+    };
+    ASSERT_TRUE(!mask.valid(obj).ok());
+}
+
+UTEST(json_masks, complex_stream_validation) {
+    manapi::json_mask mask = {
+        {"data", {
+            {"type", "{string(\"user\")}"},
+            {"attributes", {
+                {"id", "{integer(>=1)}"},
+                {"name", "{string(>=2 <=100)}"},
+                {"email", "{string(>=5)}"}
+            }}
+        }}
+    };
+
+    manapi::json_builder builder(mask);
+    builder << R"({"data":{"type":"user","attributes":{"id":123,"name":"John","email":"john@test.com"}}})";
+    auto res = builder.get();
+    ASSERT_TRUE(res.ok());
+
+    builder.set(mask);
+    ASSERT_EXCEPTION(builder << R"({"data":{"type":"user","attributes":{"id":-1,"name":"John","email":"john@test.com"}}})", std::exception);
+}
+
+UTEST(json_masks, multiple_or_levels) {
+    manapi::json_mask mask = {
+        {"result", manapi::json_mask::Or({
+
+                "{string(\"success\")}",
+                "{string(\"ok\")}",
+                "{integer(200)}",
+                "{integer(201)}"
+        })}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"result", "success"}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"result", "ok"}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"result", 200}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"result", 201}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"result", "error"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"result", 404}}).ok());
+}
+
+UTEST(json_masks, strict_length_string) {
+    manapi::json_mask mask = {
+        {"code", "{string(=6)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"code", "ABCDEF"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"code", "ABC"}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"code", "ABCDEFG"}}).ok());
+}
+
+UTEST(json_masks, decimal_scientific_notation) {
+    manapi::json_mask mask = {
+        {"value", "{decimal(=1e5)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", 100000.0}}).ok());
+    ASSERT_TRUE(mask.valid(manapi::json {{"value", 1e5}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"value", 99999.9}}).ok());
+}
+
+UTEST(json_masks, nested_arrays) {
+    manapi::json_mask mask = {
+        {"matrix", manapi::json_mask::Array(
+            manapi::json_mask::Array("{integer}", 2, 2),
+            1, 3
+        )}
+    };
+
+    auto obj = manapi::json {
+        {"matrix", {
+            {1, 2},
+            {3, 4}
+        }}
+    };
+    ASSERT_TRUE(mask.valid(obj).ok());
+
+    obj = manapi::json {
+        {"matrix", {
+            {1, 2, 3}
+        }}
+    };
+    ASSERT_TRUE(!mask.valid(obj).ok());
+
+    obj = manapi::json {
+        {"matrix", {
+            {1, 2},
+            {3, 4},
+            {5, 6}
+        }}
+    };
+    ASSERT_TRUE(mask.valid(obj).ok());
+}
+
+UTEST(json_masks, integer_zero_validation) {
+    manapi::json_mask mask = {
+        {"count", "{integer(=0)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"count", 0}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"count", 1}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"count", -1}}).ok());
+}
+
+UTEST(json_masks, boolean_conditions) {
+    manapi::json_mask mask = {
+        {"active", "{bool(true)}"},
+        {"deleted", "{bool(false)}"}
+    };
+
+    ASSERT_TRUE(mask.valid(manapi::json {{"active", true}, {"deleted", false}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"active", false}, {"deleted", false}}).ok());
+    ASSERT_TRUE(!mask.valid(manapi::json {{"active", true}, {"deleted", true}}).ok());
+}
+
+
 UTEST_MAIN();

@@ -88,8 +88,6 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
         auto transport = this->m_config->transport;
         auto implementations = manapi::net::http::server::cast(this->m_site.get())->transport_protocol_worker(transport);
 
-        http::server::implemenet_http_cb const *implement_http_callback{nullptr};
-
         if (implementations.contains(implementation))
         {
             try {
@@ -154,7 +152,6 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                                 co_return status_failed_precondition("http implementation not found");
                             }
 
-                            implement_http_callback = &it_http_impl->second;
                             auto httpwrk = it_http_impl->second (workerptr);
                             if (!httpwrk.ok())
                                 httpwrk.unwrap();

@@ -99,6 +99,8 @@ namespace manapi {
 
         void clear ();
 
+        static std::size_t area_size () MANAPIHTTP_NOEXCEPT;
+
         template<typename T, typename ...Args>
         std::enable_if<std::has_virtual_destructor_v<T>, manapi::status_or<object_item_pool<T>>> get (Args&&...args) {
             auto b = this->alloc (sizeof (T));

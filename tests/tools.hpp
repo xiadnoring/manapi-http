@@ -86,7 +86,7 @@ inline std::shared_ptr<manapi::net::http::server> init_router (manapi::json cnf,
         manapi::json config = {
             {"pools", manapi::json::array()}
         };
-        if (cnf.contains("http1") && cnf["http1"].as_bool_cast()) {
+        if (cnf.contains("http1") && cnf["http1"].cast_bool().as_bool()) {
             config["pools"].push_back({
                 {"address", "127.0.0.1"},
                 {"port", HTTP1PORT},
@@ -115,7 +115,7 @@ inline std::shared_ptr<manapi::net::http::server> init_router (manapi::json cnf,
                     config["pools"].as_array().back()[it.first] =  std::move(it.second);
             }
         }
-        if (cnf.contains("http2") && cnf["http2"].as_bool_cast()) {
+        if (cnf.contains("http2") && cnf["http2"].cast_bool().as_bool()) {
             config["pools"].push_back({
                 {"address", "127.0.0.1"},
                 {"port", HTTP2PORT},

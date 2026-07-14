@@ -109,9 +109,11 @@ namespace manapi {
             void operator () (slice_part_t *ptr);
         };
 
-        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
+        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, slice_part_t*last, uint32_t nbuff);
 
-        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, std::size_t rshift);
+        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, slice_part_t*last, uint32_t nbuff, std::size_t rshift);
+
+        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, slice_part_t*last, uint32_t nbuff, std::size_t shift, std::size_t rshift, std::size_t size);
 
         slice_base (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
@@ -126,20 +128,22 @@ namespace manapi {
         slice_base &operator=(const slice_base &n);
 
         /**
-         * Adjusts the left shift by |shift| and clears buffer storages if required
+         * Adjusts the left shift by |shift|
          *
          * WARNING: This operation is irreversible
          *
          * @param shift left shift to add
          * @return Ok if success; otherwise it returns OutOfRange
          */
-        manapi::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT;
+        virtual manapi::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT;
 
         manapi::status copy_from (const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
+        manapi::status copy_from (const void *buffer, const slice_part_t *current, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
+
         manapi::status copy_to (void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        manapi::status copy_from (slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT;
+        manapi::status copy_from (const slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD manapi::status_or<manapi::slice_base> subslice (std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT;
 
@@ -155,6 +159,8 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD const slice_part_t *slices_end () const;
 
+        MANAPIHTTP_NODISCARD const slice_part_t *slices_rbegin () const;
+
         slice_iterator begin ();
 
         slice_iterator end ();
@@ -165,28 +171,22 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD int cmp (const manapi::slice_base &n) const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD int cmp (void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD int cmp (const void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT;
 
-        void slices_buffs (ev::buff_t *buffs) const;
+        void slices_buffs (ev::buff_t *buffs, std::size_t cnt, std::size_t *sz = nullptr) const;
 
-        MANAPIHTTP_NODISCARD std::unique_ptr<ev::buff_t, ev::buffer_deleter> slices_buffs () const;
+        MANAPIHTTP_NODISCARD std::unique_ptr<ev::buff_t, ev::buffer_deleter> slices_buffs (std::size_t max_cnt, std::size_t *cnt = nullptr, std::size_t *sz = nullptr) const;
 
         MANAPIHTTP_NODISCARD uint32_t slices_size () const;
 
         MANAPIHTTP_NODISCARD std::size_t size () const;
+
+        MANAPIHTTP_NODISCARD std::string to_string () const;
     protected:
-        manapi::status rshift_add_ (std::size_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::status rshift_add_ (std::size_t s, bool can_free) MANAPIHTTP_NOEXCEPT;
 
         std::size_t size_;
-
         std::size_t shift_;
-        /**
-         * !!! rshift only for slice_view !!!
-         *
-         * bcz using class slice we will
-         * split the slice and will return the cut part
-         * to the memory fabric
-         */
         std::size_t rshift_;
         slice_part_t *first;
         slice_part_t *last;
@@ -199,13 +199,19 @@ namespace manapi {
 
         static manapi::status_or<slice> create (std::size_t n) MANAPIHTTP_NOEXCEPT;
 
-        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,slice_part_t*last, uint32_t nbuff);
 
-        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,  uint32_t nbuff, std::size_t rshift);
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,slice_part_t*last,  uint32_t nbuff, std::size_t rshift);
+
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,slice_part_t*last, uint32_t nbuff, std::size_t shift, std::size_t rshift, std::size_t size);
 
         slice (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
-        //slice (slice_base n);
+        slice (std::string_view n);
+
+        slice (const char* n);
+
+        slice (const char *buffer, std::size_t sz);
 
         slice (slice &&n) MANAPIHTTP_NOEXCEPT;
 
@@ -249,9 +255,21 @@ namespace manapi {
          */
         manapi::status push_back (std::string_view buffer) MANAPIHTTP_NOEXCEPT;
 
+        /**
+         * Adjusts the left shift by |shift| and clears free buffers
+         *
+         * WARNING: This operation is irreversible
+         *
+         * @param shift left shift to add
+         * @return Ok if success; otherwise it returns OutOfRange
+         */
+        manapi::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT override;
+
         void clear () MANAPIHTTP_NOEXCEPT;
 
         void remove_shift () MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD manapi::slice copy () const;
     };
 
     class slice_view final : public slice_base {

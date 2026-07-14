@@ -36,6 +36,7 @@ namespace manapi::net::http::internal {
     future<void> send_response_text (std::unique_ptr<response> res, response_features_t features);
     future<void> send_response_proxy (std::unique_ptr<response> res, response_features_t features);
     future<void> send_response_formdata (std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_slice (std::unique_ptr<response> res, response_features_t features);
     void send_response_sync_cb (std::unique_ptr<response> res, response_features_t features);
     void send_response_stream_cb (std::unique_ptr<response> res, response_features_t features);
     void send_response_async_cb (std::unique_ptr<response> res, response_features_t features);
@@ -45,6 +46,7 @@ namespace manapi::net::http::internal {
     //future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers);
     future<void> send_file(std::unique_ptr<response> res, std::shared_ptr<fs::fstream> f, std::size_t size);
     future<void> send_text(std::unique_ptr<response> res, std::string text);
+    future<void> send_slice(std::unique_ptr<response> res, manapi::slice sv);
     void expect_header (uq_handle_data_t cdata);
 
     /**

@@ -109,6 +109,9 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
             case internal::RESPONSE_STREAM:
                 send_response_stream_cb(std::move(res), std::move(features));
             break;
+            case internal::RESPONSE_SLICE:
+                manapi::async::run(send_response_slice(std::move(res), std::move(features)));
+            break;
             default: {
                 auto const resptr = res.get();
                 manapi::async::run<int>(mask_response(resptr, true),
@@ -604,6 +607,54 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "send_response_formdata()", e.what());
+    }
+}
+
+manapi::future<> manapi::net::http::internal::send_response_slice(std::unique_ptr<response> res,response_features_t features) {
+    try {
+        // may contains decoded / encoded body
+        auto errtext = res->slice();
+        if (!errtext.ok()) {
+            co_return;
+        }
+        manapi::slice sv = std::move(*errtext.unwrap());
+
+        if (features.replacers) {
+            manapi_log_debug("send_response_slice: replacers are not supported");
+        }
+
+        if (features.compressor_for_string) {
+            manapi_log_debug("send_response_slice: compressor are not supported");
+        }
+
+        res->header(std::string{H_CONTENT_LENGTH}, std::to_string(sv.size())).unwrap();
+
+        if (!res->headers().contains(H_CONTENT_TYPE)) {
+            res->header(std::string{H_CONTENT_TYPE}, "text/html; charset=UTF-8").unwrap();
+        }
+
+        auto task = mask_response(res.get(), sv.empty());
+        manapi::async::run<int>(std::move(task),
+            [sv = std::move(sv), res = std::move(res)] (std::exception_ptr err, int *value) mutable
+            -> void {
+                if (err) {
+                    /* failed */
+                    return;
+                }
+
+                if (value && *value == ERR_OK) {
+                    /* ok */
+                    if (sv.empty())
+                        res->connection_data()->cb->call(true);
+                    else
+                        manapi::async::run (send_slice(std::move(res), std::move(sv)));
+                }
+        });
+
+        co_return;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response_text()", e.what());
     }
 }
 
@@ -1336,6 +1387,30 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
         sent -= static_cast<std::size_t>(result);
 
         current = current + result;
+    }
+
+    cdata->cb->call(true);
+}
+
+manapi::future<> manapi::net::http::internal::send_slice(std::unique_ptr<response> res, manapi::slice sv) {
+    auto cdata = res->connection_data();
+
+    while (!sv.empty()) {
+        const ssize_t result = co_await cdata->worker->write(cdata->conn, sv, true);
+
+        if (result <= 0) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_slice()",
+                "write failed");
+            co_return;
+        }
+
+        if (static_cast<std::size_t>(result) > sv.size()) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_slice()",
+                "write incorrect");
+            co_return;
+        }
+
+        sv.shift_add(static_cast<std::size_t>(result)).unwrap();
     }
 
     cdata->cb->call(true);

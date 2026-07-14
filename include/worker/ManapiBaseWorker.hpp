@@ -38,7 +38,7 @@ namespace manapi::net::worker {
     enum worker_base_flags {
         WORKER_BASE_FLAG_MULTISTREAM = 1,
         WORKER_BASE_FLAG_CLOSED = 2,
-        WORKER_BASE_FLAG_RESERVED1 = 4,
+        WORKER_BASE_FLAG_AUTO_ACK = 4,
         WORKER_BASE_FLAG_RESERVED2 = 8,
         WORKER_BASE_FLAG_MAX = WORKER_BASE_FLAG_RESERVED2
     };

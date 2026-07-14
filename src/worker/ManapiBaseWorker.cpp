@@ -40,14 +40,15 @@ manapi::net::worker::base::base() = default;
 manapi::net::worker::base::~base() = default;
 
 ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi::slice_view buffs, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
-    uint32_t const count = buffs.slices_size();
+    uint32_t const count = std::min<uint32_t>(buffs.slices_size(), 128);
 #ifdef _MSC_VER
     ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
 #else
     ev::buff_t slices[count];
 #endif
-    buffs.slices_buffs(slices);
-    return this->sync_write_ex(conn, slices, count, buffs.size(), finish, maxcnt);
+    std::size_t sz = 0;
+    buffs.slices_buffs(slices, count, &sz);
+    return this->sync_write_ex(conn, slices, count, sz, finish, maxcnt);
 }
 
 ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const void *buff, std::size_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
@@ -58,13 +59,13 @@ ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const 
 }
 
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_view buffs, bool finish) MANAPIHTTP_NOEXCEPT {
-    uint32_t const count = buffs.slices_size();
+    uint32_t const count = std::min<uint32_t>(buffs.slices_size(), 128);
 #ifdef _MSC_VER
     ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
 #else
     ev::buff_t slices[count];
 #endif
-    buffs.slices_buffs(slices);
+    buffs.slices_buffs(slices, count);
     return this->sync_write(conn, slices, count, finish);
 }
 

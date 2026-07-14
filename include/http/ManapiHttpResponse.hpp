@@ -60,6 +60,8 @@ namespace manapi::net::http {
 
         manapi::status file (std::string path) MANAPIHTTP_NOEXCEPT;
 
+        manapi::status slice (manapi::slice sv) MANAPIHTTP_NOEXCEPT;
+
 #ifdef MANAPIHTTP_FETCH_SUPPORT
         manapi::status proxy (std::string url) MANAPIHTTP_NOEXCEPT;
 
@@ -100,6 +102,8 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD bool is_sync_cb() const MANAPIHTTP_NOEXCEPT;
 
+        MANAPIHTTP_NODISCARD bool is_slice () const MANAPIHTTP_NOEXCEPT;
+
         MANAPIHTTP_NODISCARD bool has_ranges () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool partial_enabled () const MANAPIHTTP_NOEXCEPT;
@@ -111,6 +115,8 @@ namespace manapi::net::http {
         manapi::status_or<std::string *> text () MANAPIHTTP_NOEXCEPT;
 
         manapi::status_or<std::string *> url () MANAPIHTTP_NOEXCEPT;
+
+        manapi::status_or<manapi::slice *> slice () MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool contains_ranges () const MANAPIHTTP_NOEXCEPT;
 

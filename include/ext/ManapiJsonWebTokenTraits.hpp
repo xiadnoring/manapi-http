@@ -4,6 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
+#include "std/ManapiSlice.hpp"
 
 namespace jwt {
     namespace traits {
@@ -23,7 +24,7 @@ namespace jwt {
                 if (val.is_bigint()) return type::number; /** bigint can be decimal */
 #endif
                 if (val.is_decimal()) return type::number;
-                if (val.is_string()) return type::string;
+                if (val.is_string() || val.is_slice()) return type::string;
                 if (val.is_array()) return type::array;
                 if (val.is_object()) return type::object;
 
@@ -36,6 +37,7 @@ namespace jwt {
             }
 
             static string_type as_string(const value_type& val) {
+                if (val.is_slice()) return val.as_slice().to_string();
                 if (!val.is_string()) throw std::bad_cast();
                 return val.as_string();
             }
@@ -62,7 +64,7 @@ namespace jwt {
 
             static bool parse(value_type& val, const std::string& str) {
                 try {
-                    val = manapi::json (str, true);
+                    val = manapi::json::parse (str).unwrap();
                     return true;
                 }
                 catch (std::exception const &e) {

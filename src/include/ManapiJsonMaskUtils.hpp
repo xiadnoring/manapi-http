@@ -31,6 +31,45 @@ namespace manapi {
         return "undefined";
     }
 
+    class json_dump_buf_str : public manapi::json_dump_buffer {
+    public:
+        json_dump_buf_str (std::string *str);
+
+        void set (std::string *str);
+
+        void push_back(const char *buffer, std::size_t sz) override;
+
+        void push_back(char c) override;
+    private:
+        std::string *m_str;
+    };
+
+    class json_dump_buf_prealloc_sv : public manapi::json_dump_buffer {
+    public:
+        json_dump_buf_prealloc_sv (manapi::slice *sv);
+
+        void set (manapi::slice *sv);
+
+        void push_back(const char *buffer, std::size_t sz) override;
+
+        void push_back(char c) override;
+    private:
+        manapi::slice_view m_sv;
+    };
+
+    class json_dump_buf_sv : public manapi::json_dump_buffer {
+    public:
+        json_dump_buf_sv (manapi::slice *sv);
+
+        void set (manapi::slice *sv);
+
+        void push_back(const char *buffer, std::size_t sz) override;
+
+        void push_back(char c) override;
+    private:
+        manapi::slice *m_sv;
+    };
+
     template<typename T>
     bool json_verify_min_mean (int flags, const manapi::json &n, const T &val) {
         if (flags & JSON_MASK_TYPE_FLAG_S) {

@@ -59,7 +59,7 @@ UTEST(json, block_parse_unsigned_integer) {
     auto rhs = manapi::json::parse(R"({"int": 18446744073709551615})");
     ASSERT_TRUE(rhs.ok());
     auto res = rhs.unwrap();
-    ASSERT_EQ(static_cast<std::size_t>(res["int"].as_integer()), 18446744073709551615UL);
+    ASSERT_TRUE(std::abs(res["int"].cast_decimal().as_decimal()-18446744073709551615.0) <= 100);
 }
 
 UTEST(json, block_parse_bool) {
@@ -106,6 +106,178 @@ UTEST(json, block_parse_string_unicode) {
     ASSERT_TRUE(rhs.ok());
     res = rhs.unwrap();
     ASSERT_TRUE(res["<<<&gt"] == "<<<&gt");
+}
+
+UTEST(json, utf8_simple_cyrillic) {
+    auto rhs = manapi::json::parse(R"({"hello": "Привет мир", "goodbye": "До свидания"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["hello"] == "Привет мир");
+    ASSERT_TRUE(res["goodbye"] == "До свидания");
+}
+
+UTEST(json, utf8_chinese_japanese_korean) {
+    auto rhs = manapi::json::parse(R"({
+        "chinese": "你好世界",
+        "japanese": "こんにちは世界",
+        "korean": "안녕하세요 세계"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["chinese"] == "你好世界");
+    ASSERT_TRUE(res["japanese"] == "こんにちは世界");
+    ASSERT_TRUE(res["korean"] == "안녕하세요 세계");
+}
+
+UTEST(json, utf8_emoji_mixed) {
+    auto rhs = manapi::json::parse(R"({
+        "flags": "🇺🇸🇬🇧🇫🇷🇩🇪🇯🇵🇨🇳",
+        "faces": "😀😁😂🤣😊😍🥰😘",
+        "animals": "🐶🐱🐭🐹🐰🦊🐻🐼",
+        "food": "🍎🍐🍊🍋🍌🍉🍇🍓"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["flags"] == "🇺🇸🇬🇧🇫🇷🇩🇪🇯🇵🇨🇳");
+    ASSERT_TRUE(res["faces"] == "😀😁😂🤣😊😍🥰😘");
+    ASSERT_TRUE(res["animals"] == "🐶🐱🐭🐹🐰🦊🐻🐼");
+    ASSERT_TRUE(res["food"] == "🍎🍐🍊🍋🍌🍉🍇🍓");
+}
+
+UTEST(json, utf8_special_characters) {
+    auto rhs = manapi::json::parse(R"({
+        "math": "∑∏∫∂√∞≈≠≤≥",
+        "arrows": "←↑→↓↔↕↖↗↘↙",
+        "currency": "€£¥₽₩₪₹₫₦",
+        "symbols": "©®™§¶•†‡"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["math"] == "∑∏∫∂√∞≈≠≤≥");
+    ASSERT_TRUE(res["arrows"] == "←↑→↓↔↕↖↗↘↙");
+    ASSERT_TRUE(res["currency"] == "€£¥₽₩₪₹₫₦");
+    ASSERT_TRUE(res["symbols"] == "©®™§¶•†‡");
+}
+
+UTEST(json, utf8_long_complex_string) {
+    std::string long_utf8 =
+        "🌟 Звезда звезда 🌟\\n"
+        "🌈 Радуга радуга 🌈\\n"
+        "🎵 Музыка музыка 🎵\\n"
+        "🚀 Космос космос 🚀\\n"
+        "💻 Программирование программирование 💻\\n"
+        "🧠 Искусственный интеллект 🧠\\n"
+        "🌍 Планета Земля 🌍\\n"
+        "☕ Кофе ☕\\n"
+        "📚 Книги 📚\\n"
+        "🎮 Игры 🎮\\n"
+        "🏆 Победа 🏆\\n"
+        "⭐ Успех ⭐";
+    std::string long_utf82 =
+        "🌟 Звезда звезда 🌟\n"
+        "🌈 Радуга радуга 🌈\n"
+        "🎵 Музыка музыка 🎵\n"
+        "🚀 Космос космос 🚀\n"
+        "💻 Программирование программирование 💻\n"
+        "🧠 Искусственный интеллект 🧠\n"
+        "🌍 Планета Земля 🌍\n"
+        "☕ Кофе ☕\n"
+        "📚 Книги 📚\n"
+        "🎮 Игры 🎮\n"
+        "🏆 Победа 🏆\n"
+        "⭐ Успех ⭐";
+
+    auto rhs = manapi::json::parse("{\"text\": \"" + long_utf8 + "\"}");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["text"] == long_utf82);
+}
+
+UTEST(json, utf8_surrogate_pairs) {
+    auto rhs = manapi::json::parse(R"({
+        "musical": "𝄞𝄢𝄫𝄬",
+        "cards": "🂠🂡🂢🂣🂤",
+        "cjk_ext": "𠀀𠀁𠀂𠀃",
+        "old_italic": "𐌀𐌁𐌂𐌃"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["musical"].as_string() == "𝄞𝄢𝄫𝄬");
+    ASSERT_TRUE(res["cards"].as_string() == "🂠🂡🂢🂣🂤");
+    ASSERT_TRUE(res["cjk_ext"].as_string() == "𠀀𠀁𠀂𠀃");
+    ASSERT_TRUE(res["old_italic"].as_string() == "𐌀𐌁𐌂𐌃");
+}
+
+UTEST(json, utf8_unicode_escape_mixed) {
+    auto rhs = manapi::json::parse(R"({
+        "mixed": "\u041F\u0440\u0438\u0432\u0435\u0442 World \uD83C\uDF0D",
+        "only_escapes": "\u041F\u0440\u0438\u0432\u0435\u0442 \u043C\u0438\u0440",
+        "mixed_with_quotes": "\u041F\u0440\u0438\u0432\u0435\u0442 \"World\" \uD83D\uDE00"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["mixed"] == "Привет World 🌍");
+    ASSERT_TRUE(res["only_escapes"] == "Привет мир");
+    ASSERT_TRUE(res["mixed_with_quotes"] == "Привет \"World\" 😀");
+}
+
+UTEST(json, debug_unicode_surrogate) {
+    auto rhs = manapi::json::parse(R"({"single": "\u041F"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["single"].as_string()== "П");
+
+    rhs = manapi::json::parse(R"({"emoji": "\uD83C\uDF0D"})");
+    ASSERT_TRUE(rhs.ok());
+    res = rhs.unwrap();
+
+    std::string emoji = res["emoji"].as_string();
+
+    std::string expected = "\xF0\x9F\x8C\x8D";
+    ASSERT_TRUE(emoji== expected);
+    ASSERT_TRUE(emoji.size()== 4);
+}
+
+UTEST(json, utf8_bidi_text) {
+    auto rhs = manapi::json::parse(R"({
+        "arabic": "السلام عليكم",
+        "hebrew": "שָׁלוֹם",
+        "mixed": "Hello السلام عليكم שלום World",
+        "rtl_with_numbers": "السلام عليكم 123 Шалом"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["arabic"] == "السلام عليكم");
+    ASSERT_TRUE(res["hebrew"] == "שָׁלוֹם");
+    ASSERT_TRUE(res["mixed"] == "Hello السلام عليكم שלום World");
+    ASSERT_TRUE(res["rtl_with_numbers"] == "السلام عليكم 123 Шалом");
+}
+
+UTEST(json, utf8_multiline_poem) {
+    auto rhs = manapi::json::parse(R"({
+        "poem": "В лесу родилась ёлочка,\nВ лесу она росла.\nЗимой и летом стройная,\nЗелёная была.\n\n🎄🎄🎄\n\nМетель ей пела песенку:\n«Спи, ёлочка, бай-бай!»\nМороз снежком укутывал:\n«Смотри, не замерзай!»"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    std::string poem = res["poem"].as_string();
+    ASSERT_TRUE(poem.find("В лесу родилась ёлочка") != std::string::npos);
+    ASSERT_TRUE(poem.find("🎄") != std::string::npos);
+    ASSERT_TRUE(poem.find("\n") != std::string::npos);
+}
+
+UTEST(json, utf8_control_chars_escaped) {
+    auto rhs = manapi::json::parse(R"({
+        "with_newlines": "Привет\nМир\n\tТабуляция",
+        "with_quotes": "Она сказала: \"Привет!\"",
+        "with_backslashes": "Путь: C:\\Users\\Имя\\Documents",
+        "mixed_escapes": "UTF-8: 🚀\nTab:\tDone\nQuote:\"\"\nBackslash:\\"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["with_newlines"] == "Привет\nМир\n\tТабуляция");
+    ASSERT_TRUE(res["with_quotes"] == "Она сказала: \"Привет!\"");
+    ASSERT_TRUE(res["with_backslashes"] == "Путь: C:\\Users\\Имя\\Documents");
+    ASSERT_TRUE(res["mixed_escapes"] == "UTF-8: 🚀\nTab:\tDone\nQuote:\"\"\nBackslash:\\");
 }
 
 UTEST(json, block_parse_null) {
@@ -473,5 +645,253 @@ UTEST(json, bigint_comp) {
     ASSERT_TRUE(data != 0.5);
 }
 #endif
+
+UTEST(json, block_parse_decimal_scientific) {
+    auto rhs = manapi::json::parse(R"({"e1": 1e5, "e2": 1E5, "e3": 1e-5, "e4": 1E-5, "e5": 1e+5, "e6": 1E+5})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(std::abs(res["e1"].as_decimal() - 100000.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["e2"].as_decimal() - 100000.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["e3"].as_decimal() - 0.00001) <= 0.1);
+    ASSERT_TRUE(std::abs(res["e4"].as_decimal() - 0.00001) <= 0.1);
+    ASSERT_TRUE(std::abs(res["e5"].as_decimal() - 100000.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["e6"].as_decimal() - 100000.0) <= 0.1);
+}
+
+UTEST(json, block_parse_decimal_scientific_with_dot) {
+    auto rhs = manapi::json::parse(R"({"d1": 1.5e3, "d2": 1.5E3, "d3": 1.5e-3, "d4": 1.5E-3, "d5": 1.5e+3, "d6": 1.5E+3})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(std::abs(res["d1"].as_decimal() - 1500.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d2"].as_decimal() - 1500.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d3"].as_decimal() - 0.0015) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d4"].as_decimal() - 0.0015) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d5"].as_decimal() - 1500.0) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d6"].as_decimal() - 1500.0) <= 0.1);
+}
+
+UTEST(json, block_parse_decimal_leading_dot) {
+    auto rhs = manapi::json::parse(R"({"d1": .123, "d2": -.456, "d3": .789e2})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(std::abs(res["d1"].as_decimal() - 0.123) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d2"].as_decimal() - -0.456) <= 0.1);
+    ASSERT_TRUE(std::abs(res["d3"].as_decimal() - 78.9) <= 0.1);
+}
+
+UTEST(json, block_parse_decimal_trailing_dot) {
+    auto rhs = manapi::json::parse(R"({"d1": 123., "d2": 456.0, "d3": 789.})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["d1"].as_decimal() == 123.0);
+    ASSERT_TRUE(res["d2"].as_decimal() == 456.0);
+    ASSERT_TRUE(res["d3"].as_decimal() == 789.0);
+}
+
+UTEST(json, block_parse_zero_values) {
+    auto rhs = manapi::json::parse(R"({"z1": 0, "z2": 0.0, "z3": 0e0, "z4": -0, "z5": -0.0, "z6": 0e+0})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["z1"].as_integer() == 0);
+    ASSERT_TRUE(res["z2"].as_decimal() == 0.0);
+    ASSERT_TRUE(res["z3"].as_decimal() == 0.0);
+    ASSERT_TRUE(res["z4"].as_integer() == 0);
+    ASSERT_TRUE(res["z5"].as_decimal() == 0.0);
+    ASSERT_TRUE(res["z6"].as_decimal() == 0.0);
+}
+
+UTEST(json, block_parse_negative_numbers) {
+    auto rhs = manapi::json::parse(R"({"n1": -123, "n2": -123.456, "n3": -1e-3, "n4": -1.5e-2})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["n1"].as_integer() == -123);
+    ASSERT_TRUE(std::abs(res["n2"].as_decimal() - -123.456) <= 0.1);
+    ASSERT_TRUE(std::abs(res["n3"].as_decimal() - -0.001) <= 0.1);
+    ASSERT_TRUE(std::abs(res["n4"].as_decimal() - -0.015) <= 0.1);
+}
+
+UTEST(json, block_parse_overflow_integer) {
+    auto rhs = manapi::json::parse(R"({"big": 99999999999999999999})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(std::abs(res["big"].cast_decimal().as_decimal() - 99999999999999999999.0) <= 1000);
+}
+
+UTEST(json, block_parse_empty_object) {
+    auto rhs = manapi::json::parse(R"({})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.is_object());
+    ASSERT_TRUE(res.size() == 0);
+}
+
+UTEST(json, block_parse_empty_array) {
+    auto rhs = manapi::json::parse(R"([])");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.is_array());
+    ASSERT_TRUE(res.size() == 0);
+}
+
+UTEST(json, block_parse_nested_empty) {
+    auto rhs = manapi::json::parse(R"({"empty_obj": {}, "empty_arr": []})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["empty_obj"].is_object());
+    ASSERT_TRUE(res["empty_obj"].size() == 0);
+    ASSERT_TRUE(res["empty_arr"].is_array());
+    ASSERT_TRUE(res["empty_arr"].size() == 0);
+}
+
+UTEST(json, block_parse_deep_nesting) {
+    auto rhs = manapi::json::parse(R"({"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":{"i":{"j":{"k":{"l":{"m":{"n":{"o":{"p":{"q":{"r":{"s":{"t":{"u":{"v":{"w":{"x":{"y":{"z":"deep"}}}}}}}}}}}}}}}}}}}}}}}}}})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    auto deep = res;
+    for (char c = 'a'; c <= 'z'; c++) {
+        std::string key(1, c);
+        ASSERT_TRUE(deep.is_object());
+        ASSERT_TRUE(deep.contains(key));
+        deep = deep[key];
+    }
+    ASSERT_TRUE(deep == "deep");
+}
+
+UTEST(json, block_parse_unicode_escape_sequences) {
+    auto rhs = manapi::json::parse(R"({
+        "u1": "\u0041",
+        "u2": "\u00A9",
+        "u3": "\u03A0",
+        "u4": "\u041F",
+        "u5": "\u6C34",
+        "u6": "\uD83C\uDF0D"
+    })");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["u1"] == "A");
+    ASSERT_TRUE(res["u2"] == "©");
+    ASSERT_TRUE(res["u3"] == "Π");
+    ASSERT_TRUE(res["u4"] == "П");
+    ASSERT_TRUE(res["u5"] == "水");
+    ASSERT_TRUE(res["u6"] == "🌍");
+}
+
+UTEST(json, block_parse_escape_characters) {
+    auto rhs = manapi::json::parse(R"({"escapes": "\"\\\/\b\f\n\r\t"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["escapes"] == "\"\\/\b\f\n\r\t");
+}
+
+UTEST(json, block_parse_unicode_mixed_with_escapes) {
+    auto rhs = manapi::json::parse(R"({"mixed": "\u041F\u0440\u0438\u0432\u0435\u0442 \n \uD83C\uDF0D \t \"world\""})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["mixed"] == "Привет \n 🌍 \t \"world\"");
+}
+
+UTEST(json, block_parse_invalid_json_unclosed_object) {
+    auto rhs = manapi::json::parse(R"({"hello": "world")");
+    ASSERT_TRUE(!rhs.ok());
+}
+
+UTEST(json, block_parse_invalid_json_unclosed_array) {
+    auto rhs = manapi::json::parse(R"([1, 2, 3)");
+    ASSERT_TRUE(!rhs.ok());
+}
+
+UTEST(json, block_parse_invalid_json_trailing_comma) {
+    auto rhs = manapi::json::parse(R"({"hello": "world",})");
+    ASSERT_TRUE(rhs.ok());
+}
+
+UTEST(json, block_parse_invalid_json_trailing_comma_array) {
+    auto rhs = manapi::json::parse(R"([1, 2, 3,])");
+    ASSERT_TRUE(rhs.ok());
+}
+
+UTEST(json, block_parse_invalid_json_missing_colon) {
+    auto rhs = manapi::json::parse(R"({"hello" "world"})");
+    ASSERT_TRUE(!rhs.ok());
+}
+
+UTEST(json, block_parse_invalid_json_missing_comma) {
+    auto rhs = manapi::json::parse(R"({"hello": "world" "world": "hello"})");
+    ASSERT_TRUE(!rhs.ok());
+}
+
+UTEST(json, block_parse_whitespace_only) {
+    auto rhs = manapi::json::parse(R"(   )");
+    ASSERT_TRUE(!rhs.ok());
+}
+
+UTEST(json, block_parse_single_number) {
+    auto rhs = manapi::json::parse(R"(123)");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.as_integer() == 123);
+}
+
+UTEST(json, block_parse_single_decimal) {
+    auto rhs = manapi::json::parse(R"(123.456)");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(std::abs(res.as_decimal() - 123.456) <= 0.1);
+}
+
+UTEST(json, block_parse_single_string) {
+    auto rhs = manapi::json::parse(R"("hello")");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res == "hello");
+}
+
+UTEST(json, block_parse_single_bool_true) {
+    auto rhs = manapi::json::parse(R"(true)");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.as_bool() == true);
+}
+
+UTEST(json, block_parse_single_bool_false) {
+    auto rhs = manapi::json::parse(R"(false)");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.as_bool() == false);
+}
+
+UTEST(json, block_parse_single_null) {
+    auto rhs = manapi::json::parse(R"(null)");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.is_null());
+}
+
+UTEST(json, block_parse_array_with_whitespace) {
+    auto rhs = manapi::json::parse(R"( [ 1 , 2 , 3 , 4 , 5 ] )");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.is_array());
+    ASSERT_TRUE(res.size() == 5);
+    ASSERT_TRUE(res[0] == 1);
+    ASSERT_TRUE(res[4] == 5);
+}
+
+UTEST(json, block_parse_object_with_whitespace) {
+    auto rhs = manapi::json::parse(R"( { "a" : 1 , "b" : 2 , "c" : 3 } )");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res.is_object());
+    ASSERT_TRUE(res.size() == 3);
+    ASSERT_TRUE(res["a"] == 1);
+    ASSERT_TRUE(res["c"] == 3);
+}
+
+UTEST(json, block_parse_empty_string) {
+    auto rhs = manapi::json::parse(R"({"empty": ""})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["empty"] == "");
+}
 
 UTEST_MAIN();

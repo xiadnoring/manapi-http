@@ -28,7 +28,7 @@ enum buffer_level {
     BUFF_LEVEL_MAX
 };
 
-constexpr int area_size = 4096;
+constexpr std::size_t area_size = 4096;
 
 struct manapi::internal::object_pool_data_t {
     manapi::chain<std::pair<void*, std::size_t>> buffers[BUFF_LEVEL_MAX + 1];
@@ -138,7 +138,7 @@ manapi::object_pool::object_pool() {
 
 manapi::object_pool::~object_pool() = default;
 
-int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
+static int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
     auto const lvl = bufflen2level(suggested);
     auto size = level2bufflen(lvl);
     data->cnt ++;
@@ -183,8 +183,8 @@ int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, 
 }
 
 manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggested) {
-    std::size_t cnt = suggested / area_size;
-    std::size_t const left = suggested - cnt * area_size;
+    std::size_t cnt = suggested / ::area_size;
+    std::size_t const left = suggested - cnt * ::area_size;
 
     std::unique_ptr<slice_part_t, slice::slice_part_deleter> buffs{};
 
@@ -209,12 +209,12 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         void *buffptr{nullptr};
         std::size_t buffsize;
 
-        if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size)) {
+        if (::object_pool_malloc(this->data.get(), &buffptr, &buffsize, ::area_size)) {
             delete []static_cast<char*>(buffptr);
             return status_resource_exhausted();
         }
 
-        assert((buffsize >= area_size));
+        assert((buffsize >= ::area_size));
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = static_cast<decltype(cur->buff.len)>(buffsize);
     }
@@ -248,7 +248,7 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         cnt ++;
     }
 
-    auto b = manapi::slice(std::move(buffs), static_cast<uint32_t>(cnt), rshift);
+    auto b = manapi::slice(std::move(buffs), cur, static_cast<uint32_t>(cnt), 0, rshift,  suggested);
     assert(b.size() == suggested);
     return std::move(b);
 }
@@ -332,5 +332,9 @@ void manapi::object_pool::free(void *pointer, std::size_t size) MANAPIHTTP_NOEXC
 
 void manapi::object_pool::clear() {
     object_item_pool_clear (this->data);
+}
+
+std::size_t manapi::object_pool::area_size() MANAPIHTTP_NOEXCEPT {
+    return ::area_size;
 }
 

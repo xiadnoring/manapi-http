@@ -98,7 +98,7 @@ manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::sit
     this->ctx = nullptr;
     this->count = 0;
     this->finish_ref=0;
-    this->flags_ = WORKER_BASE_FLAG_MULTISTREAM;
+    this->flags_ |= WORKER_BASE_FLAG_MULTISTREAM|WORKER_BASE_FLAG_AUTO_ACK;
     this->pool_data_ = nullptr;
     this->deep_worker_id_ = 0;
     this->wbio = nullptr;

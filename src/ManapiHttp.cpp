@@ -169,7 +169,7 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
             auto exists = co_await manapi::fs::async_exists(path);
             if (!exists.ok() || exists.unwrap()) {
                 auto res = co_await manapi::fs::async_read(path);
-                cache = manapi::json(res.unwrap(), true);
+                cache = manapi::json::parse(res.unwrap()).unwrap();
             }
         }
         catch (std::exception const &e) {
@@ -525,7 +525,7 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
                         }
 
                         auto res = co_await manapi::fs::async_read (path);
-                        auto obj = manapi::json(res.unwrap(), true);
+                        auto obj = manapi::json::parse(res.unwrap()).unwrap();
 
                         if (!obj.is_object())
                             obj = manapi::json::object();

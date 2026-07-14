@@ -16,6 +16,10 @@
 namespace manapi {
     class slice;
 
+    class slice_view;
+
+    class slice_base;
+
     class json_source;
 
     /**
@@ -69,6 +73,7 @@ namespace manapi {
             INTEGER *integer_src_;
             DECIMAL *decimal_src_;
             PAIR    *pair_src_;
+            manapi::slice *slice_src_;
             manapi::json_source *source_src_;
         };
 
@@ -95,6 +100,8 @@ namespace manapi {
             type_pair = 9,
             /* external source */
             type_source = 10,
+            /* slice */
+            type_slice = 11,
             /* max type code reserved by manapihttp */
             type_max = type_source
         };
@@ -142,7 +149,15 @@ namespace manapi {
          * @param data source string
          * @return a json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
          */
-        static manapi::status_or<json> parse (STRING_VIEW data);
+        static manapi::status_or<json> parse (STRING_VIEW data, uint32_t flags = 0);
+
+        /**
+         * Parse JSON from slice
+         *
+         * @param data source slice
+         * @return a json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
+         */
+        static manapi::status_or<json> parse (const manapi::slice_view &data, uint32_t flags = 0);
 
         /**
          * Stringify JSON as a string
@@ -178,9 +193,8 @@ namespace manapi {
         /**
          * initialize JSON from a source string
          * @param str source string
-         * @param parse source is a JSON string if |parse| is true
          */
-        json(STRING_VIEW str, bool parse = false);
+        json(STRING_VIEW str);
 
         /**
          * initialize JSON from an integer
@@ -191,15 +205,26 @@ namespace manapi {
         /**
          * initialize JSON from a source array of chars
          * @param plain_text array of chars
-         * @param parse source is a JSON string if it is true
          */
-        json(const char *plain_text, bool parse = false);
+        json(const char *plain_text);
 
         /**
          * initialize JSON from a source string
          * @param str source string
          */
         json(STRING str);
+
+        /**
+         * initialize JSON from a source slice
+         * @param sv source slice
+         */
+        json(manapi::slice&& sv);
+
+        /**
+         * initialize JSON from a source slice
+         * @param sv source slice
+         */
+        json(const slice_base &sv);
 
         /**
          * initialize JSON from a decimal
@@ -402,6 +427,8 @@ namespace manapi {
         json &operator= (const json &obj);
         json &operator= (json &&obj) MANAPIHTTP_NOEXCEPT;
         json &operator= (const std::initializer_list <json> &data);
+        json &operator= (manapi::slice &&sv);
+        json &operator= (const manapi::slice_base &sv);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -547,6 +574,7 @@ namespace manapi {
         bool operator== (const char *n) const;
         bool operator== (const STRING_VIEW &n) const;
         bool operator== (const STRING &n) const;
+        bool operator== (const manapi::slice_base &n) const;
         bool operator== (INTEGER n) const;
         bool operator== (DECIMAL n) const;
         bool operator> (INTEGER n) const;
@@ -774,6 +802,12 @@ namespace manapi {
 
         /**
          * check the JSON type
+         * @return true if it's a slice
+         */
+        MANAPIHTTP_NODISCARD bool is_slice () const MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * check the JSON type
          * @return true if it's a integer
          */
         MANAPIHTTP_NODISCARD bool is_integer () const MANAPIHTTP_NOEXCEPT;
@@ -909,51 +943,76 @@ namespace manapi {
         MANAPIHTTP_NODISCARD BOOLEAN &as_bool ();
 
         /**
-         * non-strict string retrieval
+         * strict boolean retrieval
+         * @return
+         */
+        MANAPIHTTP_NODISCARD const manapi::slice &as_slice () const;
+
+        /**
+         * strict boolean retrieval
+         * @return
+         */
+        MANAPIHTTP_NODISCARD manapi::slice &as_slice ();
+
+        /**
+         * string retrieval
          *
          * string - string
          * integer - string
          * bigint - string
          * decimal - string
+         * slice - string
          * @return
          */
-        MANAPIHTTP_NODISCARD STRING as_string_cast () const;
+        manapi::json &cast_string ();
 
         /**
-         * non-strict integer retrieval
+         * integer retrieval
          *
          * @note integer - integer
          * @note decimal - integer
          * @note bigint - integer
          * @return
          */
-        MANAPIHTTP_NODISCARD INTEGER as_integer_cast () const;
+        manapi::json &cast_integer ();
 
         /**
-         * non-strict null retrieval
+         * null retrieval
          *
          * @note null - null
          * @return
          */
-        MANAPIHTTP_NODISCARD NULLPTR as_null_cast () const;
+        manapi::json &cast_null ();
 
         /**
-         * non-strict deciaml retrieval
+         * deciaml retrieval
          *
          * @note decimal - decimal
          * @note bigint - decimal
          * @note integer - decimal
          * @return
          */
-        MANAPIHTTP_NODISCARD DECIMAL as_decimal_cast () const;
+        manapi::json &cast_decimal ();
 
         /**
-         * non-strict boolean retrieval
+         * boolean retrieval
          *
          * @note boolean - boolean
          * @return
          */
-        MANAPIHTTP_NODISCARD BOOLEAN as_bool_cast () const;
+        manapi::json &cast_bool ();
+
+        /**
+         * slice retrieval
+         *
+         * string - slice
+         * integer - slice
+         * bigint - slice
+         * decimal - slice
+         * string - slice
+         * @return
+         */
+        manapi::json &cast_slice ();
 
         /**
          * get a pointer
@@ -984,7 +1043,7 @@ namespace manapi {
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         /**
-         * non-strict bigint retrieval
+         * bigint retrieval
          *
          * @note bigint - bigint
          * @note integer - bigint
@@ -992,7 +1051,7 @@ namespace manapi {
          * @note string - bigint
          * @return
          */
-        MANAPIHTTP_NODISCARD BIGINT as_bigint_cast () const;
+        manapi::json &cast_bigint ();
 
         json &operator+= (const BIGINT &num);
 

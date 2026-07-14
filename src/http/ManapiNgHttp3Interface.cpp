@@ -68,7 +68,8 @@ struct ng_wrk_http3_stream_t : manapi::net::worker::http_v3_stream_base_t {
 enum ng_wrk_http3_ctx_flags {
     WRKHTTP3_GCTX_FLAG_QLOG = 1,
     WRKHTTP3_GCTX_FLAG_SHUTDOWN = 1<<1,
-    WRKHTTP3_GCTX_FLAG_RTT = 1<<2
+    WRKHTTP3_GCTX_FLAG_RTT = 1<<2,
+    WRKHTTP3_GCTX_FLAG_AUTO_ACK = 1<<3
 };
 
 struct nghttp3_nv_deleter {
@@ -186,9 +187,11 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
                 "nghttp3", "nghttp3_conn_add_write_offset", nghttp3_strerror(err));
         }
 
-        if (auto err = nghttp3_conn_add_ack_offset(ctx->ctx.get(), v_stream_id, res)) {
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %s",
-                "nghttp3", "nghttp3_conn_add_write_offset", nghttp3_strerror(err));
+        if (ctx->gctx->flags & WRKHTTP3_GCTX_FLAG_AUTO_ACK) {
+            if (auto err = nghttp3_conn_add_ack_offset(ctx->ctx.get(), v_stream_id, res)) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %s",
+                    "nghttp3", "nghttp3_conn_add_write_offset", nghttp3_strerror(err));
+            }
         }
 
         if (ctx->gctx->flags & WRKHTTP3_GCTX_FLAG_QLOG) {
@@ -1295,6 +1298,12 @@ manapi::status manapi::net::worker::ng_wrk_http3_global_init(manapi::net::worker
 
         if (quic_debug)
             tp->flags |= WRKHTTP3_GCTX_FLAG_QLOG;
+
+        if (w->worker_flags() & WORKER_BASE_FLAG_AUTO_ACK)
+            tp->flags |= WRKHTTP3_GCTX_FLAG_AUTO_ACK;
+        else {
+            return manapi::status_unimplemented ("http3: auto ack in http3 is only supported rn");
+        }
 
         global->flags |= WRK_GLOBAL_FLAG_MULTISTREAM|WRK_GLOBAL_FLAG_SHUTDOWN_SUPPORTED;
         global->data = tp.release();

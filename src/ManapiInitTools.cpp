@@ -2,6 +2,8 @@
 #include <memory>
 
 #include "ManapiInitTools.hpp"
+
+
 #include "ManapiEventLoop.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiProcess.hpp"
@@ -9,6 +11,7 @@
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
 #   include "ManapiGrpc.hpp"
+#   include <google/protobuf/any.h>
 #endif
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
@@ -128,9 +131,17 @@ void manapi::clear_tools::clear_all() MANAPIHTTP_NOEXCEPT {
 
 void manapi::clear_tools::clear_thread_all() MANAPIHTTP_NOEXCEPT {
     clear_tools::ssl_library_thread_clear();
+    clear_tools::grpc_thread_clear();
 }
 
 void manapi::clear_tools::grpc_clear() MANAPIHTTP_NOEXCEPT {
+    clear_tools::grpc_thread_clear();
+#if MANAPIHTTP_GRPC_DEPENDENCY
+    google::protobuf::ShutdownProtobufLibrary();
+#endif
+}
+
+void manapi::clear_tools::grpc_thread_clear() MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_GRPC_DEPENDENCY
     net::wgrpc::server_ctx::clean();
 #endif

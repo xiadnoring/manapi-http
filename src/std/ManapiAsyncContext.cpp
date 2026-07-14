@@ -198,14 +198,20 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                         thr->eventloop()->wait_all(false);
                     });
 
+#if MANAPIHTTP_GRPC_DEPENDENCY
+                    thr->eventloop()->wait_all(false);
+                    clear_tools::grpc_thread_clear();
                     thr->eventloop()->wait_all(true);
+#else
+                    thr->eventloop()->wait_all(true);
+#endif
 
                     thr->eventloop()->m_etaskpool->stop();
                     thr->eventloop()->m_etaskpool->join();
 
                     manapi::async::context::current(nullptr);
 
-                    manapi::clear_tools::ssl_library_thread_clear();
+                    clear_tools::clear_thread_all();
 
                     loops_active.fetch_sub(1);
                     if (auto rhs = main_loop_waits->send()) {
@@ -231,11 +237,17 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
             ctx->timerpool_->stop();
 
             ctx->eventloop_->wait_all(false);
-
         });
 
         manapi::async::eventloop()->stop_watcher(std::move(main_loop_waits));
+#if MANAPIHTTP_GRPC_DEPENDENCY
+        ctx->eventloop()->wait_all(false);
+        clear_tools::grpc_thread_clear();
+        ctx->eventloop()->wait_all(true);
+#else
         ctx->eventloop_->wait_all(true);
+#endif
+
         ctx->eventloop()->m_etaskpool->stop();
         ctx->eventloop()->m_etaskpool->join();
         ctx->taskpool_->stop();
@@ -313,6 +325,10 @@ const std::shared_ptr<manapi::threadpool> & manapi::async::etaskpool() MANAPIHTT
 
 const manapi::async::shared_mthreadpool & manapi::async::mtaskpool() MANAPIHTTP_NOEXCEPT {
     return manapi::async::current()->threadpool();
+}
+
+manapi::object_pool *manapi::async::memory_fabric() MANAPIHTTP_NOEXCEPT {
+    return &manapi::async::current()->memory_fabric();
 }
 
 const std::shared_ptr<manapi::logger> & manapi::async::log() MANAPIHTTP_NOEXCEPT {

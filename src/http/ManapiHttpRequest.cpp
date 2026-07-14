@@ -107,7 +107,8 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::request::text(
 
             size_t j = 0;
 
-            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body, &j] (const char *data, std::size_t size, bool fin) -> ssize_t {
+            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,
+                [&body, &j] (const char *data, std::size_t size, bool fin) -> ssize_t {
                 memcpy (body.data() + j, data, size);
                 j += size;
                 return static_cast<ssize_t>(size);
@@ -117,7 +118,8 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::request::text(
                 co_return std::move(rhs);
         }
         else {
-            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,[&body] (const char *data, std::size_t size, bool fin)
+            auto rhs = co_await http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,
+                [&body] (const char *data, std::size_t size, bool fin)
                 -> ssize_t { body.append(data, size); return static_cast<ssize_t>(size); });
 
             if (!rhs.ok())
@@ -135,8 +137,47 @@ manapi::future<manapi::status_or<std::string>> manapi::net::http::request::text(
     }
 }
 
-manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(manapi::json_mask *mask)
-{
+manapi::future<manapi::status_or<manapi::slice>> manapi::net::http::request::slice() {
+    try {
+        manapi::slice body;
+
+        auto rhs = co_await ::http_req_read_body_(this->m_worker.get(), this->m_conn, this->m_request_data,
+            [&body] (const char *data, std::size_t size, bool fin) mutable
+            -> ssize_t {
+                // auto last = body.slices_rbegin();
+                // std::size_t shift;
+                // if (last) {
+                //     shift = last->buff.len - body.rshift();
+                // }
+                // body.resize(body.size() + size);
+                // if (!last) {
+                //     last = body.slices_begin();
+                //     shift = 0;
+                // }
+                // body.copy_from(data, last, shift, size);
+                body.push_back(data, size).unwrap();
+                return static_cast<ssize_t>(size);
+            });
+
+        if (!rhs.ok())
+            co_return std::move(rhs);
+
+        co_return std::move(body);
+    }
+    catch (std::bad_alloc const &) {
+        co_return status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "req:Failed", e.what());
+        co_return status_internal("req:Failed");
+    }
+}
+
+manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(manapi::json_mask *mask) {
+    return this->json(0, mask);
+}
+
+manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(uint32_t flags,manapi::json_mask *mask) {
     try {
         struct builder_callback_data_t {
             manapi::json_builder *builder_;
@@ -146,6 +187,8 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::r
 
         if (mask) {
             json_builder builder = json_builder (*mask);
+            builder.flags(flags);
+
             auto status = json_error::status_ok();
 
             data_callback.builder_ = &builder;

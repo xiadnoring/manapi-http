@@ -47,6 +47,9 @@ static void json_delete_value_static(int type, void *src) MANAPIHTTP_NOEXCEPT {
         case manapi::json::type_string:
             delete static_cast<manapi::json::STRING *> (src);
         break;
+        case manapi::json::type_slice:
+            delete static_cast<manapi::slice *> (src);
+        break;
         case manapi::json::type_decimal:
             delete static_cast<manapi::json::DECIMAL *> (src);
         break;
@@ -146,6 +149,13 @@ static void json_set_pair_(int &m_type, manapi::json::data_t &m_data) {
     m_type = manapi::json::types::type_pair;
 }
 
+static void json_set_slice_(int &m_type, manapi::json::data_t &m_data) {
+    auto const z = new manapi::slice ();
+    ::json_delete_value(m_type, m_data);
+    m_data.src = z;
+    m_type = manapi::json::types::type_slice;
+}
+
 static void json_set_object_(int &m_type, manapi::json::data_t &m_data, manapi::json::OBJECT val) {
     ::json_set_object_(m_type, m_data);
     *m_data.object_src_ = std::move(val);
@@ -195,6 +205,12 @@ static void json_set_pair_(int &m_type, manapi::json::data_t &m_data, manapi::js
     m_data.pair_src_->second = std::move(second);
 }
 
+static void json_set_slice_(int &m_type, manapi::json::data_t &m_data, manapi::slice &&n) {
+    ::json_set_slice_(m_type, m_data);
+
+    *m_data.slice_src_ = std::forward<decltype(n)>(n);
+}
+
 static void json_parse_(int &m_type, manapi::json::data_t &m_data,manapi::json::INTEGER num) {
     ::json_set_integer_(m_type, m_data, num);
 }
@@ -231,20 +247,6 @@ static void json_parse_(int &m_type, manapi::json::data_t &m_data,manapi::json::
 
 static void json_parse_(int &m_type, manapi::json::data_t &m_data, const manapi::json::NULLPTR &) {
     ::json_set_nullptr_(m_type, m_data);
-}
-
-static manapi::status json_parse_(manapi::json &z, manapi::json::STRING_VIEW plain_text) {
-    manapi::json_mask m(nullptr);
-    manapi::json_builder builder (m);
-
-    auto res = builder.parse(plain_text);
-    if (!res.ok())
-        return manapi::status{std::move(res)};
-    auto rhs = builder.get();
-    if (!rhs.ok())
-        return manapi::status{rhs.err()};
-    z = rhs.unwrap();
-    return manapi::status_ok();
 }
 
 static void json_parse_(int &m_type, manapi::json::data_t &m_data, std::size_t num) {
@@ -307,6 +309,13 @@ static manapi::json::BOOLEAN & json_as_bool_(const int &m_type, const manapi::js
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(m_type);
 }
 
+static manapi::slice & json_as_slice_(const int &m_type, const manapi::json::data_t &m_data) {
+    if (m_type == manapi::json::type_slice) {
+        return *static_cast<manapi::slice *> (m_data.src);
+    }
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(m_type);
+}
+
 static manapi::json::DECIMAL & json_as_decimal_(const int &m_type, const manapi::json::data_t &m_data) {
     if (m_type == manapi::json::type_decimal) {
         return *static_cast<manapi::json::DECIMAL *> (m_data.src);
@@ -347,6 +356,10 @@ static void json_copy_value(int &m_type, manapi::json::data_t &m_data, int o_typ
         case manapi::json::type_pair:
             ::json_set_pair_(m_type, m_data, o_data.pair_src_->first, o_data.pair_src_->second);
         break;
+        case manapi::json::type_slice: {
+            ::json_set_slice_(m_type, m_data, o_data.slice_src_->copy());
+            break;
+        }
         case manapi::json::type_source:
             ::json_set_source_(o_data.source_src_->copy(), m_type, m_data);
         break;
@@ -355,24 +368,197 @@ static void json_copy_value(int &m_type, manapi::json::data_t &m_data, int o_typ
     }
 }
 
+manapi::json::STRING json_as_string_cast(const manapi::json&v) {
+    const auto type = v.data_type();
+
+    if (type == manapi::json::type_string) {
+        return v.as_string();
+    }
+    if (type == manapi::json::type_slice) {
+        return v.as_slice().to_string();
+    }
+    if (type == manapi::json::type_integer) {
+        return std::to_string(v.as_integer());
+    }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    if (type == manapi::json::type_bigint) {
+        return v.as_bigint().stringify();
+    }
+#endif
+    if (type == manapi::json::type_decimal) {
+        return std::to_string(v.as_decimal());
+    }
+    if (type == manapi::json::type_null) {
+        return "null";
+    }
+    if (type == manapi::json::type_boolean) {
+        if (v.as_bool())
+            return "true";
+        return "false";
+    }
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
+static manapi::json::INTEGER json_as_integer_cast(const manapi::json&v) {
+    const auto type = v.data_type();
+
+    if (type == manapi::json::type_string) {
+        return std::stoll(v.as_string());
+    }
+    if (type == manapi::json::type_integer) {
+        return v.as_integer();
+    }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    if (type == manapi::json::type_bigint) {
+        return v.as_bigint().integerify();
+    }
+#endif
+    if (type == manapi::json::type_decimal) {
+        // long double to long long
+        return static_cast <manapi::json::INTEGER> (v.as_decimal());
+    }
+    if (type == manapi::json::type_boolean) {
+        return static_cast <manapi::json::INTEGER> (v.as_bool());
+    }
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
+static manapi::json::NULLPTR json_as_null_cast(const manapi::json&v) {
+    const auto type = v.data_type();
+
+    if (type == manapi::json::type_null) {
+        return v.as_null();
+    }
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
+static manapi::json::DECIMAL json_as_decimal_cast(const manapi::json&v) {
+    const auto type = v.data_type();
+
+    if (type == manapi::json::type_decimal) {
+        return v.as_decimal();
+    }
+    if (type == manapi::json::type_integer) {
+        return static_cast<manapi::json::DECIMAL> (v.as_integer());
+    }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    if (type == manapi::json::type_bigint) {
+        return v.as_bigint().decimalify();
+    }
+#endif
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+static manapi::bigint json_as_bigint_cast(const manapi::json&v) {
+    const auto type = v.data_type();
+
+    if (type == manapi::json::type_bigint) {
+        return v.as_bigint();
+    }
+    if (type == manapi::json::type_integer) {
+        return manapi::bigint (v.as_integer());
+    }
+    if (type == manapi::json::type_decimal) {
+        return manapi::bigint (v.as_decimal());
+    }
+    if (type == manapi::json::type_string) {
+        return manapi::bigint (v.as_string());
+    }
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+#endif
+
+static bool json_as_bool_cast(const manapi::json &v) {
+    auto const type = v.data_type();
+    if (type == manapi::json::type_boolean) {
+        return v.as_bool();
+    }
+    if (type == manapi::json::type_array) {
+        return !v.as_array().empty();
+    }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    if (type == manapi::json::type_bigint) {
+        return v.as_bigint() != 0;
+    }
+#endif
+    if (type == manapi::json::type_object) {
+        return !v.as_object().empty();
+    }
+    if (type == manapi::json::type_string) {
+        return !v.as_string().empty();
+    }
+    if (type == manapi::json::type_decimal) {
+        return v.as_decimal() != 0;
+    }
+    if (type == manapi::json::type_integer) {
+        return v.as_integer() != 0;
+    }
+    if (type == manapi::json::type_null) {
+        return false;
+    }
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
+static manapi::slice json_as_slice_cast(const manapi::json &v) {
+    auto const type = v.data_type();
+    if (type == manapi::json::type_slice) {
+        return v.as_slice().copy();
+    }
+    if (type == manapi::json::type_string) {
+        return manapi::slice (v.as_string());
+    }
+    if (type == manapi::json::type_integer) {
+        return manapi::slice(std::to_string(v.as_integer()));
+    }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    if (type == manapi::json::type_bigint) {
+        return manapi::slice(v.as_bigint().stringify());
+    }
+#endif
+    if (type == manapi::json::type_decimal) {
+        return manapi::slice(std::to_string(v.as_decimal()));
+    }
+    if (type == manapi::json::type_null) {
+        return manapi::slice("null");
+    }
+    if (type == manapi::json::type_boolean) {
+        if (v.as_bool())
+            return manapi::slice("true");
+        return manapi::slice("false");
+    }
+
+    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION2(type);
+}
+
 manapi::json::json() : m_data{} {
     this->m_data.src = nullptr;
     this->m_type = type_null;
 }
 
-manapi::json::json(STRING_VIEW str, bool parse) : json() {
-    if (parse) {
-        ::json_parse_(*this, str).unwrap();
-    }
-    else {
-        manapi::json_builder_valid_utf_string(str).unwrap();
-        ::json_set_string_(this->m_type, this->m_data, str);
-    }
+manapi::json::json(STRING_VIEW str) : json() {
+    manapi::json_builder_valid_utf_string(str).unwrap();
+    ::json_set_string_(this->m_type, this->m_data, str);
 }
 
 manapi::json::json(STRING str) : json() {
     json_builder_valid_utf_string(str).unwrap();
     ::json_set_string_(this->m_type, this->m_data, std::move(str));
+}
+
+manapi::json::json(manapi::slice &&sv) : json() {
+    ::json_set_slice_(this->m_type, this->m_data, std::move(sv));
+}
+
+manapi::json::json(const manapi::slice_base &sv) : json() {
+    auto nsv = manapi::async::memory_fabric()->slice(sv.size()).unwrap();
+    nsv.copy_from(sv, 0, 0, sv.size()).unwrap();
+    ::json_set_slice_(this->m_type, this->m_data, std::move(nsv));
 }
 
 manapi::json::json(INTEGER num) : json() {
@@ -392,13 +578,8 @@ manapi::json::json(json &&other) MANAPIHTTP_NOEXCEPT : json() {
 
 }
 
-manapi::json::json(const char *plain_text, bool parse) : json() {
-    if (parse) {
-        ::json_parse_(*this, STRING_VIEW (plain_text)).unwrap();
-    }
-    else {
-        ::json_set_string_(this->m_type, this->m_data, STRING_VIEW{plain_text});
-    }
+manapi::json::json(const char *plain_text) : json() {
+    ::json_set_string_(this->m_type, this->m_data, STRING_VIEW{plain_text});
 }
 
 manapi::json::json(DECIMAL num) : json() {
@@ -460,47 +641,6 @@ manapi::json::json (const std::initializer_list<json> &data) : json() {
 manapi::json::~json() {
     ::json_delete_value(this->m_type, this->m_data);
 }
-
-class json_dump_buf_str : public manapi::json_dump_buffer {
-public:
-    json_dump_buf_str (std::string *str) : m_str(str) {}
-
-    void set (std::string *str) {
-        this->m_str = str;
-    }
-
-    void push_back(const char *buffer, std::size_t sz) MANAPIHTTP_NOEXCEPT override {
-        this->m_str->append(buffer, sz);
-    }
-
-    void push_back(char c) MANAPIHTTP_NOEXCEPT override {
-        this->m_str->push_back(c);
-    }
-private:
-    std::string *m_str;
-};
-
-class json_dump_buf_sv : public manapi::json_dump_buffer {
-public:
-    json_dump_buf_sv (manapi::slice *sv) {
-        if (sv) this->m_sv = *sv;
-    }
-
-    void set (manapi::slice *sv) {
-        if (sv) this->m_sv = *sv;
-    }
-
-    void push_back(const char *buffer, std::size_t sz) MANAPIHTTP_NOEXCEPT override {
-        this->m_sv.copy_from(buffer, 0, sz);
-        this->m_sv = this->m_sv.subslice(sz).unwrap();
-    }
-
-    void push_back(char c) MANAPIHTTP_NOEXCEPT override {
-        this->push_back(&c, 1);
-    }
-private:
-    manapi::slice_view m_sv;
-};
 
 static std::size_t json_dump_int_calc_size (manapi::json::INTEGER z) {
     if (z) {
@@ -827,6 +967,7 @@ static void json_dump_calc_size (manapi::json_dump_buffer *p, manapi::json_dump_
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         case manapi::json::type_bigint: data->sz += ::json_dump_bigint_calc_size(b.p->as_bigint());  break;
 #endif
+        case manapi::json::type_slice: data->sz += manapi::unicode::escape_string_size(&b.p->as_slice()); break;
         case manapi::json::type_source: data->sz += b.p->as_source().dump_size(p, data); return;
         default: break;
     }
@@ -856,6 +997,7 @@ static void json_dump_stringify (manapi::json_dump_buffer *p, manapi::json_dump_
         case manapi::json::type_bigint: ::json_dump_bigint(p, b.p->as_bigint());break;
 #endif
         case manapi::json::type_source: b.p->as_source().dump(p, data); return;
+        case manapi::json::type_slice: manapi::unicode::escape_string(&b.p->as_slice(), p); break;
         default: break;
     }
 
@@ -865,8 +1007,8 @@ static void json_dump_stringify (manapi::json_dump_buffer *p, manapi::json_dump_
 
 static void manapi_json_dump (manapi::json_dump_data_t *data, const manapi::json *n, std::string *zs, manapi::slice *zsv) {
     void (*cb) (manapi::json_dump_buffer *, manapi::json_dump_data_t *) = json_dump_calc_size;
-    ::json_dump_buf_str str(nullptr);
-    ::json_dump_buf_sv sv(nullptr);
+    manapi::json_dump_buf_str str(nullptr);
+    manapi::json_dump_buf_prealloc_sv sv(nullptr);
     manapi::json_dump_buffer *buf = nullptr;
     auto const shift = data->shift;
 
@@ -906,7 +1048,7 @@ static void manapi_json_dump (manapi::json_dump_data_t *data, const manapi::json
 
         }
         else if (zsv) {
-            zsv->resize(data->sz);
+            zsv->resize(data->sz).unwrap();
             sv.set(zsv);
             buf = &sv;
         }
@@ -1065,6 +1207,18 @@ manapi::json & manapi::json::operator=(json &&obj) MANAPIHTTP_NOEXCEPT {
 
 manapi::json &manapi::json::operator=(const std::initializer_list <json> &data) {
     return *this = manapi::json (data);
+}
+
+manapi::json & manapi::json::operator=(manapi::slice &&sv) {
+    ::json_set_slice_(this->m_type, this->m_data, std::move(sv));
+    return *this;
+}
+
+manapi::json & manapi::json::operator=(const manapi::slice_base &sv) {
+    auto nsv = manapi::async::memory_fabric()->slice(sv.size()).unwrap();
+    nsv.copy_from(sv, 0, 0, sv.size()).unwrap();
+    ::json_set_slice_(this->m_type, this->m_data, std::move(nsv));
+    return *this;
 }
 
 manapi::json manapi::json::operator*(INTEGER num) const {
@@ -1255,12 +1409,42 @@ manapi::json manapi::json::array(manapi::json data) {
     return json::array({std::move(data)});
 }
 
-manapi::status_or<manapi::json> manapi::json::parse(STRING_VIEW data) {
-    manapi::json b;
-    auto res = ::json_parse_(b, data);
+manapi::status_or<manapi::json> manapi::json::parse(STRING_VIEW data, uint32_t flags) {
+    manapi::json_mask m(nullptr);
+    manapi::json_builder builder (m);
+    builder.flags(flags);
+
+    auto res = builder.parse(data);
     if (!res.ok())
-        return std::move(res);
-    return std::move(b);
+        return manapi::status{std::move(res)};
+    auto rhs = builder.get();
+    if (!rhs.ok())
+        return manapi::status{rhs.err()};
+    return rhs.unwrap();
+}
+
+manapi::status_or<manapi::json> manapi::json::parse(const manapi::slice_view &data, uint32_t flags) {
+    manapi::json_mask m(nullptr);
+    manapi::json_builder builder (m);
+    builder.flags(flags);
+    std::size_t sz = 0;
+    std::size_t rsz = 100000;
+    for (const auto b : data) {
+        auto res = builder.parse(b);
+        if (!res.ok())
+            return manapi::status{std::move(res)};
+        sz += b.size();
+        if (sz >= rsz) {
+            rsz += 100000;
+            std::cerr << sz << "/" << data.size() << "\n";
+        }
+    }
+
+    auto rhs = builder.get();
+    if (!rhs.ok())
+        return manapi::status{rhs.err()};
+
+    return rhs.unwrap();
 }
 
 std::string manapi::json::stringify(const json &n, uint32_t spaces) {
@@ -1378,6 +1562,10 @@ bool manapi::json::is_string() const MANAPIHTTP_NOEXCEPT {
     return this->m_type == type_string;
 }
 
+bool manapi::json::is_slice() const MANAPIHTTP_NOEXCEPT {
+    return this->m_type == type_slice;
+}
+
 bool manapi::json::is_integer() const MANAPIHTTP_NOEXCEPT {
     return this->m_type == type_integer;
 }
@@ -1476,6 +1664,14 @@ manapi::json::BOOLEAN & manapi::json::as_bool() {
     return ::json_as_bool_(this->m_type, this->m_data);
 }
 
+const manapi::slice & manapi::json::as_slice() const {
+    return ::json_as_slice_(this->m_type, this->m_data);
+}
+
+manapi::slice & manapi::json::as_slice() {
+    return ::json_as_slice_(this->m_type, this->m_data);
+}
+
 const manapi::json::DECIMAL & manapi::json::as_decimal() const {
     return ::json_as_decimal_(this->m_type, this->m_data);
 }
@@ -1491,120 +1687,75 @@ manapi::json::NULLPTR manapi::json::as_null() const {
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
 }
 
-manapi::json::STRING manapi::json::as_string_cast() const {
+manapi::json& manapi::json::cast_string() {
     if (this->m_type == type_string) {
-        return as_string();
     }
+    else {
+        *this = ::json_as_string_cast(*this);
+    }
+
+    return *this;
+}
+
+manapi::json& manapi::json::cast_integer() {
     if (this->m_type == type_integer) {
-        return std::to_string(as_integer());
     }
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    if (this->m_type == type_bigint) {
-        return as_bigint().stringify();
+    else {
+        *this = ::json_as_integer_cast(*this);
     }
-#endif
-    if (this->m_type == type_decimal) {
-        return std::to_string(as_decimal());
-    }
+    return *this;
+}
+
+manapi::json& manapi::json::cast_null() {
     if (this->m_type == type_null) {
-        return "0";
+
     }
+    else {
+        *this = ::json_as_null_cast(*this);
+    }
+    return *this;
+}
+
+manapi::json& manapi::json::cast_decimal() {
+    if (this->m_type == type_decimal) {
+
+    }
+    else {
+        *this = ::json_as_decimal_cast(*this);
+    }
+    return *this;
+}
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+manapi::json& manapi::json::cast_bigint() {
+    if (this->m_type == type_bigint) {
+
+    }
+    else {
+        *this = ::json_as_bigint_cast(*this);
+    }
+    return *this;
+}
+#endif
+
+manapi::json & manapi::json::cast_bool() {
     if (this->m_type == type_boolean) {
-        return std::to_string(static_cast<int>(this->as_bool()));
+
     }
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
+    else {
+        *this = ::json_as_bool_cast(*this);
+    }
+    return *this;
 }
 
-manapi::json::INTEGER manapi::json::as_integer_cast() const {
-    if (this->m_type == type_string) {
-        return std::stoll(as_string());
+manapi::json & manapi::json::cast_slice() {
+    if (this->m_type == type_slice) {
     }
-    if (this->m_type == type_integer) {
-        return as_integer();
+    else {
+        *this = ::json_as_slice_cast(*this);
     }
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    if (this->m_type == type_bigint) {
-        return as_bigint().integerify();
-    }
-#endif
-    if (this->m_type == type_decimal) {
-        // long double to long long
-        return static_cast <json::INTEGER> (as_decimal());
-    }
-    if (this->m_type == type_boolean) {
-        return static_cast <json::INTEGER> (as_bool());
-    }
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-}
 
-manapi::json::NULLPTR manapi::json::as_null_cast() const {
-    if (this->m_type == type_null) {
-        return as_null();
-    }
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-}
-
-manapi::json::DECIMAL manapi::json::as_decimal_cast() const {
-    if (this->m_type == type_decimal) {
-        return as_decimal();
-    }
-    if (this->m_type == type_integer) {
-        return static_cast<json::DECIMAL> (as_integer());
-    }
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    if (this->m_type == type_bigint) {
-        return as_bigint().decimalify();
-    }
-#endif
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-}
-
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-manapi::json::BIGINT manapi::json::as_bigint_cast() const {
-    if (this->m_type == type_bigint) {
-        return as_bigint();
-    }
-    if (this->m_type == type_integer) {
-        return std::move(bigint (as_integer()));
-    }
-    if (this->m_type == type_decimal) {
-        return std::move(bigint (as_decimal()));
-    }
-    if (this->m_type == type_string) {
-        return std::move(bigint (as_string()));
-    }
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-}
-#endif
-
-manapi::json::BOOLEAN manapi::json::as_bool_cast() const {
-    if (this->m_type == type_boolean) {
-        return as_bool();
-    }
-    if (this->m_type == type_array) {
-        return !as_array().empty();
-    }
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    if (this->m_type == type_bigint) {
-        return as_bigint() != 0;
-    }
-#endif
-    if (this->m_type == type_object) {
-        return !as_object().empty();
-    }
-    if (this->m_type == type_string) {
-        return !as_string().empty();
-    }
-    if (this->m_type == type_decimal) {
-        return as_decimal() != 0;
-    }
-    if (this->m_type == type_integer) {
-        return as_integer() != 0;
-    }
-    if (this->m_type == type_null) {
-        return false;
-    }
-    THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
+    return *this;
 }
 
 void * manapi::json::as_ptr() const {
@@ -1702,12 +1853,13 @@ manapi::json manapi::json::operator+(const BIGINT &num) const {
 
 manapi::json manapi::json::operator+(const STRING &str) const {
     auto n = *this;
-    if (n.is_string())
-    {
+    if (n.is_string()) {
         n.as_string() += str;
     }
-    else
-    {
+    else if (n.is_slice()) {
+        n.as_slice().push_back(str.data(), str.size());
+    }
+    else {
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
     }
     return std::move(n);
@@ -1717,6 +1869,9 @@ manapi::json manapi::json::operator+(const char *str) const {
     auto n = *this;
     if (n.is_string()) {
         n.as_string() += str;
+    }
+    else if (n.is_slice()) {
+        n.as_slice().push_back(str, std::strlen(str));
     }
     else {
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
@@ -1785,14 +1940,22 @@ bool manapi::json::operator==(const json &x) const {
         case type_bigint:
             return as_bigint() == x.as_bigint();
 #endif
-        case type_string:
+        case type_string: {
+            if (x.is_slice())
+                return x.as_slice().cmp(as_string().data(), as_string().size()) == 0;
             return as_string() == x.as_string();
+        }
         case type_boolean:
             return as_bool() == x.as_bool();
         case type_decimal:
             return as_decimal() == x.as_decimal();
         case type_null:
             return true;
+        case type_slice: {
+            if (x.is_string())
+                return as_slice().cmp(x.as_string().data(), x.as_string().size()) == 0;
+            return as_slice().cmp(x.as_slice()) == 0;
+        }
         case type_object: {
             if (size() != x.size())
                 return false;
@@ -1827,59 +1990,72 @@ bool manapi::json::operator==(const json &x) const {
 }
 
 bool manapi::json::operator==(BOOLEAN n) const {
-    return this->as_bool_cast() == n;
+    return ::json_as_bool_cast(*this) == n;
 }
 
 bool manapi::json::operator==(const char *n) const {
+    if (this->is_slice())
+        return this->as_slice().cmp(n, ::strlen(n));
     return this->as_string() == n;
 }
 
 bool manapi::json::operator==(const STRING_VIEW &n) const {
+    if (this->is_slice())
+        return this->as_slice().cmp(n.data(), n.size());
     return std::string_view(this->as_string()) == n;
 }
 
 bool manapi::json::operator==(const STRING &n) const {
+    if (this->is_slice())
+        return this->as_slice().cmp(n.data(), n.size()) == 0;
     return this->as_string() == n;
 }
 
+bool manapi::json::operator==(const manapi::slice_base &n) const {
+    if (this->is_slice())
+        return this->as_slice().cmp(n) == 0;
+    auto &s = this->as_string();
+    return this->as_slice().cmp(s.data(), s.size()) == 0;
+}
+
 bool manapi::json::operator==(INTEGER n) const {
-    return this->as_integer_cast() == n;
+    return ::json_as_integer_cast(*this) == n;
 }
 
 bool manapi::json::operator==(DECIMAL n) const {
-    return this->as_decimal_cast() == n;
+    return ::json_as_decimal_cast(*this) == n;
 }
 
 bool manapi::json::operator>(INTEGER n) const {
-    return this->as_integer_cast() > n;
+    return ::json_as_integer_cast(*this) > n;
 }
 
 bool manapi::json::operator>(DECIMAL n) const {
-    return this->as_decimal_cast() > n;
+    return ::json_as_decimal_cast(*this) > n;
 }
 
 bool manapi::json::operator>=(INTEGER n) const {
-    return this->as_integer_cast() >= n;
+    return ::json_as_integer_cast(*this) >= n;
 }
 
 bool manapi::json::operator>=(DECIMAL n) const {
-    return this->as_decimal_cast() >= n;
+    return ::json_as_decimal_cast(*this) >= n;
 }
 
 bool manapi::json::operator<(INTEGER n) const {
-    return this->as_integer_cast() < n;
+    return ::json_as_integer_cast(*this) < n;
 }
 
 bool manapi::json::operator<(DECIMAL n) const {
-    return this->as_decimal_cast() < n;
+    return ::json_as_decimal_cast(*this) < n;
 }
 
 bool manapi::json::operator<=(INTEGER n) const {
-    return this->as_integer_cast() <= n;
+    return ::json_as_integer_cast(*this) <= n;
 }
 
 bool manapi::json::operator<=(DECIMAL n) const {
-    return this->as_decimal_cast() <= n;
+    return ::json_as_decimal_cast(*this) <= n;
 }
 
 bool manapi::json::operator==(const NULLPTR &n) const {

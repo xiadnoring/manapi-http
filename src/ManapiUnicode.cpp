@@ -18,6 +18,87 @@ static const unsigned char hextable2[] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
+static const uint8_t *escape_extra_bytes = [] {
+    static uint8_t tbl[256]{};
+
+    tbl['\n'] = 1;
+    tbl['\r'] = 1;
+    tbl['\f'] = 1;
+    tbl['\b'] = 1;
+    tbl['\t'] = 1;
+    tbl['\"'] = 1;
+    tbl['\\'] = 1;
+
+    for (int i = 0; i < 0x20; ++i) {
+        if (tbl[i] == 0) {
+            tbl[i] = 5;
+        }
+    }
+
+    return tbl;
+}();
+
+struct escape_seq {
+    const char* str;
+    uint8_t len;
+};
+
+static const ::escape_seq* escape_table = [] {
+    static struct ::escape_seq tbl[256]{};
+
+    tbl['\n'] = {"\\n", 2};
+    tbl['\r'] = {"\\r", 2};
+    tbl['\f'] = {"\\f", 2};
+    tbl['\b'] = {"\\b", 2};
+    tbl['\t'] = {"\\t", 2};
+    tbl['\"'] = {"\\\"", 2};
+    tbl['\\'] = {"\\\\", 2};
+
+    static char hex_buf[256][6];
+    for (int i = 0; i < 0x20; ++i) {
+        if (tbl[i].len == 0) {
+            hex_buf[i][0] = '\\';
+            hex_buf[i][1] = 'u';
+            hex_buf[i][2] = '0';
+            hex_buf[i][3] = '0';
+            hex_buf[i][4] = static_cast<char>(hextable2[i >> 4]);
+            hex_buf[i][5] = static_cast<char>(hextable2[i & 0x0F]);
+            tbl[i] = {hex_buf[i], 6};
+        }
+    }
+
+    return tbl;
+}();
+
+static const bool *needs_escape = [] {
+    static bool tbl[256]{};
+    for (int i = 0; i < 256; ++i) {
+        tbl[i] = (escape_table[i].len > 0);
+    }
+    return tbl;
+}();
+
+class unicode_buffer : public manapi::json_dump_buffer {
+public:
+    unicode_buffer (char *str) : m_str(str) {}
+
+    void set (char *str) {
+        this->m_str = str;
+    }
+
+    void push_back(const char *buffer, std::size_t sz) override {
+        ::memcpy(this->m_str, buffer, sz);
+        this->m_str += sz;
+    }
+
+    void push_back(char c) override {
+        *this->m_str = c;
+        this->m_str++;
+    }
+private:
+    char *m_str;
+};
+
 uint32_t manapi::unicode::count_of_octet(unsigned char c) {
     uint32_t i = 0;
 
@@ -32,31 +113,6 @@ uint32_t manapi::unicode::count_of_octet(unsigned char c) {
 
     return i;
 }
-//
-// manapi::status_or<std::string> manapi::unicode::utf::str32to8(std::u32string_view str32) {
-//
-// }
-//
-// manapi::status_or<std::string> manapi::unicode::utf::str32to8(char32_t str32) {
-//
-// }
-//
-// manapi::status_or<std::u32string> manapi::unicode::utf::str8to32(std::string_view str) {
-//     uv_wtf8_to_utf16()
-// }
-//
-// manapi::status_or<std::string> manapi::unicode::utf::str16to8(std::u16string_view str16) {
-//
-// }
-//
-// manapi::status_or<std::string> manapi::unicode::utf::str16to8(char16_t str16) {
-//
-// }
-//
-// manapi::status_or<std::u16string> manapi::unicode::utf::str8to16(std::string_view str) {
-//
-// }
-
 
 bool manapi::unicode::is_space_symbol (char symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
@@ -75,102 +131,66 @@ bool manapi::unicode::is_space_symbol (char32_t symbol) {
 }
 
 void manapi::unicode::escape_string(std::string_view str, char *out) {
-    //auto const p = out;
-    *out++ = '"';
-    for (auto const c : str) {
-        switch (c) {
-            case '\n':
-                *out++ = '\\';
-                *out++ = 'n';
-            break;
-            case '\r':
-                *out++ = '\\';
-                *out++ = 'r';
-            break;
-            case '\f':
-                *out++ = '\\';
-                *out++ = 'f';
-            break;
-            case '\b':
-                *out++ = '\\';
-                *out++ = 'b';
-            break;
-            case '\t':
-                *out++ = '\\';
-                *out++ = 't';
-            break;
-            case '\"':
-                *out++ = '\\';
-                *out++ = '\"';
-            break;
-            case '\\':
-                *out++ = '\\';
-                *out++ = '\\';
-            break;
-            default:
-                *out++ = c;
-            break;
-        }
-    }
-    *out++ = '"';
+    unicode_buffer z (out);
+    unicode::escape_string (str, &z);
 }
 
 void manapi::unicode::escape_string(std::string_view str, manapi::json_dump_buffer *out) {
     out->push_back('"');
-    for (auto const c : str) {
-        switch (c) {
-            case '\n':
-                out->push_back('\\');
-                out->push_back('n');
-                break;
-            case '\r':
-                out->push_back('\\');
-                out->push_back('r');
-                break;
-            case '\f':
-                out->push_back('\\');
-                out->push_back('f');
-                break;
-            case '\b':
-                out->push_back('\\');
-                out->push_back('b');
-                break;
-            case '\t':
-                out->push_back('\\');
-                out->push_back('t');
-                break;
-            case '\"':
-                out->push_back('\\');
-                out->push_back('\"');
-                break;
-            case '\\':
-                out->push_back('\\');
-                out->push_back('\\');
-                break;
-            default:
-                out->push_back(c);
-            break;
+
+    const char* data = str.data();
+    const size_t len = str.size();
+    size_t i = 0;
+
+    while (i < len) {
+        size_t start = i;
+        while (i < len && !needs_escape[static_cast<unsigned char>(data[i])]) {
+            ++i;
+        }
+
+        if (i > start) {
+            out->push_back(data + start, i - start);
+        }
+
+        if (i < len) {
+            auto& esc = escape_table[static_cast<unsigned char>(data[i])];
+            out->push_back(esc.str, esc.len);
+            ++i;
         }
     }
+    out->push_back('"');
+}
+
+void manapi::unicode::escape_string(const slice_base *str, manapi::json_dump_buffer *out) {
+    out->push_back('"');
+
+    for (const auto b : *str) {
+        escape_string(b, out);
+    }
+
     out->push_back('"');
 }
 
 std::size_t manapi::unicode::escape_string_size(std::string_view str) {
     std::size_t size = str.size() + 2;
+    const auto* data = str.data();
+    const auto len = str.size();
 
-    for (auto & c : str) {
-        switch (c) {
-            case '\n':
-            case '\r':
-            case '\f':
-            case '\b':
-            case '\t':
-            case '\"':
-            case '\\':
-                size++;
-            break;
-            default:
-                break;
+    for (std::size_t i = 0; i < len; ++i) {
+        size += escape_extra_bytes[static_cast<unsigned char>(data[i])];
+    }
+
+    return size;
+}
+
+std::size_t manapi::unicode::escape_string_size(const manapi::slice_base *sv) {
+    std::size_t size = sv->size() + 2;
+
+    for (const auto b : *sv) {
+        const auto* data = b.data();
+        const auto len = b.size();
+        for (std::size_t i = 0; i < len; ++i) {
+            size += escape_extra_bytes[static_cast<unsigned char>(data[i])];
         }
     }
 

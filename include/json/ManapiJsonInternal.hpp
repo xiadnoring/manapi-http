@@ -73,9 +73,9 @@ namespace manapi {
     public:
         virtual ~json_dump_buffer() = default;
 
-        virtual void push_back (const char *buffer, std::size_t sz) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void push_back (const char *buffer, std::size_t sz) = 0;
 
-        virtual void push_back (char c) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void push_back (char c) = 0;
     };
 
     struct json_mask_path_t {

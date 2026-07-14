@@ -7,6 +7,8 @@
 
 namespace manapi {
     class json_dump_buffer;
+
+    class slice_base;
 }
 
 namespace manapi::unicode {
@@ -69,11 +71,26 @@ namespace manapi::unicode {
     void escape_string (std::string_view str, manapi::json_dump_buffer *out);
 
     /**
+     * Escape string. It works like as std::quoted() function
+     * @param str source string
+     * @param out output buffer
+     * @return status
+     */
+    void escape_string (const slice_base *str, manapi::json_dump_buffer *out);
+
+    /**
      * Get size of the escaped string.
      * @param str source string
      * @return size of the escaped string
      */
     std::size_t escape_string_size (std::string_view str);
+
+    /**
+     * Get size of the escaped string.
+     * @param sv source string
+     * @return size of the escaped string
+     */
+    std::size_t escape_string_size (const manapi::slice_base *sv);
 
     uint8_t onehex2dec (uint8_t c) MANAPIHTTP_NOEXCEPT;
 

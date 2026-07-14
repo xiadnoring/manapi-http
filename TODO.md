@@ -12,10 +12,10 @@
 - [x] Support pages
 - [x] Custom methods
 - [x] Json masks
-- [ ] Improve Json masks
+- [x] Improve Json masks
 - [x] Proxy, Fetch
-- [ ] Holding the connection after the request
-- [ ] Caching of small files
+- [x] Holding the connection after the request
+- [x] Caching of small files
 - [ ] ETAG header
 - [x] Time header
 - [x] SSL support
@@ -35,7 +35,7 @@
 - [x] PostgreSQL support
 - [x] Support gzip
 - [x] Support deflate
-- [ ] Support brotli
+- [x] Support brotli
 - [ ] Support decoding from the client
 - [x] More flexible JSON
 - [x] Content Range (video, audio, massive files)
@@ -48,24 +48,24 @@
 
 ## HTTP/2
 - [x] default
-- [ ] nghttp2
+- [x] nghttp2
 
 ## HTTP/3
 - [ ] default
 - [x] quiche (cloudflare)
-- [ ] nginx-http3
+- [x] nginx-http3
 
 ## TLS
 - [ ] default
 - [x] OpenSSL support
-- [ ] WolfSSL support
+- [x] WolfSSL support
 - [ ] BoringSSL support
 
 ## QUIC
 - [x] quiche (cloudflare)
 - [ ] WolfSSL
 - [ ] BoringSSL
-- [ ] OpenSSL
+- [x] OpenSSL
 - [ ] TQUIC
 - [ ] quicX
 - [ ] default

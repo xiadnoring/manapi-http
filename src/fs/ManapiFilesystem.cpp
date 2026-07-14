@@ -674,13 +674,54 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
 }
 
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file file, slice_view slice, int64_t offset, ctoken cancellation) {
-    auto buffs = slice.slices_buffs();
-    co_return co_await async_write(file, buffs.get(), slice.slices_size(), offset, std::move(cancellation));
+    ssize_t total = 0;
+
+    while (true) {
+        std::size_t buffs_sz = 0;
+        std::size_t buffs_cnt = 0;
+        auto buffs = slice.slices_buffs(128, &buffs_cnt, &buffs_sz);
+        auto res = co_await async_write(file, buffs.get(), static_cast<uint32_t>(buffs_cnt), offset, cancellation.sub());
+        if (!res) co_return std::move(res);
+
+        auto const z = res.unwrap();
+        if (z < 0) co_return z;
+        total += z;
+
+        if (static_cast<std::size_t>(z) == buffs_sz) {
+            slice = slice.subslice(buffs_sz).unwrap();
+            if (offset >= 0) offset += z;
+            if (!slice.empty()) continue;
+        }
+
+        break;
+    }
+
+    co_return total;
 }
 
 manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file file, slice_view slice, int64_t offset, ctoken cancellation) {
-    auto buffs = slice.slices_buffs();
-    co_return co_await async_read(file, buffs.get(), slice.slices_size(), offset, std::move(cancellation));
+    ssize_t total = 0;
+
+    while (true) {
+        std::size_t buffs_sz = 0;
+        std::size_t buffs_cnt = 0;
+        auto buffs = slice.slices_buffs(128, &buffs_cnt, &buffs_sz);
+        auto res = co_await async_read(file, buffs.get(), static_cast<uint32_t>(buffs_cnt), offset, cancellation.sub());
+        if (!res) co_return std::move(res);
+
+        auto z = res.unwrap();
+        if (z < 0) co_return z;
+        total += z;
+        if (static_cast<std::size_t>(z) == buffs_sz) {
+            slice = slice.subslice(buffs_sz).unwrap();
+            if (offset >= 0) offset += z;
+            if (!slice.empty()) continue;
+        }
+
+        break;
+    }
+
+    co_return total;
 }
 
 manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_file_size(std::string path, manapi::ctoken cancellation) {

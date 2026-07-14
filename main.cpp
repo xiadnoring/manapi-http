@@ -5,8 +5,10 @@
 #   define FOLDER ".\\data\\"
 #   define FOLDER2 ".\\data\\"
 #else
-#define FOLDER "/home/Timur/Downloads/RPG"
-#define FOLDER2 "/home/Timur/Downloads/RPG"
+// #define FOLDER "/home/Timur/Downloads/RPG"
+// #define FOLDER2 "/home/Timur/Downloads/RPG"
+#define FOLDER2 "/home/Timur/Downloads/anime-main/"
+#define FOLDER "/home/Timur/Documents/http2priorities/"
 #endif
 #include <cstring>
 
@@ -26,7 +28,6 @@
 
 #include "include/std/ManapiFunction.hpp"
 //
-#include "ext/pq/AsyncPostgreClient.hpp"
 #include "std/ManapiRef.hpp"
 
 static std::atomic<std::size_t> bbbb = 0;
@@ -370,6 +371,38 @@ int main () {
             //     co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
             // }).unwrap();
 
+            router->POST ("/slice", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+                -> manapi::future<> {
+                try {
+                    auto txt = manapi::unwrap(co_await req.slice());
+                    auto res = manapi::json::parse(txt, manapi::JSON_FLAG_SLICES).unwrap();
+                    co_return resp.json(std::move(res)).unwrap();
+                }
+                catch (std::exception const &e) {
+                    manapi_log_debug(e.what());
+                    std::rethrow_exception(std::current_exception());
+                }
+            }).unwrap();
+
+            router->GET ("/slice", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+                -> manapi::future<> {
+                try {
+                    std::string p = "/home/Timur/Documents/ielcfinal/test_1gb.json";
+                    auto f = manapi::unwrap(co_await manapi::fs::async_open(p, manapi::ev::FS_O_RDONLY, 0755, req.cancellation().sub()));
+                    auto sz = manapi::unwrap(co_await manapi::fs::async_file_size(p, req.cancellation().sub()));
+                    auto sv = manapi::async::memory_fabric()->slice(sz).unwrap();
+                    auto rd = manapi::unwrap(co_await manapi::fs::async_read(f.get(), sv, -1, req.cancellation().sub()));
+                    if (rd < 0) co_return resp.text("failed to read").unwrap();
+                    auto res = manapi::json::parse(sv, manapi::JSON_FLAG_SLICES).unwrap();
+                    // co_return resp.json(std::move(res)).unwrap();
+                    co_return resp.text("hello").unwrap();
+                }
+                catch (std::exception const &e) {
+                    manapi_log_debug(e.what());
+                    std::rethrow_exception(std::current_exception());
+                }
+            }).unwrap();
+
             router->GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
                 -> manapi::future<> {
                 manapi::init_tools::ev_library_init();
@@ -394,9 +427,7 @@ int main () {
         }
     }).unwrap();
 
-    manapi::clear_tools::curl_library_clear();
-    manapi::clear_tools::ev_library_clear();
-    manapi::clear_tools::ssl_library_clear();
+    manapi::clear_tools::clear_all();
 
 
     return 0;

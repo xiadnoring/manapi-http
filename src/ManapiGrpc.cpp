@@ -66,15 +66,14 @@ enum manapi_grpc_server_flags {
     MANAPI_GRPC_SERVER_IS_STOPPING = 1<<1
 };
 
-thread_local wgrpc_thread_local_storage_t wgrpc_storage;
-
 #ifdef _WIN32
 __declspec(dllexport)
 #else
 __attribute__((visibility("default")))
 #endif
 wgrpc_thread_local_storage_t &current_wgrpc_storage () {
-    return ::wgrpc_storage;
+    thread_local wgrpc_thread_local_storage_t wgrpc_storage;
+    return wgrpc_storage;
 }
 
 struct wgrpc_current_ctx_deleter_t {
@@ -519,19 +518,16 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
                                                std::shared_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> local_addr,
                                                grpc_event_engine::experimental::MemoryAllocator memory_allocator) {
 
-    auto &ctx = manapi::async::current();
-    if (ctx) {
-        this->flags = 0;
-        this->ev = ctx;
-        this->local_addr = std::move(local_addr);
-        this->conn = std::move(conn);
-        this->peer_addr = std::move(peer_addr);
-        this->memory_allocator = std::move(memory_allocator);
+    this->flags = 0;
+    this->ev = manapi::async::current();
+    this->local_addr = std::move(local_addr);
+    this->conn = std::move(conn);
+    this->peer_addr = std::move(peer_addr);
+    this->memory_allocator = std::move(memory_allocator);
 #if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
-        this->metric = nullptr;
+    this->metric = nullptr;
 #endif
-        this->init_();
-    }
+    this->init_();
 }
 
 void manapi::net::wgrpc::net_endpoint::init_() {
@@ -1544,8 +1540,9 @@ manapi::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool status) MA
 
 void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
     auto &ctx = manapi::async::internal::current_();
+    auto &zb = ::current_wgrpc_storage();
+
     if (ctx) {
-        auto &zb = current_wgrpc_storage();
         while (!zb.wgrpc_tasks_exists.empty()) {
             auto it = zb.wgrpc_tasks_exists.begin();
             task_handle_cancel(ctx.get(), it->first);
@@ -1556,11 +1553,6 @@ void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
             task_connect_cancel(ctx.get(), it->first);
         }
     }
-    else {
-
-    }
-
-    google::protobuf::ShutdownProtobufLibrary();
 }
 
 static manapi::future<> wgrpc_server_stop( std::shared_ptr<manapi::net::wgrpc::server> p,  manapi::net::wgrpc::server::data_t * data) {

@@ -9,7 +9,8 @@ namespace manapi::net::http::internal {
         RESPONSE_FORMDATA,
         RESPONSE_SYNC_CALLBACK,
         RESPONSE_ASYNC_CALLBACK,
-        RESPONSE_STREAM
+        RESPONSE_STREAM,
+        RESPONSE_SLICE
     };
 
     enum response_flags {

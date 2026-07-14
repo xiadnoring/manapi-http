@@ -9,6 +9,10 @@
 #include "../ManapiEventStructures.hpp"
 
 namespace manapi {
+    enum json_builder_flags {
+        JSON_FLAG_SLICES = 1<<0
+    };
+
     class json_builder {
     public:
         struct data_t;
@@ -34,6 +38,8 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_empty () const;
 
         void set (json_mask &mask);
+
+        void flags (uint32_t flags);
 
         void clear ();
     private:

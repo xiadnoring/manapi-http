@@ -50,21 +50,21 @@ static manapi::status fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchd
 
         it = params.as_object().find("verify_peer");
         if (it != params.as_object().end()) {
-            res = fetchdata->data->enable_verify_peer(it->second.as_bool_cast());
+            res = fetchdata->data->enable_verify_peer(it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
 
         it = params.as_object().find("verify_host");
         if (it != params.as_object().end()) {
-            res = fetchdata->data->enable_verify_host(it->second.as_bool_cast());
+            res = fetchdata->data->enable_verify_host(it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
 
         it = params.as_object().find("verbose");
         if (it != params.as_object().end()) {
-            res = fetchdata->data->verbose(it->second.as_bool_cast());
+            res = fetchdata->data->verbose(it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
@@ -77,14 +77,14 @@ static manapi::status fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchd
 
         it = params.as_object().find("timeout");
         if (it != params.as_object().end()) {
-            res = fetchdata->data->timeout(static_cast<std::size_t>(it->second.as_integer_cast()));
+            res = fetchdata->data->timeout(static_cast<std::size_t>(it->second.cast_integer().as_integer()));
             if (!res)
                 goto err;
         }
 
         it = params.as_object().find("recv_nodelay");
         if (it != params.as_object().end()) {
-            fetchdata->data->async_recv_nodelay(it->second.as_bool_cast());
+            fetchdata->data->async_recv_nodelay(it->second.cast_bool().as_bool());
         }
 
         it = params.as_object().find("http");
@@ -94,7 +94,7 @@ static manapi::status fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchd
             if (it->second.is_string())
                 version = it->second.as_string();
             else {
-                storage = it->second.as_string_cast();
+                storage = it->second.cast_string().as_string();
                 version = storage;
             }
             if (version == "0.9" || version == "1.0" || version == "1" || version == "1.1") {
