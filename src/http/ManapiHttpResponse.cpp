@@ -126,8 +126,12 @@ manapi::status manapi::net::http::response::json(manapi::json data, size_t space
         data.slice (&sv, static_cast<uint32_t>(spaces));
         return this->slice(std::move(sv));
     }
-    catch (std::exception const &) {
+    catch (std::bad_alloc const &) {
         return status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "response::json failed", e.what());
+        return status_internal("response::json failed");
     }
 }
 

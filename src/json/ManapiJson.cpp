@@ -1427,17 +1427,10 @@ manapi::status_or<manapi::json> manapi::json::parse(const manapi::slice_view &da
     manapi::json_mask m(nullptr);
     manapi::json_builder builder (m);
     builder.flags(flags);
-    std::size_t sz = 0;
-    std::size_t rsz = 100000;
     for (const auto b : data) {
         auto res = builder.parse(b);
         if (!res.ok())
             return manapi::status{std::move(res)};
-        sz += b.size();
-        if (sz >= rsz) {
-            rsz += 100000;
-            std::cerr << sz << "/" << data.size() << "\n";
-        }
     }
 
     auto rhs = builder.get();

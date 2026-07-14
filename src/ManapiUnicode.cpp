@@ -157,6 +157,7 @@ void manapi::unicode::escape_string(std::string_view str, manapi::json_dump_buff
             ++i;
         }
     }
+
     out->push_back('"');
 }
 
@@ -164,7 +165,26 @@ void manapi::unicode::escape_string(const slice_base *str, manapi::json_dump_buf
     out->push_back('"');
 
     for (const auto b : *str) {
-        escape_string(b, out);
+        const char* data = b.data();
+        const size_t len = b.size();
+        size_t i = 0;
+
+        while (i < len) {
+            size_t start = i;
+            while (i < len && !needs_escape[static_cast<unsigned char>(data[i])]) {
+                ++i;
+            }
+
+            if (i > start) {
+                out->push_back(data + start, i - start);
+            }
+
+            if (i < len) {
+                auto& esc = escape_table[static_cast<unsigned char>(data[i])];
+                out->push_back(esc.str, esc.len);
+                ++i;
+            }
+        }
     }
 
     out->push_back('"');

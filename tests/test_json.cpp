@@ -899,4 +899,34 @@ UTEST(json, block_parse_empty_string) {
     ASSERT_TRUE(res["empty"] == "");
 }
 
+UTEST(json, json_dump_check) {
+    auto ctx = init_ctx(utest_result);
+
+    manapi::async::run ([&] () -> manapi::future<> {
+        manapi::async::run(ctx->stop());
+        
+        manapi::json test = {
+            {"name", "Lenar"},
+            {"age", 52},
+            {"money", 10.99},
+            {"items", {"phone", "computer", "bag", "home", "car", "airplane"}},
+            {"isStudent", true},
+            {"about", nullptr}
+        };
+
+        manapi::slice sv;
+        std::string str;
+
+        str = test.dump();
+        test.slice(&sv);
+
+#define return co_return
+        ASSERT_TRUE(sv.cmp(str.data(), str.size()) == 0);
+#undef return
+    });
+
+
+    wait_ctx(ctx);
+}
+
 UTEST_MAIN();

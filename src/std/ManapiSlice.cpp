@@ -420,7 +420,13 @@ manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t p
 }
 
 manapi::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos) const MANAPIHTTP_NOEXCEPT {
-    return this->subslice(pos, this->size() - pos);
+    if (this->size() == pos)
+        return manapi::slice_base(nullptr, nullptr, 0, 0, 0, 0);
+
+    auto z = *this;
+    z.shift_add(pos).unwrap();
+
+    return std::move(z);
 }
 
 std::size_t manapi::slice_base::shift() const {
