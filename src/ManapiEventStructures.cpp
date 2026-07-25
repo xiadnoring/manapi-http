@@ -1037,10 +1037,10 @@ manapi::ev::file manapi::ev::unique_file::get() const {
         return this->m_fd.value();
     throw manapi::exception (manapi::ERR_NOT_FOUND, "unique_file:empty");
 }
-
-manapi::ev::unique_file::operator bool() const MANAPIHTTP_NOEXCEPT {
-    return this->m_fd.has_value();
-}
+//
+// manapi::ev::unique_file::operator bool() const MANAPIHTTP_NOEXCEPT {
+//     return this->m_fd.has_value();
+// }
 
 void manapi::ev::unique_file::reset() MANAPIHTTP_NOEXCEPT {
     if (this->m_fd.has_value()) {

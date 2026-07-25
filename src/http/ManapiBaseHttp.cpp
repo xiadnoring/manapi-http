@@ -21,16 +21,19 @@
 #include "../include/ManapiDefaultErrors.hpp"
 #include "../include/ManapiHttpStructs.hpp"
 #include "std/ManapiAsyncTimer.hpp"
-
-static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
+#include "std/ManapiChannel.hpp"
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 struct response_proxy_data_t {
-    ssize_t content_length;
+    int64_t content_length;
     std::shared_ptr<manapi::net::fetch> fetch;
     std::unique_ptr<manapi::net::http::response> resp;
 };
 #endif
+
+manapi::net::http::internal::handle_data_t::~handle_data_t() {
+    // std::cout << "DESTRYOED\n";
+}
 
 std::string manapi::net::http::internal::generate_default_page(int status, std::string_view msg) {
     return std::format("<html>\n\t<head>\n\t\t"
@@ -430,7 +433,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             co_return;
         }
 
-        std::unique_ptr<response_proxy_data_t> proxy_data (new (std::nothrow) response_proxy_data_t{});
+        auto proxy_data = std::make_shared<response_proxy_data_t>();
         if (!proxy_data)
             goto send_error;
 
@@ -438,8 +441,10 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         if (!proxy_res)
             goto send_error;
 
+        auto req = res->req();
         proxy_data->fetch = proxy_res.unwrap();
         proxy_data->content_length = 0;
+        proxy_data->fetch->method(res->request_data()->method);
         proxy_data->resp = std::move(res);
 
         auto proxy_setup = std::move(proxy_data->resp->proxy_setup_cb());
@@ -448,7 +453,22 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             proxy_setup->operator()(proxy_data->fetch);
         }
 
-        proxy_data->fetch->headers({{"ranges", "0-"}});
+        auto &client_headers = proxy_data->resp->req()->ref_headers();
+
+        std::map<std::string, std::string, std::less<>> req_headers;
+        for (const auto &hd : client_headers) {
+            if (hd.first.starts_with(":"))
+                continue;
+            if (hd.first == manapi::net::http::H_HOST)
+                continue;
+            if (hd.first == manapi::net::http::H_CONNECTION)
+                continue;
+            if (hd.first == manapi::net::http::H_KEEP_ALIVE)
+                continue;
+            req_headers.insert({hd.first, hd.second});
+        }
+
+        proxy_data->fetch->headers(std::move(req_headers)).unwrap();
 
         proxy_data->fetch->handle_async_headers (
             [p = proxy_data.get()](const std::shared_ptr<manapi::net::fetch> &f) mutable
@@ -477,6 +497,27 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 }
                 co_return false;
         }).unwrap();
+
+        if (req->has_body()) {
+            auto channel = manapi::create_channel(65536);
+            auto wchannel = std::make_shared<manapi::channel_send> (channel);
+            auto rchannel = std::make_shared<manapi::channel_recv> (channel);
+
+            manapi::async::run <manapi::status> ( req->callback_async([wchannel] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
+                auto zv = manapi::slice::create(buffs.size()).unwrap();
+                zv.copy_from(buffs, 0, 0, buffs.size()).unwrap();
+                manapi::unwrap(co_await wchannel->send(std::move(zv), fin));
+                co_return static_cast<ssize_t>(buffs.size());
+            }), [proxy_data] (std::exception_ptr err, manapi::status *status) mutable -> void {});
+
+            proxy_data->fetch->async_body([rchannel] (slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+                auto res = manapi::unwrap(co_await rchannel->recv(static_cast<ssize_t>(buffs.size())));
+                fin = rchannel->is_finished();
+                buffs.copy_from(res, 0, 0, res.size()).unwrap();
+                co_return static_cast<ssize_t>(res.size());
+            }).unwrap();
+        }
+
 
         proxy_data->fetch->handle_async_body(
             [p = proxy_data.get()](slice_view buffs, bool fin) mutable
@@ -761,7 +802,7 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
 
                             if (http_v1_1_is_chunked_data(res.get())) {
                                 auto bufres = manapi::async::current()->memory_fabric().buffer (
-                                    std::max<std::size_t>(res->config()->buffer_size, 64L));
+                                    std::max<std::size_t>(res->config()->buffer_size, 64));
                                 auto buffer = bufres.unwrap();
                                 while (!finish) {
                                     auto rhs = cb_sync(buffer.data(), (buffer.size()), finish);

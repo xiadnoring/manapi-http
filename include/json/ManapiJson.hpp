@@ -40,7 +40,7 @@ namespace manapi {
 
     class json {
     public:
-        typedef std::map <std::string, manapi::json, std::less<>> OBJECT;
+        typedef std::unordered_map <std::string, manapi::json, manapi::text_hash, std::equal_to<>> OBJECT;
 
         typedef std::vector <manapi::json> ARRAY;
 

@@ -73,9 +73,7 @@ namespace manapi::async::internal {
 
     void future_awaiter_suspend(promise_base_future *promise, const std::coroutine_handle<> &handle, const std::coroutine_handle<> &waiting);
 
-    void promise_run_finish_cb ( std::move_only_function<void(std::exception_ptr err, void *)> *cb, std::exception_ptr *e, void *ptr);
-
-    void append_static_task (manapi::fixed_function<void()> callback) MANAPIHTTP_NOEXCEPT;
+    void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT;
 
     void append_task (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
@@ -138,14 +136,14 @@ namespace manapi::async::internal {
             return manapi::future<T>{ std::coroutine_handle<promise>::from_promise(*this) };
         }
 
-        T get_value() {
+        T &&get_value() {
             return std::move(this->value.value());
         }
 
         void run_finish_cb() MANAPIHTTP_NOEXCEPT override {
-            void * const ptr = this->value.has_value() ? &this->value.value() : nullptr;
-            internal::promise_run_finish_cb( reinterpret_cast <std::move_only_function<void(std::exception_ptr err, void *)> *> (this->finish_cb.get()),
-                &this->exception, ptr);
+            if (!this->finish_cb) return;
+            auto ptr = this->value.has_value() ? &this->value.value() : nullptr;
+            this->finish_cb->operator()(std::move(this->exception), ptr);
         }
 
         final_awaiter<T> final_suspend() MANAPIHTTP_NOEXCEPT { return {}; }

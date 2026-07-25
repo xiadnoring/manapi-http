@@ -355,15 +355,14 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
     if (!res.ok())
         co_return std::move(res.err());
     auto rhs = res.unwrap();
-    if (static_cast<std::size_t>(rhs) != data.size())
-        co_return ev::status_internal("fs:sizes aren't the same", ev::ERR_UNKNOWN);
+    if (rhs < 0)
+        co_return ev::status_internal("fs:write failed", ev::ERR_UNKNOWN);
     co_return ev::status_ok();
 }
 
 manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::string path, int flags, int64_t offset, manapi::ctoken cancellation) {
     ev::unique_file fileno;
     std::string data;
-    std::size_t len = 0;
     bool failed{false};
 
     {
@@ -373,26 +372,22 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
         fileno = fileno_res.unwrap();
     }
 
-    auto res = co_await async_fstat(fileno.get(), [&len, &failed] (ev::stat_t *stat)
-        -> void {
-        if (stat) len = (stat->st_size);
-        else failed = true;
-    }, manapi::ctoken::unit(cancellation));
+    auto res = co_await async_file_size(fileno.get(), cancellation.sub());
 
     if (!res.ok())
-        co_return std::move(res);
+        co_return res.err();
 
     if (failed)
         co_return ev::status_not_found("not found");
 
-    data.resize(len);
+    data.resize(res.unwrap());
 
-    auto rhs = co_await async_read(fileno.get(), data.data(), len, offset, manapi::ctoken::unit(cancellation));
+    auto rhs = co_await async_read(fileno.get(), data.data(), data.size(), offset, manapi::ctoken::unit(cancellation));
     if (!rhs.ok())
         co_return rhs.err();
 
-    if (static_cast<std::size_t>(rhs.unwrap()) != len)
-        co_return ev::status_internal("fs:sizes aren't the same", ev::ERR_UNKNOWN);
+    if (rhs.unwrap() < 0)
+        co_return ev::status_internal("fs:read failed", ev::ERR_UNKNOWN);
 
     co_return std::move(data);
 }
@@ -724,11 +719,34 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
     co_return total;
 }
 
-manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_file_size(std::string path, manapi::ctoken cancellation) {
-    std::size_t size;
+manapi::future<manapi::ev::status_or<uint64_t>> manapi::fs::async_file_size(std::string path, manapi::ctoken cancellation) {
+    uint64_t size;
     bool failed = false;
 
     auto res = co_await fs::async_stat(std::move(path), [&size, &failed] (ev::stat_t *stat)
+        -> void {
+        if (stat) {
+            size = stat->st_size;
+        }
+        else {
+            failed = true;
+        }
+    }, std::move(cancellation));
+
+    if (!res)
+        co_return std::move(res);
+
+    if (failed)
+        co_return ev::status_not_found("async_file_size():file not found");
+
+    co_return size;
+}
+
+manapi::future<manapi::ev::status_or<uint64_t>> manapi::fs::async_file_size(ev::file file, manapi::ctoken cancellation) {
+    uint64_t size;
+    bool failed = false;
+
+    auto res = co_await fs::async_fstat(file, [&size, &failed] (ev::stat_t *stat)
         -> void {
         if (stat) {
             size = stat->st_size;

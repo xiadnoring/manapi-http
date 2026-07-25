@@ -26,40 +26,34 @@ namespace manapi {
      * with large integers and decimals.
      */
     class bigint {
+    public:
         struct data_t;
 
         struct data_t_deleter {
             void operator()(data_t *n) MANAPIHTTP_NOEXCEPT;
         };
 
-    public:
-        bigint();
+        bigint(uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
         ~bigint();
 
-        explicit bigint(std::string_view num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        bigint(std::string_view num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(ssize_t num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        bigint(int64_t num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(int num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        bigint(int num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        bigint(double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(long double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        bigint(long double num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
         template<typename T>
         requires(std::is_integral_v<T>)
-        explicit bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
-            this->init_(precision);
-            this->parse(static_cast<ssize_t>(num));
-        }
+        bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) : bigint(static_cast<int64_t>(num), precision) {}
 
         template<typename T>
         requires(std::is_floating_point_v<T>)
-        explicit bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
-            this->init_(precision);
-            this->parse(static_cast<long double>(num));
-        }
+        bigint (const T &num, uint32_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) : bigint(static_cast<long double>(num), precision) {}
 
         bigint(bigint &&other) MANAPIHTTP_NOEXCEPT;
 
@@ -77,7 +71,7 @@ namespace manapi {
          * Integerify the bigint and return it with data loss
          * @return the integerified bigint
          */
-        MANAPIHTTP_NODISCARD ssize_t integerify () const;
+        MANAPIHTTP_NODISCARD int64_t integerify () const;
 
         /**
          * Decimalify the bigint and return it with data loss
@@ -96,7 +90,7 @@ namespace manapi {
          * Get a bigint from the source integer
          * @param num the source integer
          */
-        void parse (ssize_t num);
+        void parse (int64_t num);
 
         /**
          * Get a bigint from the source double
@@ -126,7 +120,7 @@ namespace manapi {
 
         bigint operator/ (int oth) const;
 
-        bigint operator/ (ssize_t oth) const;
+        bigint operator/ (int64_t oth) const;
 
         bigint operator/ (double oth) const;
 
@@ -135,7 +129,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint operator/ (const T &v) const {
-            return this->operator/(static_cast<ssize_t> (v));
+            return this->operator/(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -158,7 +152,7 @@ namespace manapi {
          */
         MANAPIHTTP_NODISCARD bigint sqrt (uint32_t oth) const;
 
-        bigint operator+ (ssize_t oth) const;
+        bigint operator+ (int64_t oth) const;
 
         bigint operator+ (int oth) const;
 
@@ -171,7 +165,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint operator+ (const T &v) const {
-            return this->operator+(static_cast<ssize_t> (v));
+            return this->operator+(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -184,7 +178,7 @@ namespace manapi {
 
         bigint operator- (int oth) const;
 
-        bigint operator- (ssize_t oth) const;
+        bigint operator- (int64_t oth) const;
 
         bigint operator- (double oth) const;
 
@@ -193,7 +187,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint operator- (const T &v) const {
-            return this->operator-(static_cast<ssize_t> (v));
+            return this->operator-(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -204,7 +198,7 @@ namespace manapi {
 
         bigint operator* (const bigint &oth) const;
 
-        bigint operator* (ssize_t oth) const;
+        bigint operator* (int64_t oth) const;
 
         bigint operator* (int oth) const;
 
@@ -215,7 +209,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint operator* (const T &v) const {
-            return this->operator*(static_cast<ssize_t> (v));
+            return this->operator*(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -226,7 +220,7 @@ namespace manapi {
 
         bigint& operator-= (const bigint &oth);
 
-        bigint& operator-= (ssize_t oth);
+        bigint& operator-= (int64_t oth);
 
         bigint& operator-= (double oth);
 
@@ -237,7 +231,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint &operator-= (const T &v) {
-            return this->operator-=(static_cast<ssize_t> (v));
+            return this->operator-=(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -250,7 +244,7 @@ namespace manapi {
 
         bigint& operator+=  (const bigint &oth);
 
-        bigint& operator+=  (ssize_t oth);
+        bigint& operator+=  (int64_t oth);
 
         bigint& operator+=  (double oth);
 
@@ -259,7 +253,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint &operator+= (const T &v) {
-            return this->operator+=(static_cast<ssize_t> (v));
+            return this->operator+=(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -270,7 +264,7 @@ namespace manapi {
 
         bigint& operator*=  (const bigint &oth);
 
-        bigint& operator*=  (ssize_t oth);
+        bigint& operator*=  (int64_t oth);
 
         bigint& operator*=  (double oth);
 
@@ -282,7 +276,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint &operator*= (const T &v) {
-            return this->operator*=(static_cast<ssize_t> (v));
+            return this->operator*=(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -293,7 +287,7 @@ namespace manapi {
 
         bigint& operator/=  (const bigint &oth);
 
-        bigint& operator/=  (ssize_t oth);
+        bigint& operator/=  (int64_t oth);
 
         bigint& operator/=  (double oth);
 
@@ -305,7 +299,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint &operator/= (const T &v) {
-            return this->operator/=(static_cast<ssize_t> (v));
+            return this->operator/=(static_cast<int64_t> (v));
         }
 
         template<typename T>
@@ -316,7 +310,7 @@ namespace manapi {
 
         bool       operator>   (const bigint &oth) const;
 
-        bool       operator>  (ssize_t oth) const;
+        bool       operator>  (int64_t oth) const;
 
         bool       operator>  (double oth) const;
 
@@ -326,7 +320,7 @@ namespace manapi {
 
         bool       operator<   (const bigint &oth) const;
 
-        bool       operator<  (ssize_t oth) const;
+        bool       operator<  (int64_t oth) const;
 
         bool       operator<  (double oth) const;
 
@@ -336,7 +330,7 @@ namespace manapi {
 
         bool       operator==  (const bigint &oth) const;
 
-        bool       operator==  (ssize_t oth) const;
+        bool       operator==  (int64_t oth) const;
 
         bool       operator==  (double oth) const;
 
@@ -346,7 +340,7 @@ namespace manapi {
 
         bool       operator!=  (const bigint &oth) const;
 
-        bool       operator!=  (ssize_t oth) const;
+        bool       operator!=  (int64_t oth) const;
 
         bool       operator!=  (double oth) const;
 
@@ -356,7 +350,7 @@ namespace manapi {
 
         bool       operator>=  (const bigint &oth) const;
 
-        bool       operator>=  (ssize_t oth) const;
+        bool       operator>=  (int64_t oth) const;
 
         bool       operator>=  (double oth) const;
 
@@ -366,7 +360,7 @@ namespace manapi {
 
         bool       operator<=  (const bigint &oth) const;
 
-        bool       operator<=  (ssize_t oth) const;
+        bool       operator<=  (int64_t oth) const;
 
         bool       operator<=  (double oth) const;
 
@@ -386,7 +380,7 @@ namespace manapi {
 
         bigint&    operator=   (const bigint &oth);
 
-        bigint&    operator=   (ssize_t oth);
+        bigint&    operator=   (int64_t oth);
 
         bigint&    operator=   (int oth);
 
@@ -395,7 +389,7 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         bigint &operator= (const T &v) {
-            this->operator=(static_cast<ssize_t> (v));
+            this->operator=(static_cast<int64_t> (v));
             return *this;
         }
 
@@ -405,13 +399,7 @@ namespace manapi {
             this->operator=(static_cast<double> (v));
             return *this;
         }
-
     private:
-        /**
-         * initialize the bigint ctx
-         * @param precision the precision
-         */
-        void init_ (uint32_t precision);
 
         std::unique_ptr<data_t, data_t_deleter> x;
     };

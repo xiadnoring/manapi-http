@@ -23,6 +23,9 @@ namespace manapi::net::wgrpc {
         server_ctx ();
 
     public:
+
+        ~server_ctx();
+
         struct worker_data_t {
             std::atomic<ssize_t> cnt;
         };
@@ -52,7 +55,7 @@ namespace manapi::net::wgrpc {
 
         manapi::future<manapi::status> config_object (manapi::json config);
 
-        manapi::future<manapi::status> start (std::move_only_function<manapi::status(::grpc::ServerBuilder &b)> cb);
+        manapi::future<manapi::status> start (std::move_only_function<manapi::status(::grpc::ServerBuilder &b, grpc::Service *arg)> cb, grpc::Service * service = nullptr);
 
         manapi::status stop ();
     private:

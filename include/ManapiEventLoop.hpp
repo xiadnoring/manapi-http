@@ -109,7 +109,7 @@ namespace manapi {
         event_loop();
     public:
 
-        static manapi::ev::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger);
+        static manapi::ev::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<timerpool> tmpool, std::shared_ptr<manapi::logger> logger);
 
         ~event_loop();
 
@@ -351,8 +351,6 @@ namespace manapi {
 #endif
 
         void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
-
-        void timerpool_init (std::shared_ptr<manapi::timerpool> tp);
 
         void wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT;
     private:

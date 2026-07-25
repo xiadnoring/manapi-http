@@ -20,6 +20,7 @@
 #include <grpcpp/grpcpp.h>
 #include <grpc/event_engine/event_engine.h>
 #include <google/protobuf/stubs/common.h>
+#include <grpcpp/impl/service_type.h>
 
 enum manapi_grpc_endpoint_flags {
     MANAPI_GRPC_ENDPOINT_WANT_READ = 1,
@@ -51,6 +52,7 @@ struct manapi::net::wgrpc::server::data_t {
     manapi::json data;
     std::unique_ptr<grpc::ServerBuilder> builder;
     std::unique_ptr<grpc::Server> server;
+    std::unique_ptr<grpc::Service> service;
     std::shared_ptr<wgrpc::config> config;
     std::size_t finishid;
     uint8_t flags;
@@ -321,7 +323,7 @@ void manapi::net::wgrpc::net_listener::shutdown(net_listener *id, manapi::ev::sh
                 ev->eventloop()->custom_callback([id, conn = std::move(conn), on_shutdown_cb = std::move(on_shutdown_cb)]
                         (manapi::event_loop *ev) mutable -> void {
                     net_listener::shutdown(id, std::move(conn), std::move(on_shutdown_cb), manapi::async::current());
-                });
+                }).unwrap();
             }
         }
         else if (on_shutdown_cb) {
@@ -850,7 +852,7 @@ manapi::net::wgrpc::event_engine_wrapper::event_engine_wrapper() : grpc_event_en
 }
 
 manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() {
-    std::cout << "-1\n";
+    manapi_log_trace2("manapihttp::grpc", "wgrpc:delete event_engine_wrapper: %p", this);
 }
 
 void manapi::net::wgrpc::event_engine_wrapper::magic(std::string_view m) MANAPIHTTP_NOEXCEPT {
@@ -952,7 +954,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
             nullptr, nullptr);
 
         if (!wres) {
-            ctx->etaskpool()->append_static_task([msg = wres.sysmsg(), ref] ()
+            ctx->etaskpool()->append_task([msg = wres.sysmsg(), ref] ()
                 mutable -> void {
                 if (ref->on_connect_cb) {
                     ref->on_connect_cb (absl::AbortedError(msg));
@@ -1060,7 +1062,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
             try { data.res = data.engine->Connect(std::move(*data.on_connect_), *data.addr_, *data.args_, std::move(*data.memory_allocator_), *data.timeout_); }
             catch (...) { data.err = std::current_exception(); }
             manapi::event_loop::unlock(data.ctx, data.mx);
-        });
+        }).unwrap();
 
         manapi::event_loop::lock(data.ctx, data.mx);
     }
@@ -1092,7 +1094,7 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(absl::AnyInvocable<void()> cl
                     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s" ,
                         "wgrpc", "Run", e.what());
                 }
-            });
+            }).unwrap();
         }
     }
 }
@@ -1113,14 +1115,14 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
             cur->eventloop()->custom_callback(
                 [closure] (manapi::event_loop *ev) mutable -> void {
                 try {
-                    ev->taskpool()->append_static_task([closure] ()
+                    ev->taskpool()->append_task([closure] ()
                         -> void { closure->Run(); });
                 }
                 catch (std::exception const &e) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s",
                         "wgrpc", "Run", e.what());
                 }
-            });
+            }).unwrap();
         }
     }
 }
@@ -1258,7 +1260,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
             catch (...) { data.err = std::current_exception(); }
 
             manapi::event_loop::unlock(data.ctx, data.mx);
-        });
+        }).unwrap();
 
         manapi::event_loop::lock(data.ctx, data.mx);
     }
@@ -1354,7 +1356,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
             catch (...) { data.err = std::current_exception(); }
 
             manapi::event_loop::unlock(data.ctx, data.mx);
-        });
+        }).unwrap();
 
         manapi::event_loop::lock(data.ctx, data.mx);
     }
@@ -1447,7 +1449,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
             catch (...) { data.err = std::current_exception(); }
 
             manapi::event_loop::unlock(data.ctx, data.mx);
-        });
+        }).unwrap();
 
         manapi::event_loop::lock(data.ctx, data.mx);
     }
@@ -1502,12 +1504,26 @@ manapi::net::wgrpc::server_ctx::server_ctx() {
     try {
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
         ev->magic("MAGIC_MANAPI");
+        auto finish_id = manapi::async::eventloop()->subscribe_clean_up(
+            [] () -> void {
+            manapi::async::eventloop()->append_task([] (ev::shared_work const &w) -> void {
+                grpc_shutdown();
+                grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+                grpc_event_engine::experimental::SetDefaultEventEngine(nullptr);
+            }, [] (ev::shared_work const &w, int status) -> void {
+                if (status) manapi_log_error("%s failed due to %s", "wgrpc unsub", ev::strerror(status));
+            }).unwrap();
+        });
         grpc_event_engine::experimental::SetDefaultEventEngine(ev);
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "wgrpc:Set default event loop failed", e.what());
         std::rethrow_exception(std::current_exception());
     }
+}
+
+manapi::net::wgrpc::server_ctx::~server_ctx() {
+    grpc_event_engine::experimental::SetDefaultEventEngine(nullptr);
 }
 
 manapi::status_or<std::shared_ptr<manapi::net::wgrpc::server_ctx>> manapi::net::wgrpc::server_ctx::create () MANAPIHTTP_NOEXCEPT {
@@ -1567,10 +1583,13 @@ static manapi::future<> wgrpc_server_stop( std::shared_ptr<manapi::net::wgrpc::s
             mx.try_to_lock();
             manapi::async::current()->eventloop()->append_task([&mx, server = data->server.get()] (const manapi::ev::shared_work &w) -> void {
                 server->Shutdown();
+                server->Wait();
                 mx.unlock();
-            }, nullptr);
+            }, nullptr).unwrap();
             co_await mx.lock_guard();
             data->server.reset();
+            data->builder.reset();
+            data->service.reset(nullptr);
         }
 
         data->flags ^= MANAPI_GRPC_SERVER_IS_STOPPING;
@@ -1770,7 +1789,7 @@ err:
     co_return std::move(res);
 }
 
-manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::status(grpc::ServerBuilder &b)> cb) {
+manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::status(grpc::ServerBuilder &b, grpc::Service *arg)> cb, grpc::Service* service) {
     using ci = manapi::internal::config_interface;
     auto res = manapi::status_ok();
     try {
@@ -1803,6 +1822,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
         std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
 
         this->m_data->builder = std::make_unique<grpc::ServerBuilder>();
+        this->m_data->service.reset(service);
         //auto cq = builder.AddCompletionQueue();
 
         std::shared_ptr<grpc::ServerCredentials> creds;
@@ -1836,7 +1856,7 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
         }
 
         if (cb)
-            cb(*this->m_data->builder).unwrap();
+            cb(*this->m_data->builder, this->m_data->service.get()).unwrap();
 
         this->m_data->builder->AddListeningPort(server_address, std::move(creds));
         this->m_data->server = this->m_data->builder->BuildAndStart();
@@ -1851,6 +1871,9 @@ manapi::future<manapi::status> manapi::net::wgrpc::server::start(std::move_only_
         res = status_internal("grpc:Start failed");
     }
 err:
+    this->m_data->server.reset();
+    this->m_data->builder.reset();
+    this->m_data->service.reset(nullptr);
     this->m_data->flags ^= MANAPI_GRPC_SERVER_IS_RUNNING;
     co_return std::move(res);
 }

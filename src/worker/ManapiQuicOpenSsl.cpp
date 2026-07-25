@@ -48,7 +48,7 @@ enum quic_openssl_worker_flags {
 };
 
 struct openssl_quic_worker_ctx_t {
-    // std::unordered_map<std::string, SSL_SESSION*, manapi::net::worker::string_hash, std::equal_to<>> sessions;
+    // std::unordered_map<std::string, SSL_SESSION*, manapi::text_hash, std::equal_to<>> sessions;
     SSL_CTX *ctx;
     manapi::timer sessions_flush_timer;
 };

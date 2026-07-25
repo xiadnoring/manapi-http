@@ -117,6 +117,16 @@ namespace manapi::net::worker {
         int (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
 
         /**
+         * not required
+         */
+        std::size_t (*recv_cnt_pending)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * not required
+         */
+        bytebuffer (*recv_buf_pending)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
+
+        /**
          * required if the worker interface asks for a multistream support
          */
         int (*init_stream_cb)(const worker::shared_conn &conn, const worker::shared_conn &stream, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
@@ -185,16 +195,6 @@ namespace manapi::net::worker {
         uint32_t recv_size;
     };
 
-    struct string_hash
-    {
-        using hash_type = std::hash<std::string_view>;
-        using is_transparent = void;
-
-        std::size_t operator()(const char* str) const;
-        std::size_t operator()(std::string_view str) const;
-        std::size_t operator()(std::string const& str) const;
-    };
-
     struct connection_base_t;
 
     class base : public std::enable_shared_from_this<base> {
@@ -202,7 +202,7 @@ namespace manapi::net::worker {
 
         typedef std::unordered_map<uintptr_t, shared_conn> conn_by_port;
 
-        typedef std::unordered_map<std::string, conn_by_port, string_hash, std::equal_to<>> conns_by_ip;
+        typedef std::unordered_map<std::string, conn_by_port, manapi::text_hash, std::equal_to<>> conns_by_ip;
 
         typedef vbefore_delete<bool, false> oncont_cb;
 
@@ -286,6 +286,10 @@ namespace manapi::net::worker {
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice &slice, std::size_t size, bool finish);
+
+        MANAPIHTTP_NODISCARD virtual std::size_t wrk_recv_count (const shared_conn &conn);
+
+        virtual bytebuffer wrk_recv_first_buffer (const shared_conn &conn);
 
         MANAPIHTTP_NODISCARD virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT = 0;
 

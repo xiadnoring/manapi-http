@@ -57,7 +57,7 @@ namespace manapi::net::http {
 
         future<manapi::status> file (std::string filepath, int flags = 0644);
 
-        ssize_t left ();
+        int64_t left ();
 
         manapi::json_error::status verify_get (const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
 
@@ -67,7 +67,7 @@ namespace manapi::net::http {
 
         manapi::json_error::status contains_get_param (std::string_view key);
 
-        manapi::status available_body_size (ssize_t size);
+        manapi::status available_body_size (int64_t size);
 
         bool contains_header (std::string_view name);
 
@@ -86,14 +86,10 @@ namespace manapi::net::http {
         MANAPIHTTP_NODISCARD std::string_view url () const;
 
         MANAPIHTTP_NODISCARD const std::vector<std::string> &path () const;
+
+        MANAPIHTTP_NODISCARD bool has_body () const;
     private:
-        // static future<manapi::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
-        //
-        // static future<manapi::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
-
         std::unique_ptr<std::map<std::string, std::string, std::less<>>> m_get_params;
-
-        // manapi::json_error::status prepare_get_params_(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
 
         // peer ip
         std::unique_ptr<http::manapi_socket_information> m_ip_data;

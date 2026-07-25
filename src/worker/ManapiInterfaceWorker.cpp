@@ -50,3 +50,4 @@ std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPI
 const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->worker_data_;
 }
+

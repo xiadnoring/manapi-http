@@ -55,7 +55,9 @@ namespace manapi::fs {
 
     future<ev::status_or<ssize_t>> async_read (ev::file file, slice_view slice, int64_t offset = -1, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::size_t>> async_file_size (std::string path, manapi::ctoken cancellation = nullptr);
+    future<ev::status_or<uint64_t>> async_file_size (std::string path, manapi::ctoken cancellation = nullptr);
+
+    future<ev::status_or<uint64_t>> async_file_size (ev::file file, manapi::ctoken cancellation = nullptr);
 
     future<ev::status> async_unlink (std::string path, ctoken cancellation = nullptr);
 

@@ -30,7 +30,7 @@
 //
 // static std::map<std::pair<char*, int>, std::pair<const char*, int>> allocated;
 
-void *crypto_malloc (size_t num, const char *file, int line) {
+static void *crypto_malloc (size_t num, const char *file, int line) {
     //cnt++;
     auto const ctx = manapi::async::current().get();
     if (ctx) {
@@ -43,7 +43,7 @@ void *crypto_malloc (size_t num, const char *file, int line) {
     return (p+1);
 }
 
-void *crypto_realloc (void *addr, size_t num, const char *file, int line) {
+static void *crypto_realloc (void *addr, size_t num, const char *file, int line) {
     auto const ctx = manapi::async::current().get();
     if (ctx) {
         //if (addr)
@@ -66,7 +66,7 @@ void *crypto_realloc (void *addr, size_t num, const char *file, int line) {
     return (p+1);
 }
 
-void crypto_free (void *addr, const char *file, int line) {
+static void crypto_free (void *addr, const char *file, int line) {
     if (addr) {
     //cnt--;
         //allocated.erase({(char*)(addr) - 1, (int)(*((char*)addr-1))});

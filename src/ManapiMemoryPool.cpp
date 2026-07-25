@@ -1,8 +1,8 @@
 #include <cassert>
 #include <cstring>
 
-#include "ManapiMemoryPool.hpp"
 #include "ManapiAsync.hpp"
+#include "ManapiMemoryPool.hpp"
 #include "std/ManapiAsyncContext.hpp"
 #include "./include/ManapiUtils.hpp"
 
@@ -17,7 +17,8 @@
 #define MEM_USED 1048576
 
 enum buffer_level {
-    BUFF_LEVEL_16 = 1,
+    BUFF_LEVEL_0,
+    BUFF_LEVEL_16,
     BUFF_LEVEL_36,
     BUFF_LEVEL_64,
     BUFF_LEVEL_256,
@@ -30,7 +31,7 @@ enum buffer_level {
 
 constexpr std::size_t area_size = 4096;
 
-struct manapi::internal::object_pool_data_t {
+struct manapi::object_pool_data_t {
     manapi::chain<std::pair<void*, std::size_t>> buffers[BUFF_LEVEL_MAX + 1];
     std::size_t used;
     std::size_t locked;
@@ -38,6 +39,9 @@ struct manapi::internal::object_pool_data_t {
 };
 
 static int bufflen2level (std::size_t len) {
+    if (len == 0) {
+        return BUFF_LEVEL_0;
+    }
     if (len <= 16) {
         return BUFF_LEVEL_16;
     }
@@ -68,6 +72,7 @@ static int bufflen2level (std::size_t len) {
 
 static std::size_t level2bufflen (int lvl) {
     switch (lvl) {
+        case BUFF_LEVEL_0: return 0;
         case BUFF_LEVEL_16: return 16;
         case BUFF_LEVEL_36: return 36;
         case BUFF_LEVEL_64: return 64;
@@ -80,7 +85,7 @@ static std::size_t level2bufflen (int lvl) {
     return 65536;
 }
 
-void object_item_pool_clear (const std::shared_ptr<manapi::internal::object_pool_data_t> &data) {
+void object_item_pool_clear (const std::shared_ptr<manapi::object_pool_data_t> &data) {
     auto &locked = data->locked;
     auto &used = data->used;
 
@@ -98,26 +103,8 @@ void object_item_pool_clear (const std::shared_ptr<manapi::internal::object_pool
 // #endif
 }
 
-void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size) {
-    assert((buffer && size));
-    assert((data->used >= size));
-    data->used -= size;
-    data->cnt--;
-    //assert(pointers.contains(buffer));
-    auto const lvl = bufflen2level(size);
-    auto &l = data->buffers[lvl];
-    l.push_back({buffer, level2bufflen(lvl)});
-    if (data->used < data->locked / 10 && data->used > MEM_USED)
-        object_item_pool_clear (data);
-
-}
-
-void manapi::internal::object_item_pool_return(void *buffer, std::size_t size) {
-    manapi::async::current()->memory_fabric().free(buffer, size);
-}
-
 struct object_pool_deleter {
-    void operator () (manapi::internal::object_pool_data_t *p) {
+    void operator () (manapi::object_pool_data_t *p) {
         for (auto &buffs : p->buffers) {
             while (!buffs.empty()) {
                 auto pn = std::move(buffs.back());
@@ -132,14 +119,37 @@ struct object_pool_deleter {
     }
 };
 
+manapi::object_item_pool_root::object_item_pool_root() : object(nullptr) {}
+
+manapi::object_item_pool_root::object_item_pool_root(void *p) : object(p) {}
+
+manapi::object_item_pool_root::~object_item_pool_root() = default;
+
+manapi::object_item_pool_root::object_item_pool_root(object_item_pool_root &&n) MANAPIHTTP_NOEXCEPT : object_item_pool_root() {
+    this->object = n.object;
+    n.object = nullptr;
+}
+
+manapi::object_item_pool_root & manapi::object_item_pool_root::operator=(object_item_pool_root &&n) MANAPIHTTP_NOEXCEPT {
+    if (this != &n) {
+        this->object = n.object;
+        n.object = nullptr;
+    }
+    return *this;
+}
+
 manapi::object_pool::object_pool() {
-    this->data = decltype(this->data) (new internal::object_pool_data_t{}, object_pool_deleter{});
+    this->data = decltype(this->data) (new object_pool_data_t{}, object_pool_deleter{});
 }
 
 manapi::object_pool::~object_pool() = default;
 
-static int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
+static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
     auto const lvl = bufflen2level(suggested);
+    if (lvl == BUFF_LEVEL_0) {
+        *ptr = nullptr;
+        return manapi::ERR_OK;
+    }
     auto size = level2bufflen(lvl);
     data->cnt ++;
 
@@ -235,7 +245,7 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         void *buffptr{nullptr};
         std::size_t buffsize;
 
-        if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, left)) {
+        if (::object_pool_malloc(this->data.get(), &buffptr, &buffsize, left)) {
             delete []static_cast<char*>(buffptr);
             return status_resource_exhausted();
         }
@@ -260,7 +270,7 @@ manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t mi
 manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t suggested) {
     void *buffer{nullptr};
     std::size_t size;
-    if (object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
+    if (::object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
         delete []static_cast<char*>(buffer);
         return status_resource_exhausted();
     }
@@ -275,7 +285,7 @@ void * manapi::object_pool::alloc(std::size_t size) MANAPIHTTP_NOEXCEPT {
     void *buffer;
     std::size_t rhs;
     //assert(size <= 65536);
-    if (object_pool_malloc (this->data.get(), &buffer, &rhs, size + 1)) {
+    if (::object_pool_malloc (this->data.get(), &buffer, &rhs, size + 1)) {
         delete []static_cast<char*>(buffer);
         return nullptr;
     }
@@ -312,11 +322,11 @@ void * manapi::object_pool::realloc(void *ptr, std::size_t size) MANAPIHTTP_NOEX
     }
 }
 
-void manapi::object_pool::free(void *ptr) MANAPIHTTP_NOEXCEPT {
-    if (!ptr)
+void manapi::object_pool::free (void *pointer) MANAPIHTTP_NOEXCEPT {
+    if (!pointer)
         return;
 
-    auto const p = (static_cast<char *> (ptr) - 1);
+    auto const p = (static_cast<char *> (pointer) - 1);
     auto const lvl = static_cast<int>(static_cast<uint8_t>(*p));
     if (!lvl || lvl == BUFF_LEVEL_MAX) {
         delete []static_cast<char*>(p);
@@ -327,11 +337,36 @@ void manapi::object_pool::free(void *ptr) MANAPIHTTP_NOEXCEPT {
 }
 
 void manapi::object_pool::free(void *pointer, std::size_t size) MANAPIHTTP_NOEXCEPT {
-    return manapi::internal::object_item_pool_return(this->data, pointer, size);
+    if (!size) {
+        assert(!pointer);
+        return;
+    }
+
+    assert((pointer && size));
+    assert((this->data->used >= size));
+    this->data->cnt--;
+    //assert(pointers.contains(buffer));
+    auto const lvl = ::bufflen2level(size);
+    if (lvl == BUFF_LEVEL_MAX) {
+        this->data->used -= size;
+        delete static_cast<char *>(pointer);
+    }
+    else {
+        auto &l = this->data->buffers[lvl];
+        size = level2bufflen(lvl);
+        this->data->used -= size;
+        l.push_back({pointer, size});
+        if (this->data->used < this->data->locked / 10 && this->data->used > MEM_USED)
+            ::object_item_pool_clear (this->data);
+    }
 }
 
 void manapi::object_pool::clear() {
-    object_item_pool_clear (this->data);
+    ::object_item_pool_clear (this->data);
+}
+
+int manapi::object_pool::mem_type(std::size_t size) MANAPIHTTP_NOEXCEPT {
+    return ::bufflen2level(size);
 }
 
 std::size_t manapi::object_pool::area_size() MANAPIHTTP_NOEXCEPT {

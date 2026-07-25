@@ -22,7 +22,6 @@ namespace manapi {
     class timerpool;
 
     class timer {
-        friend timerpool;
     public:
         typedef std::move_only_function<manapi::future<>(const manapi::timer &data)> async_cb_t;
 
@@ -54,7 +53,7 @@ namespace manapi {
 
         explicit operator bool () const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD size_t id () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD std::size_t id () const MANAPIHTTP_NOEXCEPT;
 
         void clear () MANAPIHTTP_NOEXCEPT;
 
@@ -77,15 +76,9 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_enabled () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool is_important () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data () const MANAPIHTTP_NOEXCEPT;
     private:
-        MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
-
-        void clear_ () MANAPIHTTP_NOEXCEPT;
-
-        void call_ () MANAPIHTTP_NOEXCEPT;
-
-        MANAPIHTTP_NODISCARD static size_t id_ (const std::shared_ptr<timer_data_t> &data);
-
-        std::shared_ptr<timer_data_t> data;
+        std::shared_ptr<timer_data_t> m_data;
     };
 }

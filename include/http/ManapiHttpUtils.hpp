@@ -56,13 +56,13 @@ namespace manapi::net::http {
         // PATH
         std::string uri;
         // version server
-        int http;
+        int32_t http;
         // split by '/'
         std::vector <std::string> path;
         // index of the element where URL get params in the path
-        int divided;
+        int32_t divided;
 
-        ssize_t body_size;
+        int64_t body_size;
 
         uint32_t headers_size;
 
@@ -70,7 +70,7 @@ namespace manapi::net::http {
 
         std::shared_ptr<http_handler_function> handler;
 
-        int flags;
+        int32_t flags;
     };
 
     struct replace_founded_item {

@@ -198,11 +198,18 @@ static void json_set_bigint_(int &m_type, manapi::json::data_t &m_data, manapi::
 }
 #endif
 
-static void json_set_pair_(int &m_type, manapi::json::data_t &m_data, manapi::json first, manapi::json second) {
+static void json_set_pair_(int &m_type, manapi::json::data_t &m_data, manapi::json &&first, manapi::json &&second) {
     ::json_set_pair_(m_type, m_data);
 
-    m_data.pair_src_->first = std::move(first);
-    m_data.pair_src_->second = std::move(second);
+    m_data.pair_src_->first = std::forward<decltype(first)>(first);
+    m_data.pair_src_->second = std::forward<decltype(second)>(second);
+}
+
+static void json_set_pair_(int &m_type, manapi::json::data_t &m_data, const manapi::json &first, const manapi::json &second) {
+    ::json_set_pair_(m_type, m_data);
+
+    m_data.pair_src_->first = (first);
+    m_data.pair_src_->second = (second);
 }
 
 static void json_set_slice_(int &m_type, manapi::json::data_t &m_data, manapi::slice &&n) {

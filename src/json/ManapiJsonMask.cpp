@@ -978,6 +978,7 @@ static manapi::json_error::status json_mask_valid (int flags, const manapi::json
             bool const eorig = p2indx < orig_len && b.p == orig[p2indx].p;
 
             b.type++;
+            b.flags = 0;
 
             if (eorig) {
                 orig[p2indx].type++;

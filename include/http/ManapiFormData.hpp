@@ -85,9 +85,9 @@ namespace manapi::net {
 
         MANAPIHTTP_NODISCARD bool contains (std::string_view name) const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<std::size_t>> payload_size () const;
+        MANAPIHTTP_NODISCARD manapi::future<manapi::status_or<uint64_t>> payload_size () const;
 
-        MANAPIHTTP_NODISCARD manapi::status_or<std::size_t> multipart_size (std::size_t boundary_size) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD manapi::status_or<uint64_t> multipart_size (std::size_t boundary_size) const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::string generate_boundary () const;
 
@@ -104,6 +104,6 @@ namespace manapi::net {
             data_file_storage file;
         };
 
-        std::map<std::string, std::vector<data_storage>, std::less<>> data{};
+        std::unordered_map<std::string, std::vector<data_storage>, manapi::text_hash, std::equal_to<>> data{};
     };
 }

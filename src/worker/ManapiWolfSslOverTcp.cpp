@@ -42,7 +42,7 @@ enum wssl_ex_data_codes {
 class wssl_worker_ctx_t {
 public:
     wssl_worker_ctx_t() : ctx(nullptr) {}
-    std::map<std::string, WOLFSSL_SESSION*, std::less<>> sessions;
+    std::unordered_map<std::string, WOLFSSL_SESSION*, manapi::text_hash, std::equal_to<>> sessions;
     WOLFSSL_CTX *ctx;
     manapi::timer sessions_flush_timer;
     std::string alpn{};

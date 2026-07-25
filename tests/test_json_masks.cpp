@@ -554,6 +554,57 @@ UTEST(json_masks, stream_smart_condition_1) {
 }, std::exception);
 }
 
+UTEST(json_masks, stream_smart_condition_2) {
+    manapi::json_mask mask = {
+        {"id", "{integer}"},
+        {"zone", "{string(<=100)}"},
+        {"do", manapi::json_mask::Array(
+            manapi::json_mask::Or (manapi::json::array({
+                manapi::json::array({0, 1, 2, 3, 4, 5, 6}),
+                manapi::json::array({78})
+            }))
+        )}
+    };
+
+    manapi::json_builder jb (mask);
+    std::string_view data = R"({"id": 1254, "zone": "PANDA", "do": [[78], [0,1,2,3, 4,   5, 6 ], [ 78], [78  ], [ 0,1,2,3,4,5,6]]})";
+    for (auto c : data)
+        jb << c;
+    ASSERT_TRUE(jb.get().ok());
+    jb.set(mask);
+    data = R"({"id": 1254, "zone": "PANDA", "do": [[0, 1 , 2 ,   3, 4,5,6],[0, 1 , 2 ,   3, 4,5,6)";
+    for (auto c : data)
+        jb << c;
+    jb.set(mask);
+    ASSERT_EXCEPTION(
+    data = R"(,7], [78]]})";
+    for (auto c : data){
+    jb << c;
+    }, std::exception);
+
+    jb.set(mask);
+    data = R"({"id": 1254, "zone": "PANDA", "do": [[0, 1 , 2 ,   3, 4,5,6],[0, 1 , 2 ,   3, 4,5,6],[78],)";
+    for (auto c : data)
+        jb << c;
+    jb.set(mask);
+    ASSERT_EXCEPTION(
+    data = R"([78, 0, 1, 2, 3, 4, 5 , 6]]})";
+    for (auto c : data){
+    jb << c;
+    }, std::exception);
+
+    jb.set(mask);
+    data = R"({"id": 1254, "zone": "PANDA", "do": [[78],)";
+    for (auto c : data)
+        jb << c;
+    jb.set(mask);
+    ASSERT_EXCEPTION(
+    data = R"([6,5,4,3,2,1,0]]})";
+    for (auto c : data){
+    jb << c;
+}, std::exception);
+}
+
 UTEST(json_masks, array_min_max_conditions) {
     manapi::json_mask mask = {
         {"items", manapi::json_mask::Array("{integer(>=0 <=100)}", 2, 5)}

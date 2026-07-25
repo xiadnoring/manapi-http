@@ -23,18 +23,6 @@ manapi::net::worker::connection::~connection() {
         this->deleter(this);
 }
 
-std::size_t manapi::net::worker::string_hash::operator()(const char *str) const {
-    return hash_type{}(str);
-}
-
-std::size_t manapi::net::worker::string_hash::operator()(std::string_view str) const {
-    return hash_type{}(str);
-}
-
-std::size_t manapi::net::worker::string_hash::operator()(std::string const &str) const {
-    return hash_type{}(str);
-}
-
 manapi::net::worker::base::base() = default;
 
 manapi::net::worker::base::~base() = default;
@@ -335,6 +323,16 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     }
 
     co_return static_cast<ssize_t>(total);
+}
+
+std::size_t manapi::net::worker::base::wrk_recv_count(const shared_conn &conn) {
+    auto const global = this->wrk_global();
+    return global->recv_cnt_pending(conn, global, this);
+}
+
+manapi::bytebuffer manapi::net::worker::base::wrk_recv_first_buffer(const shared_conn &conn) {
+    auto const global = this->wrk_global();
+    return global->recv_buf_pending(conn, global, this);
 }
 
 void manapi::net::worker::base::event_toggle(const shared_conn & conn, bool state, int flag) MANAPIHTTP_NOEXCEPT {

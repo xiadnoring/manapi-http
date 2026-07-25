@@ -51,7 +51,9 @@ namespace manapi {
         template<typename T, typename E = manapi::json_error::status>
         class status_or : public manapi::status_or<T, E> {
         public:
-            status_or (json_error::status n) : manapi::status_or<T, E>(std::move(n)) {}
+            status_or (json_error::status &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
+
+            status_or (const json_error::status &n) : manapi::status_or<T, E>(n) {}
 
             status_or (T &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 

@@ -26,6 +26,8 @@ namespace manapi::net::http::internal {
         request_data_t * req_data;
         cont_callback_t cb;
         std::unique_ptr<http::http_handler_page> router;
+
+        ~handle_data_t();
     };
 
     typedef std::unique_ptr<handle_data_t> uq_handle_data_t;

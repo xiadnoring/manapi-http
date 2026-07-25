@@ -368,43 +368,43 @@ UTEST(json, dump_3) {
         }}
     };
 
-    ASSERT_TRUE_MSG( a.dump() == R"({"answer":{"everything":42},"happy":true,"list":[1,0,2],"name":"Niels","nothing":null,"object":{"currency":"USD","value":42.99},"pi":3.141})",
+    ASSERT_TRUE_MSG( a.dump() == R"({"list":[1,0,2],"answer":{"everything":42},"object":{"value":42.99,"currency":"USD"},"nothing":null,"name":"Niels","happy":true,"pi":3.141})",
         "dump(n)");
     ASSERT_TRUE_MSG(a.dump(2) == R"({
-  "answer":{
-    "everything":42
-  },
-  "happy":true,
   "list":[
     1,
     0,
     2
   ],
-  "name":"Niels",
-  "nothing":null,
-  "object":{
-    "currency":"USD",
-    "value":42.99
+  "answer":{
+    "everything":42
   },
+  "object":{
+    "value":42.99,
+    "currency":"USD"
+  },
+  "nothing":null,
+  "name":"Niels",
+  "happy":true,
   "pi":3.141
 })", "dump(n, 2)");
 
     ASSERT_TRUE_MSG(a.dump(2, 2) == R"(  {
-    "answer":{
-      "everything":42
-    },
-    "happy":true,
     "list":[
       1,
       0,
       2
     ],
-    "name":"Niels",
-    "nothing":null,
-    "object":{
-      "currency":"USD",
-      "value":42.99
+    "answer":{
+      "everything":42
     },
+    "object":{
+      "value":42.99,
+      "currency":"USD"
+    },
+    "nothing":null,
+    "name":"Niels",
+    "happy":true,
     "pi":3.141
   })", "dump(n, 2, 2)");
 }
@@ -462,46 +462,46 @@ UTEST(json, dump_5) {
 
         manapi::slice sv;
         a.slice(&sv);
-        std::string b = R"({"answer":{"everything":42},"happy":true,"list":[1,0,2],"name":"Niels","nothing":null,"object":{"currency":"USD","value":42.99},"pi":3.141})";
+        std::string b = R"({"list":[1,0,2],"answer":{"everything":42},"object":{"value":42.99,"currency":"USD"},"nothing":null,"name":"Niels","happy":true,"pi":3.141})";
         ASSERT_TRUE(!sv.cmp(b.data(), b.size()));
         a.slice(&sv, 2);
         b = R"({
-  "answer":{
-    "everything":42
-  },
-  "happy":true,
   "list":[
     1,
     0,
     2
   ],
-  "name":"Niels",
-  "nothing":null,
-  "object":{
-    "currency":"USD",
-    "value":42.99
+  "answer":{
+    "everything":42
   },
+  "object":{
+    "value":42.99,
+    "currency":"USD"
+  },
+  "nothing":null,
+  "name":"Niels",
+  "happy":true,
   "pi":3.141
 })";
         ASSERT_TRUE(!sv.cmp(b.data(), b.size()));
 
         a.slice(&sv, 2, 2);
         b = R"(  {
-    "answer":{
-      "everything":42
-    },
-    "happy":true,
     "list":[
       1,
       0,
       2
     ],
-    "name":"Niels",
-    "nothing":null,
-    "object":{
-      "currency":"USD",
-      "value":42.99
+    "answer":{
+      "everything":42
     },
+    "object":{
+      "value":42.99,
+      "currency":"USD"
+    },
+    "nothing":null,
+    "name":"Niels",
+    "happy":true,
     "pi":3.141
   })";
 

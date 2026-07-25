@@ -106,12 +106,12 @@ manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(std:
     try {
         auto logger_ = std::make_shared<manapi::logger>();
         auto taskpool_ = std::make_shared<manapi::mthreadpool>(threadnum);
+        auto timerpool_ = manapi::timerpool::create().unwrap();
 
         /* Main Event Loop */
-        auto watcher_ = manapi::event_loop::create(taskpool_, logger_).unwrap();
-        auto timerpool_ = manapi::timerpool::create(watcher_).unwrap();
+        auto watcher_ = manapi::event_loop::create(taskpool_, timerpool_, logger_).unwrap();
 
-        auto mainctx = std::shared_ptr<context> (new context (std::move(watcher_), taskpool_, std::move(timerpool_), logger_));
+        auto mainctx = std::shared_ptr<context> (new context (std::move(watcher_), taskpool_, timerpool_, logger_));
 
         manapi::async::context::current(mainctx);
 
@@ -145,10 +145,10 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
 
         try {
             for (std::size_t i = 0; i < loops; ++i) {
-                auto watcher_ = manapi::event_loop::create(ctx->taskpool_, ctx->logger_).unwrap();
-                auto timerpool_ = manapi::timerpool::create(watcher_).unwrap();
+                auto timerpool_ = manapi::timerpool::create().unwrap();
+                auto watcher_ = manapi::event_loop::create(ctx->taskpool_, timerpool_, ctx->logger_).unwrap();
 
-                ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
+                ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, timerpool_, ctx->logger_);
             }
         }
         catch (std::exception const &) {

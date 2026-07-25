@@ -245,4 +245,218 @@ UTEST(slice, slice_cmp10) {
     wait_ctx(ctx);
 }
 
+#define SLICE_CHECK(__z_sv) {std::size_t __z_z_cnt = 0; for (auto _ : (__z_sv)) __z_z_cnt++; ASSERT_EQ(__z_z_cnt, (__z_sv).slices_size());} \
+    { std::size_t __z_total_size = 0; for (auto __z_b : (__z_sv)) __z_total_size += __z_b.size(); ASSERT_EQ(__z_total_size, (__z_sv).size()); }
+
+UTEST(slice, slice_subslice) {
+    auto ctx = init_ctx(utest_result);
+    for (int i = 0; i < 50; i++) {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = manapi::math::random(1000, 8000);
+        std::size_t z2 = manapi::math::random(z1, 9900) - z1;
+        auto res = b.subslice(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+
+UTEST(slice, slice_split) {
+    auto ctx = init_ctx(utest_result);
+    {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = 0;
+        std::size_t z2 = 10000;
+        auto res = b.split(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+        std::string bz;
+        bz.append(s1.data(), z1);
+        bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
+        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = 0;
+        std::size_t z2 = 100;
+        auto res = b.split(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+        std::string bz;
+        bz.append(s1.data(), z1);
+        bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
+        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = 10000;
+        std::size_t z2 = 0;
+        auto res = b.split(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+        std::string bz;
+        bz.append(s1.data(), z1);
+        bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
+        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = 4096;
+        std::size_t z2 = 4096;
+        auto res = b.split(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+        std::string bz;
+        bz.append(s1.data(), z1);
+        bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
+        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    for (int i = 0; i < 50; i++) {
+        auto s1 = manapi::crypto::random_string(10000).unwrap();
+        manapi::slice b;
+        b.push_back(s1.data(), s1.size());
+        std::size_t z1 = manapi::math::random(0, 8000);
+        std::size_t z2 = manapi::math::random(z1, 10000) - z1;
+        auto res = b.split(z1, z2).unwrap();
+        ASSERT_TRUE(res.size() == z2);
+        ASSERT_TRUE(!res.cmp(s1.data() + z1, z2));
+        std::string bz;
+        bz.append(s1.data(), z1);
+        bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
+        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+
+        SLICE_CHECK(b);
+        SLICE_CHECK(res);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_subslice_range_err1) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(500).unwrap();
+        ASSERT_TRUE(!b.subslice(0, 501).ok());
+        ASSERT_TRUE(!b.subslice(1, 500).ok());
+        ASSERT_TRUE(!b.subslice(2, 499).ok());
+        ASSERT_TRUE(b.subslice(1, 499).ok());
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_subslice_range_err2) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(5000).unwrap();
+        ASSERT_TRUE(!b.subslice(0, 5001).ok());
+        ASSERT_TRUE(!b.subslice(1, 5000).ok());
+        ASSERT_TRUE(!b.subslice(2, 4999).ok());
+        ASSERT_TRUE(b.subslice(1, 4999).ok());
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+UTEST(slice, slice_split_range_err1) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(500).unwrap();
+        ASSERT_TRUE(!b.split(0, 501).ok());
+        ASSERT_TRUE(!b.split(1, 500).ok());
+        ASSERT_TRUE(!b.split(2, 499).ok());
+        ASSERT_TRUE(b.split(1, 499).ok());
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_split_range_err2) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(5000).unwrap();
+        ASSERT_TRUE(!b.split(0, 5001).ok());
+        ASSERT_TRUE(!b.split(1, 5000).ok());
+        ASSERT_TRUE(!b.split(2, 4999).ok());
+        ASSERT_TRUE(b.split(1, 4999).ok());
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_subslice_range1_err1) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(500).unwrap();
+        auto z4= (b.subslice(1, 499).unwrap());
+
+        SLICE_CHECK(z4);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_subslice_range1_err2) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(5000).unwrap();
+        auto z4=(b.subslice(1, 4999).unwrap());
+
+        SLICE_CHECK(z4);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+UTEST(slice, slice_split_range1_err1) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(500).unwrap();
+        auto z4=(b.split(1, 499).unwrap());
+
+        SLICE_CHECK(z4);
+        SLICE_CHECK(b);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_split_range1_err2) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice b = manapi::async::memory_fabric()->slice(5000).unwrap();
+        auto z4=(b.split(1, 4999).unwrap());
+
+        SLICE_CHECK(z4);
+        SLICE_CHECK(b);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
 MANAPIHTTP_TESTS_MAIN

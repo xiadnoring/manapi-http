@@ -125,12 +125,7 @@ void manapi::async::mutex::unlock() MANAPIHTTP_NOEXCEPT {
     auto promise = this->m_stack.back();
     this->m_stack.pop_back();
 
-    MANAPIHTTP_MUST_ALLOC_START
-    manapi::async::current()->etaskpool()->append_task(
-        [handle = promise->handle] () -> void {
-        async::coro_resume(handle);
-    });
-    MANAPIHTTP_MUST_ALLOC_END
+    manapi::async::current()->etaskpool()->append_task(promise->handle);
 }
 
 manapi::future<manapi::async::mutex_locker> manapi::async::mutex::lock_guard()  {

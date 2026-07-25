@@ -71,3 +71,9 @@ void manapi::print_stacktrace(std::size_t pos) MANAPIHTTP_NOEXCEPT {
     }
 }
 
+std::size_t manapi::text_hash::operator()(const char *str) const { return hash_type{}(str); }
+
+std::size_t manapi::text_hash::operator()(const std::string &str) const { return hash_type{}(str); }
+
+std::size_t manapi::text_hash::operator()(std::string_view str) const { return hash_type{}(str); }
+

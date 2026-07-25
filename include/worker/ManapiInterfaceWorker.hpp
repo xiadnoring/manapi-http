@@ -26,7 +26,6 @@ namespace manapi::net::worker {
         MANAPIHTTP_NODISCARD std::size_t deep_worker_id () const MANAPIHTTP_NOEXCEPT;
 
         const std::shared_ptr<multithread_storage::worker_t> &worker_data () MANAPIHTTP_NOEXCEPT override;
-
     protected:
         int flags_;
 

@@ -9,17 +9,6 @@
 #include "std/ManapiAsyncContext.hpp"
 #include "./include/ManapiUtils.hpp"
 
-struct manapi_errors_string_hash
-{
-    using hash_type = std::hash<std::string_view>;
-    using is_transparent = void;
-
-    std::size_t operator()(const char* str) const        { return hash_type{}(str); }
-    std::size_t operator()(std::string_view str) const   { return hash_type{}(str); }
-    std::size_t operator()(std::string const& str) const { return hash_type{}(str); }
-};
-
-
 static const char* level_strings[] = {
     "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
@@ -49,26 +38,45 @@ static const char* level_colors[] = {
 };
 #endif
 
+enum log_trace__flags {
+    LOG_TRACE__FLAG_ENABLE_ALL = 1<<0
+};
 
-static int log_trace_enabled = -1;
+static int log_trace_enabled = 0;
+
+static int log_trace_flags = 0;
 
 static std::mutex log_mx;
 
-static std::unordered_set<std::string, manapi_errors_string_hash, std::equal_to<>> log_names_enabled;
+static std::unordered_set<std::string, manapi::text_hash, std::equal_to<>> log_names_enabled;
 
 void manapi::debug::set_log_name_enabled(const char *name, bool enabled) {
-    if (enabled) {
-        log_names_enabled.insert(std::string(name));
+    auto sv = std::string_view(name);
+
+
+    if (sv == "all") {
+        if (enabled) {
+            ::log_trace_flags |= LOG_TRACE__FLAG_ENABLE_ALL;
+        }
+        else {
+            if (::log_trace_flags & LOG_TRACE__FLAG_ENABLE_ALL)
+                ::log_trace_flags ^= LOG_TRACE__FLAG_ENABLE_ALL;
+        }
     }
     else {
-        auto it = log_names_enabled.find(std::string_view(name));
-        if (it != log_names_enabled.end())
-            log_names_enabled.erase(it);
+        if (enabled) {
+            ::log_names_enabled.insert(std::string(sv));
+        }
+        else {
+            auto it = ::log_names_enabled.find(sv);
+            if (it != ::log_names_enabled.end())
+                ::log_names_enabled.erase(it);
+        }
     }
 }
 
 void manapi::debug::set_log_trace_enabled (int value) MANAPIHTTP_NOEXCEPT {
-    log_trace_enabled = value;
+    ::log_trace_enabled = value;
 }
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
@@ -648,7 +656,7 @@ manapi::status manapi::status_internal(const char *msg) {
 
 static void logit_ (manapi::debug::log_level type, int level, const char *file, const char *func, int line, const char *name, const char *fmt, va_list args) {
     if (type == manapi::debug::LOG_TRACE ) {
-        if (!log_names_enabled.contains(std::string_view (name)))
+        if ( !(log_trace_flags & LOG_TRACE__FLAG_ENABLE_ALL) && !::log_names_enabled.contains(std::string_view (name)))
             return;
         if (level > log_trace_enabled)
             return;

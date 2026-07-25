@@ -83,8 +83,9 @@ struct manapi::net::http::server::data_t {
     manapi::async::mutex mx;
 };
 
-static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
+static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
     auto p = std::make_unique<manapi::net::worker::wrk_interface_global_t>();
+    manapi::net::worker::default_wrk_http_preinit(p.get());
     auto res = init_global_cb (p.get(), (w));
     if (!res.ok())
         return std::move(res);
@@ -458,18 +459,18 @@ manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
 #endif
 
     this->http_protocol_worker(http::versions::HTTP_v1_1, "default", [] (worker::interface_worker *w)
-        { return create_http_protocol_worker (w, worker::default_wrk_http1_global_init); });
+        { return create_protocol_worker (w, worker::default_wrk_http1_global_init); });
     this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::interface_worker *w)
-        { return create_http_protocol_worker (w, worker::default_wrk_http2_global_init); });
+        { return create_protocol_worker (w, worker::default_wrk_http2_global_init); });
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY
     this->http_protocol_worker(http::versions::HTTP_v2, "nghttp", [] (worker::interface_worker *w)
-        { return create_http_protocol_worker (w, worker::ng_wrk_http2_global_init); });
+        { return create_protocol_worker (w, worker::ng_wrk_http2_global_init); });
 #endif
 
 #if MANAPIHTTP_NGHTTP3_DEPENDENCY
     this->http_protocol_worker(http::versions::HTTP_v3, "nghttp", [] (worker::interface_worker *w)
-        { return create_http_protocol_worker (w, worker::ng_wrk_http3_global_init); });
+        { return create_protocol_worker (w, worker::ng_wrk_http3_global_init); });
 #endif
 }
 

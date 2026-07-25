@@ -295,7 +295,7 @@ manapi::future<manapi::status> manapi::net::http::request::file(std::string file
     co_return std::move(res);
 }
 
-ssize_t manapi::net::http::request::left() {
+int64_t manapi::net::http::request::left() {
     return this->m_request_data->body_size;
 }
 
@@ -339,7 +339,7 @@ manapi::json_error::status manapi::net::http::request::contains_get_param(std::s
     return status_ok();
 }
 
-manapi::status manapi::net::http::request::available_body_size(ssize_t size) {
+manapi::status manapi::net::http::request::available_body_size(int64_t size) {
     if (this->m_request_data->body_size < 0) {
         this->m_request_data->body_size = size;
         this->m_request_data->flags |= internal::REQ_DATA_FLAG_BODY_LIMITED;
@@ -430,6 +430,16 @@ const std::vector<std::string> &manapi::net::http::request::path() const {
     return this->m_request_data->path;
 }
 
+bool manapi::net::http::request::has_body() const {
+    if (this->m_request_data->body_size == 0)
+        return false;
+
+    if (!(this->m_flags & worker::base::CONN_RECV_END))
+        return true;
+
+    return !!this->m_worker->wrk_recv_count(*this->m_conn);
+}
+
 static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::base *worker, manapi::net::worker::shared_conn *conn, manapi::net::http::request_data_t *req, manapi::net::http::request::onrecv_sync_cb handler) {
     using namespace manapi;
     using namespace manapi::net;
@@ -474,8 +484,10 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
 
                             if (ctx_cb.req->body_size >= 0) {
                                 size = std::min(static_cast<std::size_t>(ctx_cb.req->body_size), (nsize));
-                                if (static_cast<std::size_t>(ctx_cb.req->body_size) == size)
+                                if (static_cast<std::size_t>(ctx_cb.req->body_size) == size) {
                                     flg = true;
+                                    ctx_cb.worker->event_toggle(conn, true, worker::base::CONN_RECV_END);
+                                }
                             }
                             else
                                 size = (nsize);
@@ -486,7 +498,7 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
 
                                 auto const res = ctx_cb.handler (buffer + rhs, copy, flg);
                                 if (res >= 0) {
-                                    if (copy > static_cast<std::size_t>(res)) {
+                                    if (copy != static_cast<std::size_t>(res)) {
                                         ctx_cb.resolve(manapi::status_internal("read_body:Something gets wrong"));
                                         goto finish;
                                     }
@@ -505,14 +517,18 @@ static manapi::future<manapi::status> http_req_read_body_( manapi::net::worker::
                                 if (ctx_cb.req->flags & http::internal::REQ_DATA_FLAG_BODY_LIMITED) {
                                     if (copy) {
                                         ctx_cb.resolve(manapi::status_out_of_range("read_body:Too much data"));
-                                        goto finish;
                                     }
+                                    else {
+                                        ctx_cb.resolve(manapi::status_ok());
+                                    }
+                                    goto finish;
                                 }
                                 else {
                                     if (copy) {
                                         ctx_cb.worker->feed_event(conn, worker::base::CONN_TOP_READ,
                                                static_cast<const char *>(buffer + rhs), copy, nullptr);
                                     }
+
                                     ctx_cb.resolve(manapi::status_ok());
                                     goto finish;
                                 }
@@ -607,8 +623,8 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                         slice buffs = ctx_cb.worker->bufferpool().slice(nsize).unwrap();
                         buffs.copy_from(buffer, 0, nsize).unwrap();
 
-                        while (ctx_cb.worker->recv_count(ctx_cb.conn))
-                            buffs.push_back(ctx_cb.worker->recv_first_buffer(ctx_cb.conn)).unwrap();
+                        while (ctx_cb.worker->wrk_recv_count(ctx_cb.conn))
+                            buffs.push_back(ctx_cb.worker->wrk_recv_first_buffer(ctx_cb.conn)).unwrap();
 
                         if (ctx_cb.worker->event_flags(conn) & worker::base::CONN_RECV_END)
                             m_flags |= worker::base::CONN_RECV_END;
@@ -625,8 +641,10 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                                     if (ctx_cb->req->body_size >= 0) {
                                         size = std::min(static_cast<std::size_t>(ctx_cb->req->body_size),  (buffs.size()));
 
-                                        if (static_cast<std::size_t>(ctx_cb->req->body_size) == size)
+                                        if (static_cast<std::size_t>(ctx_cb->req->body_size) == size) {
                                             flg = true;
+                                            ctx_cb->worker->event_toggle(conn, true, worker::base::CONN_RECV_END);
+                                        }
                                     }
                                     else {
                                         size = (buffs.size());
@@ -640,7 +658,7 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
 
                                         auto const res = co_await ctx_cb->handler (buffsview, flg);
                                         if (res >= 0) {
-                                            if (copy > static_cast<std::size_t>(res)) {
+                                            if (copy != static_cast<std::size_t>(res)) {
                                                 ctx_cb->resolve(manapi::status_internal("read_async_body:Something gets wrong"));
                                                 goto finish;
                                             }
@@ -657,14 +675,16 @@ static manapi::future<manapi::status> http_req_read_async_body_(manapi::net::wor
                                         goto finish;
                                     }
 
-                                    if (ctx_cb->req->body_size <= 0) {
+                                    if (!ctx_cb->req->body_size) {
                                         auto const copy = (buffs.size() - rhs);
 
                                         if (ctx_cb->req->flags & http::internal::REQ_DATA_FLAG_BODY_LIMITED) {
                                             if (copy) {
                                                 ctx_cb->resolve(manapi::status_out_of_range("read_async_body:Too much data"));
-                                                goto finish;
+                                            } else {
+                                                ctx_cb->resolve(manapi::status_ok());
                                             }
+                                            goto finish;
                                         }
                                         else {
                                             if (copy) {

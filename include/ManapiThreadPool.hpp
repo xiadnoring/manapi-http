@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <coroutine>
 
 #include "./ManapiUtils.hpp"
 #include "./ManapiTime.hpp"
@@ -16,7 +17,7 @@ namespace manapi {
     public:
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual void append_static_task (manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void start() = 0;
 
@@ -51,7 +52,7 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT override;
 
         MANAPIHTTP_NODISCARD std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
@@ -82,7 +83,7 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_task(std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
 

@@ -43,7 +43,7 @@ namespace manapi::async {
      */
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run(manapi::future<> task, run_cb onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
+    void run(manapi::future<T> &&task, run_cb &&onfinish);
 
     /**
      * Run an async task
@@ -54,7 +54,7 @@ namespace manapi::async {
      */
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run (auto && executor, run_cb onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
+    void run (auto && executor, run_cb&& onfinish );
 
     /**
      * Run an async task
@@ -65,7 +65,7 @@ namespace manapi::async {
      */
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run(manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
+    void run(manapi::future<T> &&task, run_cb_with_value<T> &&onfinish);
 
     /**
      * Run an async task
@@ -76,7 +76,22 @@ namespace manapi::async {
      */
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (auto && executor, run_cb_with_value<T> onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
+    void run (auto && executor, run_cb_with_value<T> &&onfinish);
+
+    /**
+     * Run an async task
+     * @tparam T the type of the returned value
+     * @param task the task
+     */
+    template<typename T>
+    void run(manapi::future<T> &&task);
+
+    /**
+     * Run an async task
+     *
+     * @param executor the task
+     */
+    void run (auto && executor);
 }
 
 namespace manapi {
@@ -323,50 +338,21 @@ namespace manapi::async::internal {
 
     /**
      * FOR INTERNAL USE ONLY
-     * @tparam T the type of the returned value
      * @param task_data the task data
      * @param onfinish the callback
      */
-    template<typename T = void>
-    requires(std::is_same_v<T, void>)
-    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb onfinish) MANAPIHTTP_NOEXCEPT {
-        if (onfinish) {
-            std::move_only_function<void(std::exception_ptr)> lambda;
-            std::unique_ptr<decltype(lambda)> st;
-            MANAPIHTTP_MUST_ALLOC_START
-            lambda = [task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err) mutable -> void {
-                try { onfinish(std::move(err)); }
-                catch (manapi::exception &e) { run_prepare_manapi_exception_(e); }
-                catch (std::exception const &e) { run_prepare_std_exception_(e); }
+    inline void run_prepare_(std::unique_ptr<manapi::async::async_task_t<void>> &&task_data, run_cb &&onfinish) {
 
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
-                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-            };
-            MANAPIHTTP_MUST_ALLOC_END
-            MANAPIHTTP_MUST_ALLOC_START
-            st = std::make_unique<decltype(lambda)>();
-            MANAPIHTTP_MUST_ALLOC_END
-            *st = std::move(lambda);
-            task_data->task.onfinish(std::move(st));
-        }
-        else {
-            std::move_only_function<void(std::exception_ptr)> lambda;
-            std::unique_ptr<decltype(lambda)> st;
-            MANAPIHTTP_MUST_ALLOC_START
-            lambda = ([task = task_data.get()] (std::exception_ptr err) mutable -> void {
-                if (err)
-                    run_prepare_error_(std::move(err));
+        auto st = std::make_unique<run_cb>();
+        *st = [task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err) mutable -> void {
+            try { onfinish(std::move(err)); }
+            catch (manapi::exception &e) { run_prepare_manapi_exception_(e); }
+            catch (std::exception const &e) { run_prepare_std_exception_(e); }
 
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
-                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-            });
-            MANAPIHTTP_MUST_ALLOC_END
-            MANAPIHTTP_MUST_ALLOC_START
-            st = std::make_unique<decltype(lambda)>();
-            MANAPIHTTP_MUST_ALLOC_END
-            *st = std::move(lambda);
-            task_data->task.onfinish(std::move(st));
-        }
+            if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
+            else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
+        };
+        task_data->task.onfinish(std::move(st));
 
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
@@ -382,42 +368,65 @@ namespace manapi::async::internal {
      * @param onfinish the callback
      */
     template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
-        if (onfinish) {
-            std::move_only_function<void(std::exception_ptr, T *)> lambda;
-            std::unique_ptr<decltype(lambda)> st;
-            MANAPIHTTP_MUST_ALLOC_START
-            lambda = [task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
-                try { onfinish(std::move(err), value); }
-                catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
-                catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
-                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-            };
-            MANAPIHTTP_MUST_ALLOC_END
-            MANAPIHTTP_MUST_ALLOC_START
-            st = std::make_unique<decltype(lambda)>();
-            MANAPIHTTP_MUST_ALLOC_END
-            *st = std::move(lambda);
-            task_data->task.onfinish(std::move(st));
-        }
-        else {
-            std::move_only_function<void(std::exception_ptr, T *)> lambda;
-            std::unique_ptr<decltype(lambda)> st;
-            MANAPIHTTP_MUST_ALLOC_START
-            lambda = [task = task_data.get()] (std::exception_ptr err, T *) mutable -> void {
-                if (err) internal::run_prepare_error_(std::move(err));
-                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
-                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-            };
-            MANAPIHTTP_MUST_ALLOC_END
-            MANAPIHTTP_MUST_ALLOC_START
-            st = std::make_unique<decltype(lambda)>();
-            MANAPIHTTP_MUST_ALLOC_END
-            *st = std::move(lambda);
-            task_data->task.onfinish(std::move(st));
-        }
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> &&task_data, run_cb_with_value<T> &&onfinish) {
+
+        auto st = std::make_unique<run_cb_with_value<T>>();
+        *st = [task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
+            try { onfinish(std::move(err), value); }
+            catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
+            catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
+            if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
+            else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
+        };
+        task_data->task.onfinish(std::move(st));
+
+
+        task_data->task();
+        auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
+        task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
+        if (!rhs)
+            task_data.release();
+    }
+
+    /**
+     * FOR INTERNAL USE ONLY
+     * @param task_data the task data
+     */
+    inline void run_prepare_(std::unique_ptr<manapi::async::async_task_t<void>> &&task_data) {
+
+        auto st = std::make_unique<run_cb>();
+        *st = ([task = task_data.get()] (std::exception_ptr err) mutable -> void {
+            if (err)
+                run_prepare_error_(std::move(err));
+
+            if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
+            else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
+        });
+        task_data->task.onfinish(std::move(st));
+
+        task_data->task();
+        auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
+        task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
+        if (!rhs)
+            task_data.release();
+    }
+
+    /**
+     * FOR INTERNAL USE ONLY
+     * @tparam T the type of the returned value
+     * @param task_data the task data
+     */
+    template<typename T>
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> &&task_data) {
+
+        auto st = std::make_unique<run_cb_with_value<T>>();
+        *st = [task = task_data.get()] (std::exception_ptr err, T *) mutable -> void {
+            if (err) internal::run_prepare_error_(std::move(err));
+            if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
+            else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
+        };
+        task_data->task.onfinish(std::move(st));
+
 
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
@@ -455,33 +464,43 @@ namespace manapi::async {
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void run (auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) MANAPIHTTP_NOEXCEPT {
-        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+    void run (auto && executor,  run_cb &&onfinish ) {
+        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::forward<decltype(onfinish)>(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (auto &&executor, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
-        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+    void run (auto &&executor, run_cb_with_value<T> &&onfinish) {
+        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::forward<decltype(onfinish)>(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run(manapi::future<T> task, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
-        async_task_t<T>*  ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
-        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); }
+    void run(manapi::future<T> &&task, run_cb_with_value<T> &&onfinish) {
+        async_task_t<T>*  ptr = new async_task_t<T>(future<T>{nullptr});
         std::unique_ptr<async_task_t<T>> task_data(ptr);
         task_data->task = manapi::future<T>{task.release()};
-        internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));
+        internal::run_prepare_<T>(std::move(task_data), std::forward<decltype(onfinish)>(onfinish));
     }
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void manapi::async::run(manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) MANAPIHTTP_NOEXCEPT {
-        async_task_t<T>* ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
-        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); }
+    void run(manapi::future<T> &&task, run_cb &&onfinish) {
+        async_task_t<T>* ptr = new async_task_t<T>(future<T>{nullptr});
         std::unique_ptr<async_task_t<T>> task_data(ptr);
         task_data->task = manapi::future<T>{task.release()};
-        internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));
+        internal::run_prepare_ (std::move(task_data), std::forward<decltype(onfinish)>(onfinish));
+    }
+
+    void run (auto && executor ) {
+        async::run (manapi::async::invoke(std::forward<decltype(executor)>(executor)));
+    }
+
+    template<typename T>
+    void run(manapi::future<T> &&task) {
+        async_task_t<T>* ptr = new async_task_t<T>(future<T>{nullptr});
+        std::unique_ptr<async_task_t<T>> task_data(ptr);
+        task_data->task = manapi::future<T>{task.release()};
+        internal::run_prepare_ (std::move(task_data));
     }
 }

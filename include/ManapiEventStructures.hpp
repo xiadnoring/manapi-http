@@ -468,8 +468,6 @@ namespace manapi::ev {
 
         MANAPIHTTP_NODISCARD ev::file get () const;
 
-        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
-
         void reset () MANAPIHTTP_NOEXCEPT;
 
         void reset (ev::file fd) MANAPIHTTP_NOEXCEPT;
@@ -1106,7 +1104,9 @@ namespace manapi::ev {
          * Initialize the status_or() instence
          * @param n the status error
          */
-        status_or (ev::status n) : manapi::status_or<T, E>(std::move(n)) {}
+        status_or (const ev::status &n) : manapi::status_or<T, E>(n) {}
+
+        status_or (ev::status &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
         status_or (T &&n) : manapi::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 

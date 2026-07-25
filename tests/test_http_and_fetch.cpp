@@ -406,7 +406,8 @@ UTEST(http_and_fetch, formdata_bad_response) {
             {"method", "GET"},
             {"verbose", false}
         };
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", std::move(jparams), manapi::ctokens::timeout(5000));
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", std::move(jparams),
+            manapi::ctokens::timeout(5000));
 
         if (!fetch_res.ok())
             co_return;
@@ -414,7 +415,7 @@ UTEST(http_and_fetch, formdata_bad_response) {
         auto fetch = fetch_res.unwrap();
 
 #define return co_return
-        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
+        ASSERT_TRUE_MSG((404 == fetch->status()), "check response status");
 #undef return
 
         auto data_res = co_await fetch->callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
@@ -423,7 +424,7 @@ UTEST(http_and_fetch, formdata_bad_response) {
         });
 
 #define return co_return
-        ASSERT_TRUE_MSG((!data_res.ok()), "check response bad");
+        ASSERT_TRUE_MSG((data_res.ok()), "check response bad");
 #undef return
 
     });
@@ -589,6 +590,123 @@ UTEST(http_and_fetch, user_data) {
     router->GET ("/admin/test", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         auto user_data = resp.custom_data_as<user_data_for_test_t>();
         co_return resp.text(std::move(user_data->msg)).unwrap();
+    }).unwrap();
+
+    wait_ctx(ctx);
+}
+
+UTEST(http_and_fetch, post_proxy) {
+    using http = manapi::net::http::server;
+    //
+    // manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HARD);
+    // manapi::init_tools::log_name_enable("all", true);
+
+    auto ctx = init_ctx(utest_result);
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+
+        manapi::json jparams = {
+            {"method", "POST"},
+            {"verbose", false}
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch(
+            "http://127.0.0.1:" HTTP1PORT "/proxy", std::move(jparams), "Admin52", manapi::ctokens::timeout(5000));
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
+#undef return
+
+        auto data = manapi::unwrap(co_await fetch->json());
+#define return co_return
+        ASSERT_TRUE_MSG((data["name"] == "Admin52"), "check response data");
+#undef return
+
+    });
+
+    router->POST ("/proxy", [&] (http::req &req, http::uresp resp) -> void {
+        try {
+            resp->proxy("http://127.0.0.1:" HTTP1PORT "/echo").unwrap();
+        }
+        catch (std::exception const &e) {
+            manapi_log_error(e.what());
+            std::rethrow_exception(std::current_exception());
+        }
+    }).unwrap();
+
+    router->POST ("/echo", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        try {
+            auto res = manapi::unwrap(co_await req.text());
+            auto ans = manapi::json::object();
+            ans.insert("name", std::move(res));
+            co_return resp.json(std::move(ans)).unwrap();
+        }
+        catch (std::exception const &e) {
+            manapi_log_error(e.what());
+            std::rethrow_exception(std::current_exception());
+        }
+    }).unwrap();
+
+    wait_ctx(ctx);
+}
+
+UTEST(http_and_fetch, get_proxy) {
+    using http = manapi::net::http::server;
+    //
+    // manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HARD);
+    // manapi::init_tools::log_name_enable("all", true);
+
+    auto ctx = init_ctx(utest_result);
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+
+        manapi::json jparams = {
+            {"method", "GET"},
+            {"verbose", false},
+            {"headers", {
+                {"X-Name", "Admin52"}
+            }}
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch(
+            "http://127.0.0.1:" HTTP1PORT "/proxy", std::move(jparams),  manapi::ctokens::timeout(5000));
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch->ok()), "check response status");
+#undef return
+
+        auto data = manapi::unwrap(co_await fetch->json());
+#define return co_return
+        ASSERT_TRUE_MSG((data["name"] == "Admin52"), "check response data");
+#undef return
+
+    });
+
+    router->GET ("/proxy", [&] (http::req &req, http::uresp resp) -> void {
+        try {
+            resp->proxy("http://127.0.0.1:" HTTP1PORT "/echo").unwrap();
+        }
+        catch (std::exception const &e) {
+            manapi_log_error(e.what());
+            std::rethrow_exception(std::current_exception());
+        }
+    }).unwrap();
+
+    router->GET ("/echo", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        try {
+            auto name = req.header("x-name").unwrap();
+            auto ans = manapi::json::object();
+            ans.insert("name", name);
+            co_return resp.json(std::move(ans)).unwrap();
+        }
+        catch (std::exception const &e) {
+            manapi_log_error(e.what());
+            std::rethrow_exception(std::current_exception());
+        }
     }).unwrap();
 
     wait_ctx(ctx);

@@ -15,7 +15,6 @@
 
 namespace manapi {
     class timerpool {
-        friend timer;
     public:
         typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {
@@ -30,9 +29,8 @@ namespace manapi {
 
         /**
          * timerpool based on libuv timer event
-         * @param events event loop
          */
-        static manapi::status_or<std::shared_ptr<timerpool>> create (std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT;
+        static manapi::status_or<std::shared_ptr<timerpool>> create () MANAPIHTTP_NOEXCEPT;
 
         /* deconstructor */
         ~timerpool();
@@ -139,30 +137,8 @@ namespace manapi {
 
         void clear() MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
+        const std::shared_ptr<data_t> &data ();
     private:
-        static void stop_ (std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT;
-
-        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXCEPT;
-
-        static void start_ (const std::shared_ptr<data_t> &data) MANAPIHTTP_NOEXCEPT;
-
-        static void flush_stack_free (const std::shared_ptr<data_t> &data_);
-
-        static int64_t calculate_repeat_ (const std::shared_ptr<data_t> &data_);
-
-        static bool reinit_timer_ (const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT;
-
-        static manapi::status update_interval_state_ (const std::shared_ptr<data_t> &data_, std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
-
-        manapi::ev::status init_timer_ () MANAPIHTTP_NOEXCEPT;
-
-        manapi::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval, timer_types type) MANAPIHTTP_NOEXCEPT;
-
-        manapi::status update_interval_state (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
-
-        void unref_important_ () MANAPIHTTP_NOEXCEPT;
-
         std::shared_ptr<data_t> m_data;
     };
 }

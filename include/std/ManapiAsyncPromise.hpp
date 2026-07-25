@@ -36,57 +36,37 @@ namespace manapi::async::internal {
     };
 
     template<typename T>
-    void promise_call (std::shared_ptr<promise_data_t<T>> data) MANAPIHTTP_NOEXCEPT {
+    void promise_call (const std::shared_ptr<promise_data_t<T>> &data) MANAPIHTTP_NOEXCEPT {
         auto handle = std::exchange(data->handle, nullptr);
-        MANAPIHTTP_MUST_ALLOC_START
-        manapi::async::internal::append_static_task([handle] ()
-            -> void {
-            async::coro_resume(handle);
-        });
-        MANAPIHTTP_MUST_ALLOC_END
+        manapi::async::internal::append_task(handle);
     }
 
     template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void call_promise_resolve (std::shared_ptr<promise_data_t<T>> data, T &v) MANAPIHTTP_NOEXCEPT {
+    void call_promise_resolve (const std::shared_ptr<promise_data_t<T>> &data, T &&v) MANAPIHTTP_NOEXCEPT {
         if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
             return;
         }
         data->flags |= PROMISE_FLAG_EXECUTED;
-        data->value = std::move(v);
-        promise_call(std::move(data));
+        data->value = std::forward<decltype(v)>(v);
+        promise_call(data);
     }
 
     template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void call_promise_reject (std::shared_ptr<promise_data_t<T>> data, std::exception_ptr e) MANAPIHTTP_NOEXCEPT {
+    void call_promise_reject (const std::shared_ptr<promise_data_t<T>>& data, std::exception_ptr &&e) MANAPIHTTP_NOEXCEPT {
         if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
             return;
         }
         data->flags |= PROMISE_FLAG_EXECUTED;
-        data->exception = std::move(e);
-        promise_call(std::move(data));
+        data->exception = std::forward<decltype(e)>(e);
+        promise_call(data);
     }
 
-    template<typename T>
-    requires(std::is_same_v<T, void>)
-    void call_promise_resolve (std::shared_ptr<promise_data_t<T>> data) MANAPIHTTP_NOEXCEPT {
+    inline void call_promise_resolve (const std::shared_ptr<promise_data_t<void>> &data) MANAPIHTTP_NOEXCEPT {
         if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
             return;
         }
         data->flags |= PROMISE_FLAG_EXECUTED;
-        promise_call(std::move(data));
-    }
-
-    template<typename T>
-    requires(std::is_same_v<T, void>)
-    void call_promise_reject (std::shared_ptr<promise_data_t<T>> data, std::exception_ptr e) MANAPIHTTP_NOEXCEPT {
-        if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
-            return;
-        }
-        data->flags |= PROMISE_FLAG_EXECUTED;
-        data->exception = std::move(e);
-        promise_call(std::move(data));
+        promise_call(data);
     }
 }
 
@@ -100,8 +80,6 @@ namespace manapi::async {
             this->data_ = std::move(data);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT { return !!this->data_; }
-
         MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->data_; }
 
         promise_resolve (promise_resolve &&n) MANAPIHTTP_NOEXCEPT = default;
@@ -112,12 +90,12 @@ namespace manapi::async {
 
         promise_resolve&operator= (const promise_resolve &n) = default;
 
-        void operator () (T v) MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<T> (this->data_, v);
+        void operator () (const T &v) const MANAPIHTTP_NOEXCEPT {
+            internal::call_promise_resolve<T> (this->data_, T(v));
         }
 
-        void operator () (T v) const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<T> (this->data_, v);
+        void operator () (T &&v) const MANAPIHTTP_NOEXCEPT {
+            internal::call_promise_resolve<T> (this->data_, std::forward<decltype(v)>(v));
         }
     private:
         std::shared_ptr<internal::promise_data_t<T>> data_;
@@ -132,8 +110,6 @@ namespace manapi::async {
             this->data_ = std::move(data);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT { return !!this->data_; }
-
         MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->data_; }
 
         promise_resolve (promise_resolve &&n) MANAPIHTTP_NOEXCEPT = default;
@@ -144,12 +120,8 @@ namespace manapi::async {
 
         promise_resolve&operator= (const promise_resolve &n) = default;
 
-        void operator () () MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<void> (this->data_);
-        }
-
         void operator () () const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<void> (this->data_);
+            internal::call_promise_resolve (this->data_);
         }
     private:
         std::shared_ptr<internal::promise_data_t<void>> data_;
@@ -176,12 +148,12 @@ namespace manapi::async {
 
         promise_reject&operator= (const promise_reject &n) = default;
 
-        void operator () (std::exception_ptr err) MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_reject(this->data_, std::move(err));
+        void operator () (const std::exception_ptr &err) MANAPIHTTP_NOEXCEPT {
+            internal::call_promise_reject(this->data_, std::exception_ptr(err));
         }
 
-        void operator () (std::exception_ptr err) const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_reject(this->data_, std::move(err));
+        void operator () (std::exception_ptr &&err) MANAPIHTTP_NOEXCEPT {
+            internal::call_promise_reject(this->data_, std::forward<decltype(err)>(err));
         }
     private:
         std::shared_ptr<internal::promise_data_t<T>> data_;

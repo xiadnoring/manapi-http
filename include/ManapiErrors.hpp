@@ -320,13 +320,13 @@ namespace manapi {
     requires(!std::is_same_v<E, T>)
     class status_or {
     public:
-        status_or (T value) : err_() {
-            this->value_ = std::move(value);
-        }
+        status_or (T &&value) : err_(), value_(std::forward<decltype(value)>(value)) {}
 
-        status_or (E st) {
-            this->err_ = std::move(st);
-        }
+        status_or (E &&st) : err_(std::forward<decltype(st)>(st)) {}
+
+        status_or (const T &value) : err_(), value_(value) {}
+
+        status_or (const E &st) : err_(st) {}
 
         status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
@@ -366,7 +366,7 @@ namespace manapi {
          * the exception
          * @throws manapi::exception with error code from the status
          */
-        T unwrap () {
+        T &&unwrap () {
             this->err_.unwrap();
             return std::move(this->value_.value());
         }
@@ -385,7 +385,7 @@ namespace manapi {
          *
          * @return the error status
          */
-        E err () MANAPIHTTP_NOEXCEPT {
+        E &&err () MANAPIHTTP_NOEXCEPT {
             return std::move(this->err_);
         }
 
@@ -526,7 +526,7 @@ namespace manapi {
     status status_internal (std::string_view msg);
 
     template<typename T>
-    auto unwrap (T status) {
+    auto unwrap (T &&status) {
        return status.unwrap();
     }
 }

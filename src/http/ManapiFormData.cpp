@@ -755,8 +755,8 @@ bool manapi::net::formdata_send::contains(std::string_view name) const MANAPIHTT
     return this->data.contains(name);
 }
 
-manapi::future<manapi::status_or<std::size_t>> manapi::net::formdata_send::payload_size() const {
-    std::size_t s = 0;
+manapi::future<manapi::status_or<uint64_t>> manapi::net::formdata_send::payload_size() const {
+    uint64_t s = 0;
     for (const auto &params : this->data) {
         for (const auto &param : params.second) {
             switch (param.type) {

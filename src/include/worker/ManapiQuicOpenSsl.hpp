@@ -105,7 +105,7 @@ namespace manapi::net::worker {
 
         uint32_t finish_ref;
 
-        std::unordered_map <std::string, std::map<std::uintptr_t, shared_conn>, worker::string_hash, std::equal_to<>> conns_;
+        std::unordered_map <std::string, std::map<std::uintptr_t, shared_conn>, manapi::text_hash, std::equal_to<>> conns_;
 
         std::size_t count;
     private:

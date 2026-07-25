@@ -91,7 +91,7 @@ manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode
 }
 
 bool manapi::fs::fstream::is_open() const {
-    return (!!this->m_data->file) && !(this->m_data->status & FILE_CLOSED);
+    return (!!this->m_data->file.get()) && !(this->m_data->status & FILE_CLOSED);
 }
 
 manapi::fs::fstream::~fstream() {

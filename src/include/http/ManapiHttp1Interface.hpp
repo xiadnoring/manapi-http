@@ -28,4 +28,6 @@ namespace manapi::net::worker {
     manapi::status default_wrk_http_all_global_add_version (wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) MANAPIHTTP_NOEXCEPT;
 
     manapi::status default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXCEPT;
+
+    void default_wrk_http_preinit (wrk_interface_global_t *global);
 }

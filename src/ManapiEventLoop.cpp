@@ -731,7 +731,7 @@ manapi::event_loop::event_loop() {
     this->m_flags = 0;
 }
 
-manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::create(std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger) {
+manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::create(std::shared_ptr<threadpool> taskpool, std::shared_ptr<timerpool> tmpool, std::shared_ptr<manapi::logger> logger) {
     auto ev = std::shared_ptr<manapi::event_loop>(new manapi::event_loop());
     ev::status status;
     try {
@@ -803,6 +803,12 @@ manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::c
 
         curl_multi_setopt(ev->m_curl_watcher->curl_multi.get(), CURLMOPT_SOCKETFUNCTION, event_loop::handle_curl_socket);
         curl_multi_setopt(ev->m_curl_watcher->curl_multi.get(), CURLMOPT_SOCKETDATA, ev.get());
+
+        /* curl fetch timeout */
+        ev->m_curl_watcher->timeout_watcher = tmpool->append_interval_sync(200, [ev = ev.get()] (manapi::timer t) -> void {
+            ev->handle_curl_exec_connections();
+            ev->handle_curl_check_connections();
+        }).unwrap();
 #endif
 
         if (auto rhs = ev->m_prepare_tasks->start()) {
@@ -839,6 +845,7 @@ manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::c
 }
 
 manapi::event_loop::~event_loop() {
+    manapi_log_trace2("manapihttp", "evloop:delete event_loop %p", this);
     ::m_event_loop_unregister_ (event_loop::m_stop_mx, event_loop::m_events, this);
 
     if (this->m_callback_watcher) {
@@ -1011,16 +1018,6 @@ void manapi::event_loop::wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT {
             }
         }
     }
-}
-
-void manapi::event_loop::timerpool_init (std::shared_ptr<manapi::timerpool> tp) {
-#if MANAPIHTTP_CURL_DEPENDENCY
-    /* curl fetch timeout */
-    this->m_curl_watcher->timeout_watcher = tp->append_interval_sync(200, [this] (manapi::timer t) -> void {
-        this->handle_curl_exec_connections();
-        this->handle_curl_check_connections();
-    }).unwrap();
-#endif
 }
 
 size_t manapi::event_loop::subscribe_finish(int priority, std::move_only_function<manapi::future<void>()> cb) {

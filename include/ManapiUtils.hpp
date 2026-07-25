@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <string>
+#include <string_view>
+
 #define MANAPIHTTP_NOEXCEPT noexcept(true)
 #define MANAPIHTTP_NODISCARD [[nodiscard]]
 #define MANAPIHTTP_MUST_ALLOC_START {bool s_must_alloc_ = true; do{ try {
@@ -25,3 +28,15 @@
 #   include <windows.h>
 #   include <processthreadsapi.h>
 #endif
+
+namespace manapi {
+    struct text_hash
+    {
+        using hash_type = std::hash<std::string_view>;
+        using is_transparent = void;
+
+        std::size_t operator()(const char* str) const;
+        std::size_t operator()(std::string_view str) const;
+        std::size_t operator()(std::string const& str) const;
+    };
+}

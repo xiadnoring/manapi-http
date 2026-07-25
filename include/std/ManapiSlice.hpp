@@ -103,7 +103,17 @@ namespace manapi {
         slice_base const *base_;
     };
 
-    class slice_base {
+    struct slice_data_t {
+        std::size_t size_;
+        std::size_t shift_;
+        std::size_t rshift_;
+        slice_part_t *first;
+        slice_part_t *last;
+        uint32_t count;
+    };
+
+    class slice_base : protected slice_data_t {
+        friend class slice;
     public:
         struct slice_part_deleter {
             void operator () (slice_part_t *ptr);
@@ -182,15 +192,6 @@ namespace manapi {
         MANAPIHTTP_NODISCARD std::size_t size () const;
 
         MANAPIHTTP_NODISCARD std::string to_string () const;
-    protected:
-        manapi::status rshift_add_ (std::size_t s, bool can_free) MANAPIHTTP_NOEXCEPT;
-
-        std::size_t size_;
-        std::size_t shift_;
-        std::size_t rshift_;
-        slice_part_t *first;
-        slice_part_t *last;
-        uint32_t count;
     };
 
     class slice final : public slice_base {
@@ -238,7 +239,8 @@ namespace manapi {
          * @param s slices
          * @return Ok if success; otherwise, InternalError
          */
-        manapi::status push_back (slice s) MANAPIHTTP_NOEXCEPT;
+        manapi::status push_back (slice &&s) MANAPIHTTP_NOEXCEPT;
+
 
         /**
          * Adds |buffer| to the slices chain
@@ -265,9 +267,9 @@ namespace manapi {
          */
         manapi::status shift_add (std::size_t shift) MANAPIHTTP_NOEXCEPT override;
 
-        void clear () MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<manapi::slice> split (std::size_t start, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        void remove_shift () MANAPIHTTP_NOEXCEPT;
+        void clear () MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD manapi::slice copy () const;
     };
@@ -307,6 +309,8 @@ namespace manapi {
         ~slice_ref() override;
 
         manapi::status push_back (const void *buffer, std::size_t size);
+
+        manapi::status shift_add(std::size_t shift) MANAPIHTTP_NOEXCEPT override;
 
         void clear () MANAPIHTTP_NOEXCEPT;
     private:

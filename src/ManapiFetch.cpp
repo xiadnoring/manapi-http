@@ -59,7 +59,7 @@ struct curl_mime_deleter {
 
 struct manapi::net::fetch::data_t {
     uint32_t flags;
-    ssize_t content_length_;
+    int64_t content_length_;
 
     manapi::ctoken cancellation;
 
@@ -274,7 +274,7 @@ std::size_t manapi::net::curl_read_handler(char *buffer, std::size_t size, std::
 
 static manapi::status process_accepted_data_cb (manapi::net::fetch::data_t *m_data) MANAPIHTTP_NOEXCEPT {
     try {
-        manapi::async::current()->etaskpool()->append_static_task([parent = m_data->parent->shared_from_this(), m_data] () mutable -> void {
+        manapi::async::current()->etaskpool()->append_task([parent = m_data->parent->shared_from_this(), m_data] () mutable -> void {
             MANAPIHTTP_MUST_ALLOC_START
             manapi::async::run(m_data->async_handler_recv_body(parent, m_data, false));
             MANAPIHTTP_MUST_ALLOC_END

@@ -70,6 +70,14 @@ static int default_wrk_http_all_init (const manapi::net::worker::shared_conn & c
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
 
+static std::size_t default_wrk_http_all_recv_cnt_pending (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    HTTP_ALL_SWITCH (recv_cnt_pending, conn, httpctx, w);
+}
+
+static manapi::bytebuffer default_wrk_http_all_recv_buf_pending (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    HTTP_ALL_SWITCH (recv_buf_pending, conn, httpctx, w);
+}
+
 static int default_wrk_http_all_cleanup (manapi::net::worker::connection * conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     if (!conn->version)
         return 0;
@@ -173,6 +181,8 @@ manapi::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interfa
     global->accept_cb = default_wrk_http_all_accept;
     global->init_stream_cb = default_wrk_http_all_init_stream;
     global->init_cb = default_wrk_http_all_init;
+    global->recv_cnt_pending = default_wrk_http_all_recv_cnt_pending;
+    global->recv_buf_pending = default_wrk_http_all_recv_buf_pending;
     global->cleanup_cb = default_wrk_http_all_cleanup;
     global->custom_read_cb = default_wrk_http_all_custom_read;
     global->flush_custom_read_cb = default_wrk_http_all_flush_custom_read;
@@ -217,7 +227,7 @@ static void default_wrk_http1_custom_read (const manapi::net::worker::shared_con
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *> (conn->wrk.data);
 
     if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
-        auto rhs = manapi::net::http::http_v1_1_chunked_read(wrk_ctx->chunked_ctx.get(), &wrk_ctx->req.trailers, &wrk_ctx->req.trailers_size, w, conn, w->config(), buffer, nsize);
+        auto rhs = manapi::net::http::http_v1_1_chunked_read(wrk_ctx->chunked_ctx.get(), /*&wrk_ctx->req, w,*/ conn,/* w->config(), */buffer, nsize);
 
         switch (rhs) {
             case manapi::net::http::EHTTP_V1_1_CHUNKED_OK: {
@@ -243,6 +253,8 @@ static int default_wrk_http1_init (const manapi::net::worker::shared_conn &conn,
 
         auto tp = std::make_unique<manapi::net::worker::wrk_http1_ctx_t>();
         tp->ctx = std::make_unique<manapi::net::http::http_v1_1_t>();
+        tp->ctx->config = w->config();
+        tp->ctx->req = &tp->req;
 
         conn->version = manapi::net::http::versions::HTTP_v1_1;
 
@@ -288,9 +300,9 @@ static int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int f
 
     try {
         if (flags & manapi::ev::READ) {
-            auto const config = w->config();
+            auto const config = wrk_data->ctx->config;
             switch (auto const state = manapi::net::http::http_v1_1_work(
-                wrk_data->ctx.get(), &wrk_data->req, config, &buffer, &nsize)) {
+                wrk_data->ctx.get(), /*&wrk_data->req, config,*/ &buffer, &nsize)) {
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE:
                     status = manapi::net::http::PAYLOAD_TOO_LARGE_413;
                     goto send_error;
@@ -391,6 +403,10 @@ exec:
                         wrk_data->flgs |= HTTP1_BODY_CHUNKED;
                         conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_CUSTOM_READ;
                         wrk_data->chunked_ctx = std::make_unique<manapi::net::http::http_v1_1_chunked_t>();
+                        wrk_data->chunked_ctx->worker = w;
+                        wrk_data->chunked_ctx->config = w->config();
+                        wrk_data->chunked_ctx->req = req_ptr;
+                        wrk_data->chunked_ctx->top_sz = 0;
 
                         auto trailers_it = wrk_data->req.headers.find("trailer");
                         if (trailers_it != wrk_data->req.headers.end()) {
@@ -534,7 +550,7 @@ exec:
 static void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
-        switch (manapi::net::http::http_v1_1_chunked_flush(wrk_ctx->chunked_ctx.get(), w, conn)) {
+        switch (manapi::net::http::http_v1_1_chunked_flush(wrk_ctx->chunked_ctx.get(),/* w, */conn)) {
             case manapi::net::http::EHTTP_V1_1_CHUNKED_OK: {
                 w->event_flags(conn, manapi::net::worker::base::CONN_RECV_END);
                 w->feed_event(conn, manapi::net::worker::base::CONN_RECV_END, nullptr, 0, nullptr);
@@ -582,7 +598,43 @@ static std::string stringify_headers(manapi::net::http::response *res, std::stri
     return data;
 }
 
-manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
+static manapi::bytebuffer default_wrk_http1_recv_buf_pending (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    auto const wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
+    if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
+        assert(!!wrk_ctx->chunked_ctx);
+        auto &top = wrk_ctx->chunked_ctx->top;
+        auto object = std::move(top.deque->buffer);
+        top.deque = std::move(top.deque->next);
+        wrk_ctx->chunked_ctx->top_sz--;
+
+        if (!top.deque) {
+            top.last_deque = nullptr;
+            auto status = object.resize(top.deque_cursor);
+            assert(status.ok());
+            top.deque_cursor = 0;
+        }
+
+        if (top.deque_current) {
+            object.shift_add(top.deque_current);
+            top.deque_current = 0;
+        }
+
+        return std::move(object);
+    } else {
+        return w->recv_first_buffer(conn);
+    }
+}
+
+static std::size_t default_wrk_http1_recv_cnt_pending (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    auto const wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
+    if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
+        assert(!!wrk_ctx->chunked_ctx);
+        return wrk_ctx->chunked_ctx->top_sz;
+    }
+    return w->recv_count(conn);
+}
+
+static manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
     manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     const auto response = stringify_http_info(res, conn->version, "\r\n") + stringify_headers(res, "\r\n") + "\r\n";
     auto rhs = co_await w->fwrite (conn, response.data(), response.size(), finish);
@@ -607,6 +659,21 @@ manapi::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::
     global->init_cb = default_wrk_http1_init;
     global->update_limit_rate = nullptr;
     global->send_response = default_wrk_http1_send_response;
+    global->recv_buf_pending = default_wrk_http1_recv_buf_pending;
+    global->recv_cnt_pending = default_wrk_http1_recv_cnt_pending;
 
     return manapi::status_ok();
+}
+
+static std::size_t default_wrk_http_recv_cnt_pending (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    return w->recv_count(conn);
+}
+
+static manapi::bytebuffer default_wrk_http_recv_buf_pending (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    return w->recv_first_buffer(conn);
+}
+
+void manapi::net::worker::default_wrk_http_preinit(wrk_interface_global_t *global) {
+    global->recv_buf_pending = default_wrk_http_recv_buf_pending;
+    global->recv_cnt_pending = default_wrk_http_recv_cnt_pending;
 }

@@ -39,8 +39,10 @@ bool manapi::net::http::http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXC
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
 }
 
-int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, std::size_t *nsize) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx/*, request_data_t *req, http::config *config*/, const char **nbuffer, std::size_t *nsize) MANAPIHTTP_NOEXCEPT {
             // ctx->request_data->buffer = site->bufferpool()->get();
+    auto &req = ctx->req;
+    auto &config = ctx->config;
     try {
         std::size_t pos = 0;
 
@@ -567,8 +569,11 @@ enum http_v1_1_chunked_flags {
     HTTP_V1_1_CHUNK_ERR,
 };
 
-int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx/*, http::request_data_t *req, worker::base *worker*/, const worker::shared_conn &conn/*, http::config *config*/,const char *buffer, std::size_t size) MANAPIHTTP_NOEXCEPT {
     std::size_t pos = 0;
+    auto &worker = ctx->worker;
+    auto &config = ctx->config;
+    auto &req = ctx->req;
     while (pos != size) {
         repeat:switch (ctx->state) {
             case HTTP_V1_1_CHUNK_NUM_GRAB:
@@ -650,7 +655,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                     }
                     else {
                         if (static_cast<ssize_t>(copy) != worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
-                            &worker->bufferpool(), config->buffer_size, nullptr, 0)) {
+                            &worker->bufferpool(), config->buffer_size, &ctx->top_sz, 0)) {
                             return EHTTP_V1_1_CHUNKED_ERR;
                         }
                     }
@@ -673,10 +678,11 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                 else {
                     if (ctx->trailer_names.empty()) {
                         ctx->state = -1;
-                        if (worker->event_flags(conn) & ev::READ) {
-                            return EHTTP_V1_1_CHUNKED_OK;
-                        }
-                        return EHTTP_V1_1_CHUNKED_WAIT;
+                        // if (worker->event_flags(conn) & ev::READ) {
+                        //     return EHTTP_V1_1_CHUNKED_OK;
+                        // }
+                        // return EHTTP_V1_1_CHUNKED_WAIT;
+                        return EHTTP_V1_1_CHUNKED_OK;
                     }
 
                     ctx->state = HTTP_V1_1_CHUNK_PARSE_HEADER_KEY;
@@ -724,7 +730,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
 
                             pos++;
 
-                            if (((*trailers_size) += static_cast<uint32_t>(ctx->s1.size())) > config->max_headers_size) {
+                            if (((req->trailers_size) += static_cast<uint32_t>(ctx->s1.size())) > config->max_headers_size) {
                                 ctx->s1.clear();
                                 return EHTTP_V1_1_CHUNKED_ERR;
                             }
@@ -782,15 +788,15 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                                     ctx->s2.pop_back();
                                 }
 
-                                if (((*trailers_size) += static_cast<uint32_t>(ctx->s2.size())) > config->max_headers_size) {
+                                if (((req->trailers_size) += static_cast<uint32_t>(ctx->s2.size())) > config->max_headers_size) {
                                     ctx->s2.clear();
                                     ctx->s1.clear();
                                     return EHTTP_V1_1_CHUNKED_ERR;
                                 }
 
                                 /* insert */
-                                auto it = trailers->find(ctx->s1);
-                                if (it == trailers->end()) {
+                                auto it = req->trailers.find(ctx->s1);
+                                if (it == req->trailers.end()) {
                                     std::size_t value_start = 0;
                                     if (!ctx->s2.empty() && ctx->s2[0] == ' ')
                                         /**
@@ -799,7 +805,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
                                          */
                                         value_start++;
 
-                                    trailers->insert({ctx->s1, ctx->s2.substr(value_start)});
+                                    req->trailers.insert({ctx->s1, ctx->s2.substr(value_start)});
                                 }
                                 else {
                                     /**
@@ -875,11 +881,13 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map
     return EHTTP_V1_1_CHUNKED_READ;
 }
 
-int manapi::net::http::http_v1_1_chunked_flush(http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_chunked_flush(http_v1_1_chunked_t *ctx/*, worker::base *worker*/, const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
+    auto &worker = ctx->worker;
     while (ctx->top.last_deque) {
         if ((worker->event_flags(conn) & ev::READ)) {
             auto obj = std::move(ctx->top.deque->buffer);
             ctx->top.deque = std::move(ctx->top.deque->next);
+            ctx->top_sz--;
 
             if (!ctx->top.deque) {
                 obj.resize(ctx->top.deque_cursor);

@@ -800,6 +800,9 @@ set(MANAPIHTTP_HTTP_FILES
         include/std/ManapiScopePtr.hpp
         include/cache/ManapiTL.hpp
         include/json/ManapiJsonInternal.hpp
+        src/include/ManapiAsyncInternal.hpp
+        include/std/ManapiChannel.hpp
+        src/std/ManapiChannel.cpp
 )
 
 set(MANAPIHTTP_MODULES
