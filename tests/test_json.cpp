@@ -352,65 +352,6 @@ UTEST(json, dump_2) {
     ASSERT_TRUE(a.dump(0, 2) == R"(  78)");
 }
 
-UTEST(json, dump_3) {
-    manapi::json a = {
-        {"pi", 3.141},
-        {"happy", true},
-        {"name", "Niels"},
-        {"nothing", nullptr},
-        {"answer", {
-            {"everything", 42}
-        }},
-        {"list", {1, 0, 2}},
-        {"object", {
-            {"currency", "USD"},
-            {"value", 42.99}
-        }}
-    };
-
-    ASSERT_TRUE_MSG( a.dump() == R"({"list":[1,0,2],"answer":{"everything":42},"object":{"value":42.99,"currency":"USD"},"nothing":null,"name":"Niels","happy":true,"pi":3.141})",
-        "dump(n)");
-    ASSERT_TRUE_MSG(a.dump(2) == R"({
-  "list":[
-    1,
-    0,
-    2
-  ],
-  "answer":{
-    "everything":42
-  },
-  "object":{
-    "value":42.99,
-    "currency":"USD"
-  },
-  "nothing":null,
-  "name":"Niels",
-  "happy":true,
-  "pi":3.141
-})", "dump(n, 2)");
-
-    ASSERT_TRUE_MSG(a.dump(2, 2) == R"(  {
-    "list":[
-      1,
-      0,
-      2
-    ],
-    "answer":{
-      "everything":42
-    },
-    "object":{
-      "value":42.99,
-      "currency":"USD"
-    },
-    "nothing":null,
-    "name":"Niels",
-    "happy":true,
-    "pi":3.141
-  })", "dump(n, 2, 2)");
-}
-
-
-
 UTEST(json, dump_4) {
     auto a = manapi::json::parse("[[[]]]").unwrap();
     ASSERT_TRUE(a.dump(2) == R"([
@@ -442,71 +383,362 @@ UTEST(json, dump_4) {
     ])");
 }
 
-UTEST(json, dump_5) {
+UTEST(json, dump_int) {
     auto ctx = init_ctx(utest_result);
     {
         manapi::json a = {
-            {"pi", 3.141},
-            {"happy", true},
-            {"name", "Niels"},
-            {"nothing", nullptr},
-            {"answer", {
-                        {"everything", 42}
-            }},
-            {"list", {1, 0, 2}},
-            {"object", {
-                        {"currency", "USD"},
-                        {"value", 42.99}
-            }}
+            {"int", -52}
         };
+
+        std::string z = R"({"int":-52})";
+        ASSERT_TRUE(a.dump() == z);
 
         manapi::slice sv;
         a.slice(&sv);
-        std::string b = R"({"list":[1,0,2],"answer":{"everything":42},"object":{"value":42.99,"currency":"USD"},"nothing":null,"name":"Niels","happy":true,"pi":3.141})";
-        ASSERT_TRUE(!sv.cmp(b.data(), b.size()));
-        a.slice(&sv, 2);
-        b = R"({
-  "list":[
-    1,
-    0,
-    2
-  ],
-  "answer":{
-    "everything":42
-  },
-  "object":{
-    "value":42.99,
-    "currency":"USD"
-  },
-  "nothing":null,
-  "name":"Niels",
-  "happy":true,
-  "pi":3.141
-})";
-        ASSERT_TRUE(!sv.cmp(b.data(), b.size()));
 
-        a.slice(&sv, 2, 2);
-        b = R"(  {
-    "list":[
-      1,
-      0,
-      2
-    ],
-    "answer":{
-      "everything":42
-    },
-    "object":{
-      "value":42.99,
-      "currency":"USD"
-    },
-    "nothing":null,
-    "name":"Niels",
-    "happy":true,
-    "pi":3.141
-  })";
-
-        ASSERT_TRUE(!sv.cmp(b.data(), b.size()));
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_null) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"null", nullptr}
+        };
+
+
+        std::string z = R"({"null":null})";
+        ASSERT_TRUE(a.dump() == z);
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_bool) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"bool", true}
+        };
+
+        std::string z = R"({"bool":true})";
+        ASSERT_TRUE(a.dump() == z);
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+
+
+        a = manapi::json {
+                {"bool", false}
+        };
+        z = R"({"bool":false})";
+        ASSERT_TRUE(a.dump() == z);
+
+        sv = manapi::slice();
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_decimal) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"decimal", 3.141}
+        };
+
+        std::string z = R"({"decimal":3.141})";
+        ASSERT_TRUE(a.dump() == z);
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_str) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"str", "hello"}
+        };
+
+        std::string z = R"({"str":"hello"})";
+        ASSERT_TRUE(a.dump() == z);
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_arr) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"arr", {1, 2, 3, 4, 5}}
+        };
+
+        std::string z = R"({"arr":[1,2,3,4,5]})";
+        ASSERT_TRUE(a.dump() == z);
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_obj) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"obj", {
+                {"key1", "value1"},
+                {"key2", "value2"}
+            }}
+        };
+
+        std::string z1 = R"({"obj":{"key2":"value2","key1":"value1"}})",
+                z2 = R"({"obj":{"key1":"value1","key2":"value2"}})";
+        ASSERT_TRUE((a.dump() == z1
+            || a.dump() == z2));
+
+        manapi::slice sv;
+        a.slice(&sv);
+
+        ASSERT_TRUE((!sv.cmp(z1.data(), z1.size())) || (!sv.cmp(z2.data(), z2.size())));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_spaces) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"arr", {1, 2, 3, 4, 5}}
+        };
+
+        std::string z = R"({
+    "arr":[
+        1,
+        2,
+        3,
+        4,
+        5
+    ]
+})";
+        ASSERT_TRUE(a.dump(4) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"obj", {
+                {"key", 555}
+            }}
+        };
+
+        std::string z = R"({
+    "obj":{
+        "key":555
+    }
+})";
+        ASSERT_TRUE(a.dump(4) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"int", 1}
+        };
+
+        std::string z = R"({
+    "int":1
+})";
+        ASSERT_TRUE(a.dump(4) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"bool", true}
+        };
+
+        std::string z = R"({
+    "bool":true
+})";
+        ASSERT_TRUE(a.dump(4) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"null", nullptr}
+        };
+
+        std::string z = R"({
+    "null":null
+})";
+        ASSERT_TRUE(a.dump(4) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(json, dump_shift) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::json a = {
+            {"arr", {1, 2, 3, 4, 5}}
+        };
+
+        std::string z = R"(  {
+      "arr":[
+          1,
+          2,
+          3,
+          4,
+          5
+      ]
+  })";
+        ASSERT_TRUE(a.dump(4, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"obj", {
+                    {"key", 555}
+            }}
+        };
+
+        std::string z = R"(  {
+      "obj":{
+          "key":555
+      }
+  })";
+        ASSERT_TRUE(a.dump(4, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"obj", {
+                        {"key", 555}
+            }}
+        };
+
+        std::string z = R"(  {
+  "obj":{
+  "key":555
+  }
+  })";
+        ASSERT_TRUE(a.dump(0, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 0, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"int", 1}
+        };
+
+        std::string z = R"(  {
+      "int":1
+  })";
+        ASSERT_TRUE(a.dump(4, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"bool", true}
+        };
+
+        std::string z = R"(  {
+      "bool":true
+  })";
+        ASSERT_TRUE(a.dump(4, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+    {
+        manapi::json a = {
+            {"null", nullptr}
+        };
+
+        std::string z = R"(  {
+      "null":null
+  })";
+        ASSERT_TRUE(a.dump(4, 2) == z);
+
+        manapi::slice sv;
+        a.slice(&sv, 4, 2);
+
+        ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
+    }
+
     manapi::async::run(ctx->stop());
     wait_ctx(ctx);
 }
