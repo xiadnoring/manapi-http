@@ -56,6 +56,7 @@ struct manapi::net::worker::ng_wrk_http3_ctx_t {
     ng_wrk_http3_ctx_global_t *gctx;
     manapi::timer rtt_shutdown;
     uint32_t active_connections;
+    std::unordered_map<int64_t, shared_conn> streams;
 };
 
 struct ng_wrk_http3_stream_t : manapi::net::worker::http_v3_stream_base_t {
@@ -177,7 +178,7 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
             }
         }
         else if (pfin) {
-            if (ctx->gctx->worker->sync_write(v_conn, static_cast<char*>(nullptr), 0, true))
+            if (auto rhs = ctx->gctx->worker->sync_write(v_conn, static_cast<char*>(nullptr), 0, true))
                 goto err;
             ng_wrk_close_connection (v_conn, true);
         }
@@ -434,42 +435,43 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
 }
 
 static int ng_wrk_http3_stream_init (const manapi::net::worker::shared_conn &conn, const manapi::net::worker::shared_conn &stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
-    assert (conn->wrk.data);
-    assert (!stream->wrk.data);
-    assert (!(conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM));
-    assert (stream->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM);
-
-    auto conn_data = static_cast<manapi::net::worker::ng_wrk_http3_ctx_t *> (conn->wrk.data);
-
-    if (!conn_data)
-        return manapi::ERR_ABORTED;
-
-    std::unique_ptr<ng_wrk_http3_stream_t> tp (new (std::nothrow) ng_wrk_http3_stream_t{});
-
-    if (!tp)
-        return manapi::ERR_RESOURCE_EXHAUSTED;
-
-    tp->ctx = conn_data;
-    tp->top.reset(new (std::nothrow) manapi::net::worker::connection_io{});
-    tp->s = stream.get();
-
-    conn.ref().unwrap();
-
-    if (!tp->top)
-        return manapi::ERR_RESOURCE_EXHAUSTED;
-
-    auto const stream_id = conn_data->gctx->worker->stream_id(stream);
-
-    if (stream_id < 0)
-        return manapi::ERR_NOT_FOUND;
-
-    stream->wrk.data = tp.release();
-
-    if (stream_id == 0) {
-        stream->wrk.flags |= manapi::net::worker::WRK_INTERFACE_IS_CTRL;
-    }
-
     try {
+        assert (conn->wrk.data);
+        assert (!stream->wrk.data);
+        assert (!(conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM));
+        assert (stream->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM);
+
+        auto conn_data = static_cast<manapi::net::worker::ng_wrk_http3_ctx_t *> (conn->wrk.data);
+
+        if (!conn_data)
+            return manapi::ERR_ABORTED;
+
+        auto const stream_id = conn_data->gctx->worker->stream_id(stream);
+        auto zit = conn_data->streams.insert({stream_id, nullptr});
+
+        std::unique_ptr<ng_wrk_http3_stream_t> tp (new (std::nothrow) ng_wrk_http3_stream_t{});
+
+        if (!tp)
+            return manapi::ERR_RESOURCE_EXHAUSTED;
+
+        tp->ctx = conn_data;
+        tp->top.reset(new (std::nothrow) manapi::net::worker::connection_io{});
+        tp->s = stream.get();
+
+        conn.ref().unwrap();
+
+        if (!tp->top)
+            return manapi::ERR_RESOURCE_EXHAUSTED;
+
+        if (stream_id < 0)
+            return manapi::ERR_NOT_FOUND;
+
+        stream->wrk.data = tp.release();
+
+        if (stream_id == 0) {
+            stream->wrk.flags |= manapi::net::worker::WRK_INTERFACE_IS_CTRL;
+        }
+
         w->event_on(stream,
             [w, global]
             (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, std::size_t nsize, manapi::net::worker::ibuffpool_t *p)
@@ -478,6 +480,13 @@ static int ng_wrk_http3_stream_init (const manapi::net::worker::shared_conn &con
         });
 
         w->event_flags(stream, manapi::ev::READ);
+
+        zit.second = stream;
+
+        if (conn_data->gctx->flags & WRKHTTP3_GCTX_FLAG_QLOG) {
+            manapi_log_debug("%s: stream id=%zu was initialized", "nghttp3",
+                stream_id);
+        }
     }
     catch (std::bad_alloc const &) {
         return manapi::ERR_RESOURCE_EXHAUSTED;
@@ -485,11 +494,6 @@ static int ng_wrk_http3_stream_init (const manapi::net::worker::shared_conn &con
     catch (std::exception const &e) {
         manapi_log_error(e.what());
         return manapi::ERR_INTERNAL;
-    }
-
-    if (conn_data->gctx->flags & WRKHTTP3_GCTX_FLAG_QLOG) {
-        manapi_log_debug("%s: stream id=%zu was initialized", "nghttp3",
-            stream_id);
     }
 
     return manapi::ERR_OK;
@@ -1001,8 +1005,10 @@ static int ng_wrk_http3_stream_close (nghttp3_conn *conn, int64_t stream_id, uin
         //assert(sconn);
 
         ng_wrk_close_connection (sconn, true);
-
         ng_wrk_http3_flush_close(s->ctx);
+
+        // auto const stream_id = ctx->gctx->worker->stream_id(conn);
+        s->ctx->streams.erase(stream_id);
     }
 
     return 0;

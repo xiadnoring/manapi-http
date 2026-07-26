@@ -23,6 +23,7 @@
 #   define SPEED_LIMIT_INIT 10485760
 #   define SPEED_LIMIT_STEP 10240000
 
+
 #   define MANAPI_AS_BIO(n) static_cast<BIO*>(n)
 #   define MANAPI_AS_SSL(n) static_cast<SSL*>(n)
 #   define MANAPI_AS_CTX(n_) static_cast<SSL_CTX*>(n_)
@@ -131,7 +132,7 @@ std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_
 }
 
 static void ssl_dump_error_ (int err, const char *msg) {
-    return;
+
 
     std::unique_ptr<BIO, openssl_quic_bio_deleter_t> bio;
     bio.reset(BIO_new(BIO_s_mem()));
@@ -187,7 +188,7 @@ int manapi::net::worker::openssl_quic::select_alpn(SSL *ssl, const unsigned char
     return SSL_TLSEXT_ERR_ALERT_FATAL;
 }
 
-std::string generate_alpn_ossltest (const std::vector<std::string_view> &tests) {
+static std::string generate_alpn_ossltest (const std::vector<std::string_view> &tests) {
     std::string b;
     std::size_t s = 0;
 
@@ -573,8 +574,7 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     s->flags |= CONN_QUIC_IS_CLOSING;
 
-    if (this->global_.flags_cb(conn, &this->global_, this) & WRK_GLOBAL_FLAG_SHUTDOWN_SUPPORTED
-            && !( s->flags & CONN_QUIC_CUSTOM_SHUTDOWN_FIN )) {
+    if (!( s->flags & CONN_QUIC_CUSTOM_SHUTDOWN_FIN ) && this->global_.flags_cb(conn, &this->global_, this) & WRK_GLOBAL_FLAG_SHUTDOWN_SUPPORTED) {
         manapi_log_trace(debug::LOG_TRACE_LOW, "openssl_quic: custom shutdown on %p", s->conn);
         auto rhs = this->global_.shutdown_cb(conn, &this->global_, this, !(flags & CLOSE_CONN_SHUTDOWN));
         if (!rhs) {
@@ -732,7 +732,8 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         return -1;
 
 
-    assert(!(s->flags & CONN_SEND_END));
+    if (s->flags & CONN_SEND_END)
+        return -1;
 
     this->bio_flush_write();
 
@@ -742,19 +743,26 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
     while (nbuff) {
         std::size_t flags = 0;
 
-        if (finish && nbuff == 1)
-            flags |= SSL_WRITE_FLAG_CONCLUDE;
-
         std::size_t written = 0;
         int rhs;
 
-        if (!s->top->send_size) {
-            ERR_clear_error();
-            rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
+        if (s->top->send_size) {
+            this->flush_write_(conn, s);
         }
-        else {
+
+        if (finish && nbuff == 1) {
+            flags |= SSL_WRITE_FLAG_CONCLUDE;
+            if (!s->top->send_size)
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "SSL_write_ex2 with SSL_WRITE_FLAG_CONCLUDE");
+        }
+
+        if (s->top->send_size) {
             rhs = 1;
             written = 0;
+        }
+        else {
+            ERR_clear_error();
+            rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
         }
 
         if (rhs!=1) {
@@ -851,19 +859,34 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
         }
     }
 
+    auto stream_state = SSL_get_stream_write_state(data->stream);
+    manapi_log_trace( manapi::debug::LOG_TRACE_LOW, "openssl_quic: write status is %d id=%lld", stream_state,
+        (int64_t)SSL_get_stream_id(data->stream));
+
     s->cancellation.cancel();
 
     data->flags |= CONN_CLOSED;
 
+    if (stream_state == SSL_STREAM_STATE_OK) {
+        if (flags & (CLOSE_CONN_EOS|CLOSE_CONN_ERR)) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl_quic: force close id=%lld",
+                (int64_t)SSL_get_stream_id(data->stream));
+        }
+        else {
+            return;
+        }
+    }
+
+
     data->flags |= CONN_REMOVED;
 
     if (!(flags & CLOSE_CONN_SHUTDOWN) && !(flags & CLOSE_CONN_FINISHED)) {
-        SSL_STREAM_RESET_ARGS reset_args{};
-        reset_args.quic_error_code = OSSL_QUIC_ERR_NO_ERROR;
-        auto stream_status = SSL_stream_reset(data->stream, &reset_args, sizeof (reset_args));
-        //if (stream_status) {
-        ssl_dump_error_(SSL_get_error(data->stream, stream_status), "SSL_stream_reset");
-        //}
+         manapi_log_trace(debug::LOG_TRACE_LOW, "openssl_quic: SSL_stream_reset on %p %llu", data->stream, static_cast<int64_t>(SSL_get_stream_id(data->stream)));
+         SSL_STREAM_RESET_ARGS reset_args{};
+         reset_args.quic_error_code = OSSL_QUIC_ERR_NO_ERROR;
+         auto stream_status = SSL_stream_reset(data->stream, &reset_args, sizeof (reset_args));
+         //if (stream_status) {
+         ssl_dump_error_(SSL_get_error(data->stream, stream_status), "SSL_stream_reset");
     }
 
 
@@ -994,7 +1017,7 @@ std::size_t manapi::net::worker::openssl_quic::streams_size(const shared_conn &c
 void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     try {
-        char buffer[1350];
+        char buffer[4096];
         sockaddr_storage storage_peer{};
         sockaddr_storage storage_local{};
 
@@ -1140,15 +1163,15 @@ void manapi::net::worker::openssl_quic::flush_read_(const shared_conn &conn, qui
 }
 
 void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, quic_stream_t *data) MANAPIHTTP_NOEXCEPT {
-    if (data->flags & CONN_CLOSED)
-        return;
-
     while (data->top->send.last_deque) {
         std::size_t flags = 0;
         bool const last = data->top->send.deque.get() == data->top->send.last_deque;
 
-        if (data->flags & CONN_SEND_END && last)
+        if (data->flags & CONN_SEND_END && last) {
             flags |= SSL_WRITE_FLAG_CONCLUDE;
+
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "SSL_write_ex2 with SSL_WRITE_FLAG_CONCLUDE");
+        }
 
         auto &buffer = data->top->send.deque->buffer;
 
@@ -1180,7 +1203,10 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                         auto bioerr = ERR_peek_error();
                         if (bioerr && !BIO_err_is_non_fatal(static_cast<uint32_t>(bioerr)))
                             ssl_dump_error_(err, "SSL_write_ex2");
+
                         ERR_clear_error();
+
+                        this->close_stream(conn, CLOSE_CONN_EOS);
 
                         break;
                     }
@@ -1192,8 +1218,14 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
 
             data->transfered += written;
         }
-        else
+        else {
             written = 0;
+
+            if (last) {
+                // should be OK
+                SSL_stream_conclude(data->stream, 0);
+            }
+        }
 
         if (written == size) {
             data->top->send.deque = std::move(data->top->send.deque->next);
@@ -1217,7 +1249,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
 
     this->bio_flush_write();
 
-    if (!prepared::write_buffs_is_full(data->top.get(), this->config_->max_buffer_stack))
+    if ( !(data->flags & CONN_CLOSED) && !data->top->send_size)
         this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
 }
 
@@ -1316,6 +1348,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
     }
 
     conn_data->transfered_k += conn_data->transfered;
+
 
     if (--conn_data->speed_min_delay <= 0) {
         if (conn_data->flags & (base::CONN_IO_WAITING) && (conn_data->transfered_k < config->speed_check_bytes)) {
@@ -1455,10 +1488,6 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
     std::size_t result;
     timeval poll_tv{0};
-    std::array<char, 17> arr;
-    memset(arr.data(), '\0', arr.size());
-    *arr.data() = static_cast<char>(http::version_ip_by_addr (addr));
-    http::ip_by_addr(addr, arr.data() + 1);
 
     rhs = SSL_poll(this->polls_.data(), this->polls_.size(), sizeof (SSL_POLL_ITEM), &poll_tv, SSL_POLL_FLAG_NO_HANDLE_EVENTS, &result);
     if (rhs) {
@@ -1468,8 +1497,6 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
             assert(!(this->flags_ & CONN_QUIC_WORKER_POLL_LOOP));
             this->flags_ |= CONN_QUIC_WORKER_POLL_LOOP;
             while (true) {
-                goto repeat; repeat:
-
                 if (this->current_poll_id >= this->polls_.size())
                     break;
 
@@ -1546,15 +1573,20 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
                     /* read stream error */
                     if (it->revents & SSL_POLL_EVENT_ER) {
-                        manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p", "openssl_quic", "stream read error", it->desc.value.ssl);
 
                         auto data = SSL_get_app_data(it->desc.value.ssl);
 
                         if (data) {
                             auto sconn = *static_cast<shared_conn *> (data);
                             auto sdata = sconn->as<quic_stream_t>();
-                            assert(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM);
-                            this->close_stream(sconn, CLOSE_CONN_ERR);
+                            if (!(sdata->flags & CONN_RECV_END)) {
+                                manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p", "openssl_quic", "stream read error", it->desc.value.ssl);
+                                assert(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM);
+                                // this->close_stream(sconn, CLOSE_CONN_ERR);
+
+                                sdata->flags |= CONN_RECV_END;
+                                this->feed_event(sconn, CONN_RECV_END, nullptr, 0, nullptr);
+                            }
                         }
                         processed_event |= SSL_POLL_EVENT_ER;
                     }
@@ -1567,10 +1599,15 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                         if (data) {
                             auto sconn = *static_cast<shared_conn *> (data);
                             auto sdata = sconn->as<quic_stream_t>();
-                            manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p stream=%zu", "openssl_quic", "stream write error",
-                                it->desc.value.ssl, this->stream_id(sconn));
-                            assert(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM);
-                            this->close_stream(sconn, CLOSE_CONN_ERR);
+                            if (!(sdata->flags & CONN_SEND_END)) {
+                                manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p stream=%zu", "openssl_quic", "stream write error",
+                                    it->desc.value.ssl, this->stream_id(sconn));
+                                assert(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM);
+                                // this->close_stream(sconn, CLOSE_CONN_ERR);
+
+                                sdata->flags |= CONN_SEND_END;
+                                this->feed_event(sconn, CONN_SEND_END, nullptr, 0, nullptr);
+                            }
                         }
                         processed_event |= SSL_POLL_EVENT_EW;
                     }
@@ -1602,8 +1639,15 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                             auto sconn = *static_cast<shared_conn *> (data);
                             assert(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM);
                             auto sn = sconn->as<quic_stream_t>();
-                            if (!(sn->flags & CONN_CLOSED)) {
-                                this->flush_write_(sconn, sn);
+
+                            this->flush_write_(sconn, sn);
+
+                            if ((sn->flags & CONN_CLOSED)) {
+                                auto stream_state = SSL_get_stream_write_state(sn->stream);
+                                manapi_log_trace( manapi::debug::LOG_TRACE_LOW, "openssl_quic: write status is %d id=%lld", stream_state,
+                                    (int64_t)SSL_get_stream_id(sn->stream));
+                                if (stream_state != SSL_STREAM_STATE_OK)
+                                    this->close_stream(sconn, CLOSE_CONN_FINISHED);
                             }
                         }
                         processed_event |= SSL_POLL_EVENT_W;
@@ -1612,31 +1656,61 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
                     /* the connection begins terminating */
                     if (it->revents & SSL_POLL_EVENT_EC) {
-                        auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
-                        if (conn_by_ip != this->conns_.end()) {
-                            auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
-                            if (cit != conn_by_ip->second.end() && cit->second) {
-                                auto conn = cit->second;
-                                auto sdata = cit->second->as<quic_conn_t>();
-                                this->close_connection(cit->second, CLOSE_CONN_SHUTDOWN);
+                        auto data = SSL_get_app_data(it->desc.value.ssl);
+
+                        if (data) {
+                            auto sconn = *static_cast<shared_conn *> (data);
+                            auto sdata = sconn->as<quic_conn_t>();
+                            if (!(sdata->flags & CONN_QUIC_IS_CLOSING)) {
+                                assert(!(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM));
+                                this->close_connection(sconn, CLOSE_CONN_SHUTDOWN);
                             }
+
+                            // std::array<char, 17> arr;
+                            // memset(arr.data(), '\0', arr.size());
+                            // *arr.data() = static_cast<char>(http::version_ip_by_addr ( reinterpret_cast<sockaddr *>(&sconn->ipdata->client)));
+                            // http::ip_by_addr(reinterpret_cast<sockaddr *>(&sconn->ipdata->client), arr.data() + 1);
+                            //
+                            // auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
+                            // if (conn_by_ip != this->conns_.end()) {
+                            //     auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
+                            //     if (cit != conn_by_ip->second.end() && cit->second) {
+                            //         auto conn = cit->second;
+                            //         auto sdata = cit->second->as<quic_conn_t>();
+                            //         this->close_connection(cit->second, CLOSE_CONN_SHUTDOWN);
+                            //     }
+                            // }
                         }
                         processed_event |= SSL_POLL_EVENT_EC;
                     }
 
                     /* the connection is terminated */
                     if (it->revents & SSL_POLL_EVENT_ECD) {
-                        manapi_log_trace(debug::LOG_TRACE_MEDIUM, "revents & SSL_POLL_EVENT_ECD in %p conn", it->desc.value.ssl);
 
-                        auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
-                        if (conn_by_ip != this->conns_.end()) {
-                            auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
-                            if (cit != conn_by_ip->second.end() && cit->second) {
-                                auto conn = cit->second;
-                                auto sdata = conn->as<quic_conn_t>();
+                        auto data = SSL_get_app_data(it->desc.value.ssl);
 
-                                this->close_connection(cit->second, CLOSE_CONN_EOS);
-                            }
+                        if (data) {
+                            auto sconn = *static_cast<shared_conn *> (data);
+                            assert(!(sconn->wrk.flags & WRK_INTERFACE_IS_STREAM));
+                            this->close_connection(sconn, CLOSE_CONN_EOS);
+
+                            // std::array<char, 17> arr;
+                            // memset(arr.data(), '\0', arr.size());
+                            // *arr.data() = static_cast<char>(http::version_ip_by_addr ( reinterpret_cast<sockaddr *>(&sconn->ipdata->client)));
+                            // http::ip_by_addr(reinterpret_cast<sockaddr *>(&sconn->ipdata->client), arr.data() + 1);
+                            //
+                            // manapi_log_trace(debug::LOG_TRACE_MEDIUM, "revents & SSL_POLL_EVENT_ECD in %p conn", it->desc.value.ssl);
+                            //
+                            // auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
+                            // if (conn_by_ip != this->conns_.end()) {
+                            //     auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
+                            //     if (cit != conn_by_ip->second.end() && cit->second) {
+                            //         auto conn = cit->second;
+                            //         auto sdata = conn->as<quic_conn_t>();
+                            //
+                            //         this->close_connection(cit->second, CLOSE_CONN_EOS);
+                            //     }
+                            // }
                         }
                         processed_event |= SSL_POLL_EVENT_ECD;
                     }
@@ -1833,7 +1907,7 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
     if (sn->flags & ev::DISCONNECT)
         return;
 
-    this->flush_write_(s, sn);
+    // this->flush_write_(s, sn);
 
     char buffer[16384];
     std::size_t readbytes;
@@ -1866,8 +1940,8 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
                     sn->flags |= CONN_RECV_END;
                     this->feed_event(s, CONN_RECV_END, buffer,
                                 (readbytes), nullptr);
-                    if (sn->flags & ev::DISCONNECT)
-                        return;
+                    // if (sn->flags & ev::DISCONNECT)
+                    //     return;
                 }
                 break;
             }

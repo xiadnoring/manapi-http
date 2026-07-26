@@ -7,8 +7,8 @@
 #else
 // #define FOLDER "/home/Timur/Downloads/RPG"
 // #define FOLDER2 "/home/Timur/Downloads/RPG"
-#define FOLDER2 "/home/Timur/Downloads/anime-main/"
-#define FOLDER "/home/Timur/Documents/http2priorities/"
+#define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER2 "/home/Timur/Documents/http2priorities/"
 #endif
 #include <cstring>
 
@@ -249,11 +249,6 @@ int main () {
                     req.ip_data().port,
                     server_ctx->storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
                     a.load())).unwrap();
-
-                    auto z = manapi::async::memory_fabric()->get<std::string>("hello world").unwrap();
-                    if (z) {
-
-                    }
             }).unwrap();
 
             router->GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
