@@ -55,6 +55,11 @@ MANAPIHTTP_EV_STREAM(tcp, uv_tcp_t)
 manapi::ev::connect::connect() : s_() {
 }
 
+
+int manapi::ev::connect::cancel() MANAPIHTTP_NOEXCEPT {
+    return uv_cancel((reinterpret_cast<uv_req_t *>(&this->s_)));
+}
+
 int manapi::ev::connect::bind(uv_tcp_t *p, const sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT {
     return uv_tcp_connect(&this->s_, p, addr, cb);
 }

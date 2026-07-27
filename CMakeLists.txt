@@ -1036,7 +1036,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     target_link_libraries (${PROJECT_NAME} PUBLIC libuv::uv_a)
 
-    if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
+    if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" AND MANAPIHTTP_BUILD_METHOD STREQUAL "default")
         target_link_libraries(${PROJECT_NAME} PUBLIC libpq::libpq)
     endif ()
 

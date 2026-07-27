@@ -172,6 +172,7 @@ namespace manapi::ev::internal {
     };
 
     struct connect_tcp_ctx : connect_base_ctx {
+        std::shared_ptr<ev::connect> conn;
         ev::shared_tcp tcp;
         ev::connect_tcp_cb cb;
     };
@@ -516,14 +517,15 @@ void manapi::ev::callback_watcher_write (uv_write_t *s, int status) MANAPIHTTP_N
 }
 
 void manapi::ev::callback_watcher_connect_tcp(uv_connect_t *s, int status) MANAPIHTTP_NOEXCEPT {
-    assert(s->data && "ev:User data wasn't set");
-    std::unique_ptr<manapi::ev::internal::connect_tcp_ctx> ss (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data));
-    s->data = nullptr;
-    auto &cb = ss->cb;
-    assert(cb && "ev:User callback wasn't set");
-    MANAPIHTTP_EV_TRY_CALLBACK
-    cb (ss->tcp, status);
-    MANAPIHTTP_EV_CATCH_CALLBACK("connect tcp")
+    if (s->data) {
+        /* otherwise it was cancelled */
+        std::unique_ptr<manapi::ev::internal::connect_tcp_ctx> ss (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data));
+        s->data = nullptr;
+        MANAPIHTTP_EV_TRY_CALLBACK
+        if (ss->cb)
+            ss->cb(ss->tcp, status);
+        MANAPIHTTP_EV_CATCH_CALLBACK("connect")
+    }
 }
 
 
@@ -639,21 +641,6 @@ void manapi::ev::callback_watcher_udp_alloc(uv_handle_t *handle, size_t suggeste
 
 void manapi::ev::callback_close_cb(uv_handle_t *s) MANAPIHTTP_NOEXCEPT {
     assert(s->data && "ev:User data wasn't set");
-
-    switch (s->type) {
-        case ev::EV_TCP: {
-            auto ss = static_cast<manapi::ev::internal::tcp_ctx *> (s->data);
-            MANAPIHTTP_EV_TRY_CALLBACK
-            if (ss->close_cb)
-                ss->close_cb->operator()(ss->s_);
-            MANAPIHTTP_EV_CATCH_CALLBACK("close")
-            break;
-        }
-        default: {
-
-            break;
-        }
-    }
 }
 
 static void m_event_loop_try_tasks_(const manapi::ev::shared_idle &, std::shared_ptr<manapi::threadpool> &tp,
@@ -1108,7 +1095,9 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::tcp>> manapi::event_loop::crea
 manapi::ev::status_or<std::pair<std::shared_ptr<manapi::ev::connect>, std::shared_ptr<manapi::ev::tcp>>> manapi::event_loop::connect_tcp(const sockaddr *addr, ev::connect_tcp_cb on_connect, ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto c = std::make_shared<ev::connect>();
+
         auto ctx = std::make_unique<ev::internal::connect_tcp_ctx>();
+
         auto status = this->create_watcher_tcp_connection(std::move(read), std::move(alloc_cb));
         if (!status)
             return status.err();
@@ -1121,6 +1110,8 @@ manapi::ev::status_or<std::pair<std::shared_ptr<manapi::ev::connect>, std::share
 
         ctx->cb = std::move(on_connect);
         ctx->tcp = w;
+        ctx->conn = c;
+
         c->data(ctx.release());
 
         return std::make_pair(std::move(c), std::move(w));
@@ -2022,20 +2013,20 @@ MANAPIHTTP_EV_CANCEL (random, random_ctx);
 
 void manapi::event_loop::stop_watcher_ptr(ev::connect *w) MANAPIHTTP_NOEXCEPT {
     if (w) {
-        auto data_base = static_cast<ev::internal::connect_base_ctx *>(w->data());
-        if (data_base) {
-            if (data_base->type == ev::EV_TCP) {
-                std::unique_ptr<ev::internal::connect_tcp_ctx> data (static_cast<ev::internal::connect_tcp_ctx *>(w->data()));
-                w->data(nullptr);
-            }
-            else {
-                assert(false && "ev::connect has invalid type");
-            }
-        }
+        auto s = w->custom();
+        if (s->data) {
+            /* otherwise it was cancelled */
+            auto ss = static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data);
+            MANAPIHTTP_EV_TRY_CALLBACK
+            if (ss->cb)
+                ss->cb(ss->tcp, ev::ERR_CANCELED);
+            MANAPIHTTP_EV_CATCH_CALLBACK("connect")
 
-        w->unbind();
+            ss->cb = nullptr;
+            ss->tcp = nullptr;
+        }
     }
-};
+}
 
 void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) MANAPIHTTP_NOEXCEPT {
     if (w) {

@@ -659,6 +659,8 @@ namespace manapi::ev {
         connect ();
 
         int bind (uv_tcp_t *p, const struct sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT;
+
+        int cancel () MANAPIHTTP_NOEXCEPT;
     private:
         uv_connect_t s_{};
     };
