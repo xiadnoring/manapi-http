@@ -1695,6 +1695,8 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNS
 std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNSResolver> manapi::net::wgrpc::event_engine_wrapper::GetDNSResolver(const DNSResolver::ResolverOptions &options) {
     return std::make_unique<dns_resolved>(this);
 }
+#endif
+
 
 std::shared_ptr<manapi::net::wgrpc::event_engine_wrapper> &manapi::net::wgrpc::event_engine_wrapper::get_instance() {
     static std::shared_ptr<manapi::net::wgrpc::event_engine_wrapper> grpc_instance{};
@@ -1703,7 +1705,7 @@ std::shared_ptr<manapi::net::wgrpc::event_engine_wrapper> &manapi::net::wgrpc::e
 }
 
 void manapi::net::wgrpc::event_engine_wrapper::init_instance() {
-    auto sev = event_engine_wrapper::get_instance();
+    auto &sev = event_engine_wrapper::get_instance();
 
     try {
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
@@ -1716,15 +1718,20 @@ void manapi::net::wgrpc::event_engine_wrapper::init_instance() {
 #if MANAPIHTTP_GRPC_SINCE_AT(1,71,0)
         auto finish_id = manapi::async::eventloop()->subscribe_clean_up(
                 [] () -> void {
-                    manapi::async::eventloop()->append_task([] (ev::shared_work const &w) -> void {
-                        auto &sev = event_engine_wrapper::get_instance();
-                        sev = nullptr;
+                    auto &sev = event_engine_wrapper::get_instance();
+                    sev = nullptr;
 
-                        grpc_event_engine::experimental::ShutdownDefaultEventEngine();
-                        grpc_event_engine::experimental::SetDefaultEventEngine(nullptr);
-                    }, [] (ev::shared_work const &w, int status) -> void {
-                        if (status) manapi_log_error("%s failed due to %s", "wgrpc unsub", ev::strerror(status));
-                    }).unwrap();
+                    try {
+                        manapi::async::eventloop()->append_task([] (ev::shared_work const &w) -> void {
+                            grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+                            grpc_event_engine::experimental::SetDefaultEventEngine(nullptr);
+                        }, [] (ev::shared_work const &w, int status) -> void {
+                            if (status) manapi_log_error("%s failed due to %s", "wgrpc unsub", ev::strerror(status));
+                        }).unwrap();
+                    }
+                    catch (std::exception const &e) {
+                        manapi_log_error("%s failed due to %s", "wgrpc:graceful shutdown", e.what());
+                    }
                 });
         grpc_event_engine::experimental::SetDefaultEventEngine(ev);
 #else
@@ -1741,8 +1748,6 @@ void manapi::net::wgrpc::event_engine_wrapper::init_instance() {
         std::rethrow_exception(std::current_exception());
     }
 }
-
-#endif
 
 manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
     try {

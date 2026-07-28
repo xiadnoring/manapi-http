@@ -59,8 +59,7 @@ public:
                     zz.insert({"http", "2"});
                     zz.insert({"verify_peer", false});
                     zz.insert({"verify_host", false});
-                    auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8885/stat",std::move(zz),
-                                                                       manapi::ctokens::timeout(2000));
+                    auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8885/stat",std::move(zz), manapi::ctokens::timeout(2000));
 
                     if (status.ok()) {
                         auto response = status.unwrap();
@@ -236,7 +235,7 @@ int main () {
 
                     auto channel= creds.unwrap();
                     auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", channel));
-                            manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                            manapi::async::current()->timerpool()->append_timer_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
                                 std::string user = "Xiadnoring Client #1";
                                 auto res = co_await greeter->SayHello(user);
                                 if (res.ok())

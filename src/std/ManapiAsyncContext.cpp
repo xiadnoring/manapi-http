@@ -184,6 +184,7 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                 manapi::init_tools::ssl_library_init();
                 manapi::init_tools::ev_library_init();
                 manapi::init_tools::curl_library_init();
+                manapi::init_tools::grpc_library_init();
 
                 (*v)[i].push_back([callback, thr = ctx->loops_[i], main_loop_waits, &loops_active] ()
                     -> void {

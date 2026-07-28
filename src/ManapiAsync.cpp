@@ -60,7 +60,7 @@ void manapi::async::internal::future_awaiter_suspend(promise_base_future *promis
     if (current_stack_cnt_ >= async::internal::max_stack_depth_crt()) {
         auto &thr = manapi::async::internal::current_();
         if (thr) {
-            async::internal::append_task(handle);
+            async::append_task(handle);
         }
 
         return;
@@ -71,12 +71,12 @@ void manapi::async::internal::future_awaiter_suspend(promise_base_future *promis
     manapi::async::internal::current_stack_cnt_set (current_stack_cnt_);
 }
 
-void manapi::async::internal::append_task(std::coroutine_handle<> callback) MANAPIHTTP_NOEXCEPT {
+void manapi::async::append_task(const std::coroutine_handle<> &callback) {
     async::current()->etaskpool()->append_task(callback);
 }
 
-void manapi::async::internal::append_task(std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT {
-    async::current()->etaskpool()->append_task(std::move(callback));
+void manapi::async::append_task(std::move_only_function<void()> &&callback) {
+    async::current()->etaskpool()->append_task(std::forward<decltype(callback)>(callback));
 
 }
 

@@ -5,12 +5,14 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiAsyncContext.hpp"
+#include "../ManapiThreadPool.hpp"
 
 namespace manapi::async::internal {
     enum promise_flags {
         PROMISE_FLAG_EXECUTED = 1,
         PROMISE_FLAG_ASYNC = 2,
-        PROMISE_FLAG_RESOLVE_ONLY = 4
+        PROMISE_FLAG_RESOLVE_ONLY = 4,
+        PROMISE_FLAG_PREALLOCATED_TASK = 8
     };
 
     template<typename T = void>
@@ -38,7 +40,13 @@ namespace manapi::async::internal {
     template<typename T>
     void promise_call (const std::shared_ptr<promise_data_t<T>> &data) MANAPIHTTP_NOEXCEPT {
         auto handle = std::exchange(data->handle, nullptr);
-        manapi::async::internal::append_task(handle);
+
+        if (data->flags & PROMISE_FLAG_PREALLOCATED_TASK) {
+            data->flags ^= PROMISE_FLAG_PREALLOCATED_TASK;
+            manapi::async::etaskpool()->release_tasks(manapi::TASK_TYPE_HANDLE, 1);
+        }
+
+        manapi::async::append_task(handle);
     }
 
     template<typename T>
@@ -203,7 +211,12 @@ namespace manapi::async::internal {
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags |= PROMISE_FLAG_RESOLVE_ONLY; this->data->cb = obj.release(); }
         }
 
-        ~promise_base() = default;
+        ~promise_base() {
+            if (this->data && this->data->flags & PROMISE_FLAG_PREALLOCATED_TASK) {
+                this->data->flags ^= PROMISE_FLAG_PREALLOCATED_TASK;
+                manapi::async::etaskpool()->release_tasks(manapi::TASK_TYPE_HANDLE, 1);
+            }
+        }
 
         T await_resume () {
             if (this->data->exception) {
@@ -222,6 +235,10 @@ namespace manapi::async::internal {
         void await_suspend (std::coroutine_handle<T1> handle) {
             try {
                 this->data->handle = handle;
+                this->data->flags |= PROMISE_FLAG_PREALLOCATED_TASK;
+
+                manapi::async::etaskpool()->reserve_tasks(manapi::TASK_TYPE_HANDLE, 1);
+
                 if (this->data->flags & PROMISE_FLAG_ASYNC /* async */) {
                     if (this->data->flags & PROMISE_FLAG_RESOLVE_ONLY) {
                         async::run<void>(static_cast<async_resolve_cb *>(this->data->cb)->operator()(promise_resolve<T>(this->data)),
@@ -308,7 +325,12 @@ namespace manapi::async::internal {
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags |= PROMISE_FLAG_RESOLVE_ONLY; this->data->cb = obj.release(); }
         }
 
-        ~promise_base() = default;
+        ~promise_base() {
+            if (this->data && this->data->flags & PROMISE_FLAG_PREALLOCATED_TASK) {
+                this->data->flags ^= PROMISE_FLAG_PREALLOCATED_TASK;
+                manapi::async::etaskpool()->release_tasks(manapi::TASK_TYPE_HANDLE, 1);
+            }
+        }
 
         void await_resume () {
             if (this->data->exception) {
@@ -325,6 +347,10 @@ namespace manapi::async::internal {
         void await_suspend (std::coroutine_handle<T1> handle) {
             try {
                 this->data->handle = handle;
+                this->data->flags |= PROMISE_FLAG_PREALLOCATED_TASK;
+
+                manapi::async::etaskpool()->reserve_tasks(manapi::TASK_TYPE_HANDLE, 1);
+
                 if (this->data->flags & PROMISE_FLAG_ASYNC /* async */) {
                     if (this->data->flags & PROMISE_FLAG_RESOLVE_ONLY) {
                         async::run<void>(static_cast<async_resolve_cb *>(this->data->cb)->operator()(

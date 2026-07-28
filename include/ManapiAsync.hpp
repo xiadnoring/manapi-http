@@ -49,6 +49,10 @@ namespace manapi::async {
     const std::shared_ptr<logger> &log () MANAPIHTTP_NOEXCEPT;
 
     bool context_exists () MANAPIHTTP_NOEXCEPT;
+
+    void append_task (const std::coroutine_handle<> &handle);
+
+    void append_task (std::move_only_function<void()>&& callback);
 }
 
 namespace manapi::async::internal {
@@ -72,10 +76,6 @@ namespace manapi::async::internal {
     bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
 
     void future_awaiter_suspend(promise_base_future *promise, const std::coroutine_handle<> &handle, const std::coroutine_handle<> &waiting);
-
-    void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT;
-
-    void append_task (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
     class promise_base_future {
     public:

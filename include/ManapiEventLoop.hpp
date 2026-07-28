@@ -11,7 +11,6 @@
 #include "./ManapiEventStructures.hpp"
 #include "./std/ManapiCancellation.hpp"
 
-
 #ifdef _WIN32
 #   pragma comment(lib, "crypt32")
 #   pragma comment(lib, "ws2_32.lib")

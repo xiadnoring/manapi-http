@@ -13,17 +13,26 @@
 #include "./std/ManapiAsyncLogger.hpp"
 
 namespace manapi {
+    enum task_types {
+        TASK_TYPE_FUNC = 0,
+        TASK_TYPE_HANDLE
+    };
+
     class threadpool {
     public:
-        virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void append_task (std::move_only_function<void()> &&cb) = 0;
 
-        virtual void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void append_task (const std::coroutine_handle<> &handle) = 0;
 
         virtual void start() = 0;
 
         virtual void stop() MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void join () MANAPIHTTP_NOEXCEPT = 0;
+
+        virtual void reserve_tasks (task_types type, std::size_t sz) = 0;
+
+        virtual void release_tasks (task_types type, std::size_t sz) MANAPIHTTP_NOEXCEPT = 0;
 
         MANAPIHTTP_NODISCARD virtual std::size_t tasks_size () const MANAPIHTTP_NOEXCEPT = 0;
     };
@@ -44,19 +53,23 @@ namespace manapi {
 
         void join() MANAPIHTTP_NOEXCEPT override;
 
-        void for_all_threads (std::move_only_function<void(tasks_by_thread_t *)> cb);
+        void for_all_threads (std::move_only_function<void(tasks_by_thread_t *)> &&cb);
 
         void stop () MANAPIHTTP_NOEXCEPT override;
 
         void start () override;
 
-        void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_task (std::move_only_function<void()>&& cb) override;
 
-        void append_task (std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT override;
+        void append_task (const std::coroutine_handle<> &handle) override;
 
         MANAPIHTTP_NODISCARD std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::size_t tasks_size() const MANAPIHTTP_NOEXCEPT override;
+
+        void reserve_tasks(manapi::task_types type, std::size_t sz) override;
+
+        void release_tasks(manapi::task_types type, std::size_t sz) MANAPIHTTP_NOEXCEPT override;
     private:
         std::unique_ptr<data_t> m_data;
     };
@@ -71,6 +84,10 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD std::size_t tasks_size() const MANAPIHTTP_NOEXCEPT override;
 
+        void reserve_tasks (manapi::task_types type, std::size_t sz) override;
+
+        void release_tasks(manapi::task_types type, std::size_t sz) MANAPIHTTP_NOEXCEPT override;
+
         bool try_task ();
 
         void set_notify () MANAPIHTTP_NOEXCEPT;
@@ -81,9 +98,9 @@ namespace manapi {
 
         void start () override;
 
-        void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_task (std::move_only_function<void()> &&cb) override;
 
-        void append_task(std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT override;
+        void append_task(const std::coroutine_handle<>& handle) override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
 
