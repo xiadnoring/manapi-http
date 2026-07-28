@@ -11,6 +11,7 @@
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
 #   include "ManapiGrpc.hpp"
+#   include "./include/ManapiInternalGrpc.hpp"
 #   include <google/protobuf/any.h>
 #endif
 
@@ -122,6 +123,12 @@ void manapi::init_tools::log_name_enable(const char *name, bool enable) {
     manapi::debug::set_log_name_enabled(name, enable);
 }
 
+void manapi::init_tools::grpc_library_init() {
+#if MANAPIHTTP_GRPC_DEPENDENCY
+    manapi::net::wgrpc::event_engine_wrapper::init_instance();
+#endif
+}
+
 void manapi::clear_tools::clear_all() MANAPIHTTP_NOEXCEPT {
     clear_tools::curl_library_clear();
     clear_tools::ssl_library_clear();
@@ -138,6 +145,7 @@ void manapi::clear_tools::grpc_clear() MANAPIHTTP_NOEXCEPT {
     clear_tools::grpc_thread_clear();
 #if MANAPIHTTP_GRPC_DEPENDENCY
     google::protobuf::ShutdownProtobufLibrary();
+    manapi::net::wgrpc::event_engine_wrapper::get_instance() = nullptr;
 #endif
 }
 

@@ -275,7 +275,8 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
 manapi::future<manapi::ev::status_or<manapi::ev::unique_file>> manapi::fs::async_open(std::string path, int flags, int mode, manapi::ctoken cancellation) {
     typedef manapi::async::promise_sync<manapi::ev::status_or<ev::unique_file>> promise_sync;
     
-    auto fileno = co_await async_fs_operation<manapi::ev::status_or<ev::unique_file>>([path = std::move(path), flags, mode] (std::shared_ptr<ev::fs> w)
+    auto fileno = co_await async_fs_operation<manapi::ev::status_or<ev::unique_file>>(
+            [path = std::move(path), flags, mode] (std::shared_ptr<ev::fs> w)
         -> bool {
         return !w->open(path.data(), flags, mode);
     }, +[] (std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)

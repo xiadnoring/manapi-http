@@ -102,12 +102,14 @@ static int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int f
                         if (s == http_v2_ctx->streams.end() || !s->second)
                             continue;
 
+                        auto sconn = s->second;
+
                         w->waiting(conn, false);
-                        s->second->version = manapi::net::http::versions::HTTP_v2;
+                        sconn->version = manapi::net::http::versions::HTTP_v2;
                         auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
                         try {
-                            auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
+                            auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
 
                             // manapi::async::current()->etaskpool()->append_task(
                             //     [conn, status, id = s->first, w, w2 = globalctx->worker] () -> void {
@@ -127,9 +129,9 @@ static int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int f
                                     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
 
                                     try {
-                                        auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, globalctx->worker,
+                                        auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(sconn, globalctx->worker,
                                             req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
-                                            [w, sconn = s->second, conn] (bool ok) mutable
+                                            [w, sconn, conn] (bool ok) mutable
                                             -> void {
                                                 wrk_close_conn2 (conn, sconn, w, ok);
                                         }));
@@ -142,7 +144,7 @@ static int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int f
                                     }
                                     catch (std::exception const &e) {
                                         manapi_log_error("%s:%s failed due to %s", "http2", "new conn", e.what());
-                                        wrk_close_conn2(conn, s->second, w, false);
+                                        wrk_close_conn2(conn, sconn, w, false);
                                     }
                             //});
 

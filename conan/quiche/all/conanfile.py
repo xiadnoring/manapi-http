@@ -9,6 +9,7 @@ from conan.tools.system.package_manager import Apt, PacMan, Brew, Zypper, Yum, D
 import os
 import subprocess
 import glob
+from packaging.version import Version
 
 required_conan_version = ">=2.0.0"
 
@@ -36,6 +37,15 @@ class QuciheConan(ConanFile):
             Dnf(self).install(["rust-toolset"], update=True, check=True)
             Apk(self).install(["rust"], update=True, check=True)
             Chocolatey(self).install(["rustup.install"], update=True, check=True)
+
+            # redOs
+            if self.settings.os == "Linux":
+                import distro
+                distro_name = distro.id().lower()
+
+                if distro_name == "redos":
+                    self.run("sudo dnf install -y rust-toolset fontconfig-devel pkgconfig cmake clang-devel llvm-devel python3-devel clang expat-devel freetype-devel openssl-devel git perl")
+
         except Exception as e:
             print (f"package manager not found due to {str(e)}")
 
@@ -76,11 +86,13 @@ class QuciheConan(ConanFile):
         if os.path.exists('src'):
             shutil.rmtree('src')
         files.rename(self, glob.glob('quiche-*')[0], 'src')
-        boringssl = os.path.join('src', 'quiche', 'deps', 'boringssl')
 
-        if len(os.listdir(boringssl)) == 0:
-            # boringssl doesn't exist! Let's fix that!
-            get(self, 'https://github.com/google/boringssl/archive/refs/tags/0.20241209.0.zip', destination=boringssl, strip_root=True)
+        if Version(str(self.version)) < Version("0.29.3"):
+            boringssl = os.path.join('src', 'quiche', 'deps', 'boringssl')
+
+            if len(os.listdir(boringssl)) == 0:
+                # boringssl doesn't exist! Let's fix that!
+                get(self, 'https://github.com/google/boringssl/archive/refs/tags/0.20241209.0.zip', destination=boringssl, strip_root=True)
 
     def generate(self):
         if not self.command_exists('cargo'):
@@ -157,7 +169,9 @@ class QuciheConan(ConanFile):
 
         # License
         copy (self, 'COPYING', src=os.path.join(self.source_folder, 'src'), dst=os.path.join(self.package_folder, 'licenses', 'quiche'))
-        copy (self, 'LICENSE', src=os.path.join(self.source_folder, 'src', 'quiche', 'deps', 'boringssl'), dst=os.path.join(self.package_folder, 'licenses', 'boringssl'))
+
+        if Version(str(self.version)) < Version("0.29.3"):
+            copy (self, 'LICENSE', src=os.path.join(self.source_folder, 'src', 'quiche', 'deps', 'boringssl'), dst=os.path.join(self.package_folder, 'licenses', 'boringssl'))
     def package_info(self):
         self.cpp_info.set_property ("cmake_find_mode", "both")
         self.cpp_info.set_property ("cmake_file_name", "quiche")

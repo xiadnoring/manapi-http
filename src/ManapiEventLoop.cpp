@@ -983,10 +983,10 @@ void manapi::event_loop::wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT {
 
         if (shutdown) {
             manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:well done");
-
+#if MANAPIHTTP_CURL_DEPENDENCY
             if (this->m_curl_watcher->timeout_watcher)
                 this->m_curl_watcher->timeout_watcher.stop();
-
+#endif
             if (auto rhs = ::uv_loop_close(this->m_loop.get())) {
 #ifndef MANAPIHTTP_DISABLE_TRACE_HARD
                 ::uv_print_all_handles(this->loop(), stderr);

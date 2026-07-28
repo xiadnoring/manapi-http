@@ -35,7 +35,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             {"version", std::move(http)},
         });
 
-        resp->file("/home/Timur/Desktop/WorkSpace/ManapiHTTP/examples/http.html");
+        resp->file("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/examples/http.html");
         resp.finish();
     });
 
@@ -103,7 +103,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
             {"status_message", std::string{resp.status_message()}}
         }).unwrap();
 
-        co_return resp.file("/home/Timur/Desktop/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
+        co_return resp.file("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
     });
 
     router->POST ("/uploadtest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -296,183 +296,183 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         co_return resp.text(err).unwrap();
     });
 
-    router->GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        -> manapi::future<> {
-        try {
-            auto cancellation = manapi::ctoken::unit(req.cancellation());
-            cancellation.timeout(5000);
-            cancellation.ask_cancel_callback();
-            auto file = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
-                cancellation).unwrap();
-            co_await file->open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
-            if (!file->is_open()) {
-                co_return resp.text("failed to open the file").unwrap();
-            }
-
-            auto fetch = (co_await manapi::net::fetch2::fetch("https://localhost:8885/upload", {
-                {"http", "2"},
-                {"verify_peer", false},
-                {"verbose", false},
-                {"alpn", false},
-                {"method", "POST"},
-                {"timeout", 5},
-                {"headers", {
-                    //{"transfer-encoding", "chunked"}
-                    {"content-length", "298512394"}
-                }}
-            }, [file] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
-                auto const res = co_await file->fread(buffs);
-                fin = file->eof();
-                co_return res;
-            }, manapi::ctoken::unit(cancellation))).unwrap();
-
-            file->close();
-
-            if (!fetch->ok()) {
-                co_return resp.text(std::format("status : {}", fetch->status())).unwrap();
-            }
-            co_return resp.text((co_await fetch->text()).unwrap()).unwrap();
-        }
-        catch (std::exception const &e) {
-            co_return resp.text(e.what()).unwrap();
-        }
-    });
-
-    router->GET("/fetch_sync_sha256", [] (http::req &req, http::resp &resp)
-        -> manapi::future<> {
-        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
-            {"method", "GET"},
-            {"http", "2"},
-            {"verify_peer", false},
-            {"verify_host", false}
-        }, req.cancellation().sub());
-        if (!f.ok()) {
-            std::string s = "error: ";
-            s += f.message();
-            co_return resp.text(s).unwrap();
-        }
-        manapi::hash::sha256 sha256{};
-        ssize_t res = 0;
-        auto response = f.unwrap();
-
-        (co_await response->callback_sync([&] (char *buff, ssize_t size) -> ssize_t {
-            res += size;
-            sha256.update((uint8_t *)buff, (std::size_t)size);
-            return size;
-        })).unwrap();
-
-        std::string b;
-        b.resize(36);
-        sha256.final(reinterpret_cast<uint8_t *>(b.data()));
-
-        b = manapi::crypto::strdec2strhex(b).unwrap();
-        co_return resp.text(std::format("{} {}", res, b)).unwrap();
-    });
-
-    router->GET("/fetch_async_sha256", [] (http::req &req, http::resp &resp)
-        -> manapi::future<> {
-        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
-            {"method", "GET"},
-            {"http", "2"},
-            {"verify_peer", false},
-            {"verify_host", false}
-        }, req.cancellation().sub());
-        if (!f.ok()) {
-            std::string s = "error: ";
-            s += f.message();
-            co_return resp.text(s).unwrap();
-        }
-        manapi::hash::sha256 sha256{};
-        ssize_t res = 0;
-        auto response = f.unwrap();
-
-        (co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-            res += (ssize_t)buffs.size();
-            for (auto it = buffs.begin(); it != buffs.end(); it++)
-                sha256.update((uint8_t *)it.buffer(), it.size());
-            co_return (ssize_t)buffs.size();
-        })).unwrap();
-
-        std::string b;
-        b.resize(36);
-        sha256.final(reinterpret_cast<uint8_t *>(b.data()));
-
-        b = manapi::crypto::strdec2strhex(b).unwrap();
-        co_return resp.text(std::format("{} {}", res, b)).unwrap();
-    });
-
-    router->GET("/fetch_async_test", [] (http::req &req, http::resp &resp)
-        -> manapi::future<> {
-        auto f = co_await manapi::net::fetch2::fetch("http://127.0.0.1:8889/noise", {
-            {"method", "GET"}
-        },
-            manapi::ctoken::unit(req.cancellation()));
-        if (!f.ok()) {
-            std::string s = "error: ";
-            s += f.message();
-            co_return resp.text(s).unwrap();
-        }
-        auto response = f.unwrap();
-        ssize_t res = 0;
-        co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-            res += (ssize_t)buffs.size();
-            co_return (ssize_t)buffs.size();
-        });
-        co_return resp.text(std::to_string(res)).unwrap();
-    });
-
-    router->GET ("/ai", [] (http::req &req, http::resp &resp)
-            -> manapi::future<> {
-            if (!req.contains_get_param("text")) {
-                co_return resp.text("GET param 'text' doesn't exist").unwrap();
-            }
-
-            std::string ip = "https://openrouter.ai/api/v1/chat/completions";
-            int timeout = 64000;
-            if (req.contains_get_param("timeout")) {
-                try {
-                    auto s = req.get_extract("timeout").unwrap();
-                    timeout = std::stoi(s.second);
-                }
-                catch (...) {
-
-                }
-            }
-            if (req.contains_get_param("ip"))
-                ip = req.get("ip").unwrap();
-
-            auto text = req.get("text").unwrap();
-
-            auto token = manapi::process::get_env("MANAPIHTTP_AI").unwrap();
-
-            auto cancellation = req.cancellation().sub();
-        cancellation.timeout((std::size_t)timeout).unwrap();
-
-            auto response = (co_await manapi::net::fetch2::fetch(ip, {
-                {"method", "POST"},
-                {"verify_peer", false},
-                {"alpn", true},
-                {"verbose", true},
-                {"headers", {
-                    {"Content-Type", "application/json"},
-                    {"Authorization", std::format("Bearer {}", token)}
-                }}
-            }, manapi::json({
-                {"model", "openai/gpt-oss-20b:free"},
-                {"messages", manapi::json::array({
-                    {
-                        {"role", "user"},
-                        {"content", std::move(text)}
-                    }
-                })}
-            }).dump(), cancellation)).unwrap();
-
-            if (!response->ok()) {
-                co_return resp.text(std::format("fetch failed. Http:", response->status())).unwrap();
-            }
-
-            auto ans = (co_await response->json()).unwrap();
-            co_return resp.text(ans.dump(4)).unwrap();
-        });
+//    router->GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+//        -> manapi::future<> {
+//        try {
+//            auto cancellation = manapi::ctoken::unit(req.cancellation());
+//            cancellation.timeout(5000);
+//            cancellation.ask_cancel_callback();
+//            auto file = manapi::fs::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
+//                cancellation).unwrap();
+//            co_await file->open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
+//            if (!file->is_open()) {
+//                co_return resp.text("failed to open the file").unwrap();
+//            }
+//
+//            auto fetch = (co_await manapi::net::fetch2::fetch("https://localhost:8885/upload", {
+//                {"http", "2"},
+//                {"verify_peer", false},
+//                {"verbose", false},
+//                {"alpn", false},
+//                {"method", "POST"},
+//                {"timeout", 5},
+//                {"headers", {
+//                    //{"transfer-encoding", "chunked"}
+//                    {"content-length", "298512394"}
+//                }}
+//            }, [file] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+//                auto const res = co_await file->fread(buffs);
+//                fin = file->eof();
+//                co_return res;
+//            }, manapi::ctoken::unit(cancellation))).unwrap();
+//
+//            file->close();
+//
+//            if (!fetch->ok()) {
+//                co_return resp.text(std::format("status : {}", fetch->status())).unwrap();
+//            }
+//            co_return resp.text((co_await fetch->text()).unwrap()).unwrap();
+//        }
+//        catch (std::exception const &e) {
+//            co_return resp.text(e.what()).unwrap();
+//        }
+//    });
+//
+//    router->GET("/fetch_sync_sha256", [] (http::req &req, http::resp &resp)
+//        -> manapi::future<> {
+//        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
+//            {"method", "GET"},
+//            {"http", "2"},
+//            {"verify_peer", false},
+//            {"verify_host", false}
+//        }, req.cancellation().sub());
+//        if (!f.ok()) {
+//            std::string s = "error: ";
+//            s += f.message();
+//            co_return resp.text(s).unwrap();
+//        }
+//        manapi::hash::sha256 sha256{};
+//        ssize_t res = 0;
+//        auto response = f.unwrap();
+//
+//        (co_await response->callback_sync([&] (char *buff, ssize_t size) -> ssize_t {
+//            res += size;
+//            sha256.update((uint8_t *)buff, (std::size_t)size);
+//            return size;
+//        })).unwrap();
+//
+//        std::string b;
+//        b.resize(36);
+//        sha256.final(reinterpret_cast<uint8_t *>(b.data()));
+//
+//        b = manapi::crypto::strdec2strhex(b).unwrap();
+//        co_return resp.text(std::format("{} {}", res, b)).unwrap();
+//    });
+//
+//    router->GET("/fetch_async_sha256", [] (http::req &req, http::resp &resp)
+//        -> manapi::future<> {
+//        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
+//            {"method", "GET"},
+//            {"http", "2"},
+//            {"verify_peer", false},
+//            {"verify_host", false}
+//        }, req.cancellation().sub());
+//        if (!f.ok()) {
+//            std::string s = "error: ";
+//            s += f.message();
+//            co_return resp.text(s).unwrap();
+//        }
+//        manapi::hash::sha256 sha256{};
+//        ssize_t res = 0;
+//        auto response = f.unwrap();
+//
+//        (co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+//            res += (ssize_t)buffs.size();
+//            for (auto it = buffs.begin(); it != buffs.end(); it++)
+//                sha256.update((uint8_t *)it.buffer(), it.size());
+//            co_return (ssize_t)buffs.size();
+//        })).unwrap();
+//
+//        std::string b;
+//        b.resize(36);
+//        sha256.final(reinterpret_cast<uint8_t *>(b.data()));
+//
+//        b = manapi::crypto::strdec2strhex(b).unwrap();
+//        co_return resp.text(std::format("{} {}", res, b)).unwrap();
+//    });
+//
+//    router->GET("/fetch_async_test", [] (http::req &req, http::resp &resp)
+//        -> manapi::future<> {
+//        auto f = co_await manapi::net::fetch2::fetch("http://127.0.0.1:8889/noise", {
+//            {"method", "GET"}
+//        },
+//            manapi::ctoken::unit(req.cancellation()));
+//        if (!f.ok()) {
+//            std::string s = "error: ";
+//            s += f.message();
+//            co_return resp.text(s).unwrap();
+//        }
+//        auto response = f.unwrap();
+//        ssize_t res = 0;
+//        co_await response->callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+//            res += (ssize_t)buffs.size();
+//            co_return (ssize_t)buffs.size();
+//        });
+//        co_return resp.text(std::to_string(res)).unwrap();
+//    });
+//
+//    router->GET ("/ai", [] (http::req &req, http::resp &resp)
+//            -> manapi::future<> {
+//            if (!req.contains_get_param("text")) {
+//                co_return resp.text("GET param 'text' doesn't exist").unwrap();
+//            }
+//
+//            std::string ip = "https://openrouter.ai/api/v1/chat/completions";
+//            int timeout = 64000;
+//            if (req.contains_get_param("timeout")) {
+//                try {
+//                    auto s = req.get_extract("timeout").unwrap();
+//                    timeout = std::stoi(s.second);
+//                }
+//                catch (...) {
+//
+//                }
+//            }
+//            if (req.contains_get_param("ip"))
+//                ip = req.get("ip").unwrap();
+//
+//            auto text = req.get("text").unwrap();
+//
+//            auto token = manapi::process::get_env("MANAPIHTTP_AI").unwrap();
+//
+//            auto cancellation = req.cancellation().sub();
+//        cancellation.timeout((std::size_t)timeout).unwrap();
+//
+//            auto response = (co_await manapi::net::fetch2::fetch(ip, {
+//                {"method", "POST"},
+//                {"verify_peer", false},
+//                {"alpn", true},
+//                {"verbose", true},
+//                {"headers", {
+//                    {"Content-Type", "application/json"},
+//                    {"Authorization", std::format("Bearer {}", token)}
+//                }}
+//            }, manapi::json({
+//                {"model", "openai/gpt-oss-20b:free"},
+//                {"messages", manapi::json::array({
+//                    {
+//                        {"role", "user"},
+//                        {"content", std::move(text)}
+//                    }
+//                })}
+//            }).dump(), cancellation)).unwrap();
+//
+//            if (!response->ok()) {
+//                co_return resp.text(std::format("fetch failed. Http:", response->status())).unwrap();
+//            }
+//
+//            auto ans = (co_await response->json()).unwrap();
+//            co_return resp.text(ans.dump(4)).unwrap();
+//        });
 }
 #pragma GCC diagnostic pop

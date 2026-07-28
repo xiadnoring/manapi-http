@@ -34,47 +34,64 @@ static std::atomic<std::size_t> bbbb = 0;
 
 // Logic and data behind the server's behavior.
 class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
+    manapi::async::shared_cthread ctx;
 public:
+    GreeterServiceImpl () {
+        ctx = manapi::async::current();
+    }
+
     ~GreeterServiceImpl() override {
         std::cout << "RESET GreeterServiceImpl\n";
     }
     grpc::ServerUnaryReactor *SayHello(grpc::CallbackServerContext* context, const helloworld::HelloRequest* request,
                     helloworld::HelloReply* reply) override {
         grpc::ServerUnaryReactor* reactor = context->DefaultReactor();
-        manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
-            manapi::ctoken check_timeout;
-            check_timeout.cancel_callback([] () -> void {
-                std::cout << (size_t)bbbb <<  " IS TOO SLOW\n";
-            });
-            check_timeout.timeout(7000);
-            try {
-                bbbb.fetch_add(1);
-                auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8887/stat",{
-                    {"http", "1.1"},
-                    {"verify_peer", false},
-                    {"verify_host", false}
-                }, manapi::ctokens::timeout(2000));
+        auto cb = std::function ([reactor, reply, request] () -> void {
+             manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
+                manapi::ctoken check_timeout;
+                check_timeout.cancel_callback([] () -> void {
+                    std::cout << (size_t)bbbb <<  " IS TOO SLOW\n";
+                });
+                check_timeout.timeout(7000);
+                try {
+                    bbbb.fetch_add(1);
+                    manapi::json zz = manapi::json::object();
+                    zz.insert({"http", "2"});
+                    zz.insert({"verify_peer", false});
+                    zz.insert({"verify_host", false});
+                    auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8885/stat",std::move(zz),
+                                                                       manapi::ctokens::timeout(2000));
 
-                if (status.ok()) {
-                    auto response = status.unwrap();
-                    if (response->ok()) {
-                        reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), (co_await response->text()).unwrap()));
+                    if (status.ok()) {
+                        auto response = status.unwrap();
+                        if (response->ok()) {
+                            reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), (co_await response->text()).unwrap()));
+                        }
+                        else {
+                            reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response->status()));
+                        }
                     }
                     else {
-                        reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response->status()));
+                        reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), status.message()));
                     }
                 }
-                else {
-                    reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), status.message()));
+                catch (std::exception const &e) {
+                    reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
                 }
-            }
-            catch (std::exception const &e) {
-                reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
-            }
-            bbbb.fetch_sub(1);
-            check_timeout.disable();
-            reactor->Finish(grpc::Status::OK);
+                bbbb.fetch_sub(1);
+                check_timeout.disable();
+                reactor->Finish(grpc::Status::OK);
+                co_return;
+            });
         });
+        if (manapi::async::internal::current_()) {
+            cb();
+        }
+        else {
+            ctx->eventloop()->custom_callback ([cb = std::move(cb)] (manapi::event_loop* zev) mutable -> void {
+                cb();
+            });
+        }
         return reactor;
     }
 };
@@ -197,7 +214,7 @@ int main () {
 
             auto grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
             manapi::async::run([grpc_server, thrcntind] () mutable -> manapi::future<> {
-                auto res = co_await grpc_server->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
+                auto res = co_await grpc_server->config("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
 
                 res.log();
 
@@ -211,7 +228,7 @@ int main () {
                 res.log();
                 assert(res.ok());
                 if (res.ok()) {
-                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/timur/Документы/ssl/quic/cert.crt");
                     if (!creds.ok()) {
                         creds.err().log();
                         co_return;
@@ -219,7 +236,7 @@ int main () {
 
                     auto channel= creds.unwrap();
                     auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", channel));
-                            manapi::async::current()->timerpool()->append_timer_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                            manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
                                 std::string user = "Xiadnoring Client #1";
                                 auto res = co_await greeter->SayHello(user);
                                 if (res.ok())
@@ -282,15 +299,17 @@ int main () {
                     url += p;
                 }
 
-                auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url), {
-                    {"verify_peer", false},
-                    {"verify_host", false},
-                    {"verbose", true},
-                    {"http", "2"},
-                    {"headers", {
-                        {"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}
-                    }}
-                })).unwrap();
+                manapi::json pp = manapi::json::object();
+                manapi::json hdrs = manapi::json::object();
+                hdrs.insert({"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"});
+                pp.insert({"verify_peer", false});
+                pp.insert({"verify_host", false});
+                pp.insert({"verbose", true});
+                pp.insert({"http", 2});
+                pp.insert({"headers", std::move(hdrs)});
+
+                auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url),
+                                                                     std::move(pp))).unwrap();
                 if (!response->ok()) {
                     co_return resp.text(std::string{manapi::net::http::status_to_string(response->status()).unwrap()}).unwrap();
                 }
@@ -382,7 +401,7 @@ int main () {
             manapi::async::run([router/*, db*/] () mutable -> manapi::future<> {
                 //(co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
-                (co_await router->config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
+                (co_await router->config("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
                 (co_await router->start()).unwrap();
 
                 manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");

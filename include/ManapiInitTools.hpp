@@ -33,6 +33,11 @@ namespace manapi::init_tools {
     void curl_library_init ();
 
     /**
+     * Initialize grpc library
+     */
+    void grpc_library_init ();
+
+    /**
      * Enable Log Trace
      */
     void log_trace_init (manapi::debug::trace_level lvl);
