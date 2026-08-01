@@ -20,7 +20,7 @@
 #   include "Wincrypt.h"
 #endif
 
-manapi::status random_string_ (char *rnd, std::size_t len) {
+static manapi::status random_string_ (char *rnd, std::size_t len) {
     try {
 #ifdef _WIN32
         HCRYPTPROV h_crypt_prov;
@@ -119,7 +119,7 @@ manapi::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
         std::string rnd;
         rnd.resize(len);
 
-        auto err = random_string_(rnd.data(), rnd.size());
+        auto err = ::random_string_(rnd.data(), rnd.size());
         if (err.ok())
             return std::move(rnd);
 

@@ -1,10 +1,14 @@
 #pragma once
 
+#ifndef JWT_DISABLE_PICOJSON
+# define JWT_DISABLE_PICOJSON
+#endif
+
 #include <jwt-cpp/jwt.h>
 
 #include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
-#include "std/ManapiSlice.hpp"
+#include "../std/ManapiSlice.hpp"
 
 namespace jwt {
     namespace traits {

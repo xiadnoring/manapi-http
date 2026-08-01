@@ -3,14 +3,14 @@
 #include "./AsyncPostgreField.hpp"
 #include "../../ManapiUtils.hpp"
 
-namespace manapi::ext::pq {
 #include "libpq-events.h"
 #include "libpq-fe.h"
 #include "libpq/libpq-fs.h"
 #include "pg_config.h"
-#include "pg_config_ext.h"
 #include "pg_config_manual.h"
 #include "pg_config_os.h"
+
+namespace manapi::ext::pq {
 
     class row {
     public:

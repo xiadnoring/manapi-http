@@ -22,7 +22,7 @@ namespace manapi::math {
      * @param n the power
      * @return a raised to the power of n
      */
-    long long binpow(long long a, int n) MANAPIHTTP_NOEXCEPT;
+    int64_t binpow(int64_t a, int n) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Get a random integer between nmin and nmax, inclusive
@@ -32,4 +32,22 @@ namespace manapi::math {
      * @return the randomly generated integer
      */
     size_t random (size_t nmin, size_t nmax) MANAPIHTTP_NOEXCEPT;
+
+    /**
+     * Get a random integer between nmin and nmax, inclusive
+     *
+     * @param nmin minimum limit
+     * @param nmax maximum limit
+     * @return the randomly generated integer
+     */
+    uint64_t random64 (uint64_t nmin, uint64_t nmax) MANAPIHTTP_NOEXCEPT;
+
+    /**
+     * Get a random integer between nmin and nmax, inclusive
+     *
+     * @param nmin minimum limit
+     * @param nmax maximum limit
+     * @return the randomly generated integer
+     */
+    uint32_t random32 (uint32_t nmin, uint32_t nmax) MANAPIHTTP_NOEXCEPT;
 }

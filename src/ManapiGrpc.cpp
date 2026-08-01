@@ -1708,12 +1708,12 @@ void manapi::net::wgrpc::event_engine_wrapper::init_instance() {
     auto &sev = event_engine_wrapper::get_instance();
 
     try {
+        std::shared_ptr<manapi::net::wgrpc::event_engine_wrapper> znull{nullptr};
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
         ev->magic("MAGIC_MANAPI");
 
-        if (sev) return;
-
-        sev = ev;
+        if (!std::atomic_compare_exchange_strong(&sev, &znull, ev))
+            return;
 
 #if MANAPIHTTP_GRPC_SINCE_AT(1,71,0)
         auto finish_id = manapi::async::eventloop()->subscribe_clean_up(
