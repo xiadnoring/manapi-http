@@ -37,6 +37,6 @@ uint32_t manapi::math::random32 (uint32_t nmin, uint32_t nmax) MANAPIHTTP_NOEXCE
     std::mt19937 random_ng (random_dev());
     std::uniform_int_distribution<std::mt19937::result_type > dist (nmin, nmax);
 
-    return dist (random_ng);
+    return static_cast<uint32_t>(dist (random_ng));
 }
 

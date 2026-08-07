@@ -235,13 +235,15 @@ int main () {
 
                     auto channel= creds.unwrap();
                     auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", channel));
-                            manapi::async::current()->timerpool()->append_timer_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                            manapi::async::current()->timerpool()->append_timer_async(100, [greeter] (manapi::timer t) -> manapi::future<> {
                                 std::string user = "Xiadnoring Client #1";
                                 auto res = co_await greeter->SayHello(user);
                                 if (res.ok())
                                     std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
                                 else
                                     res.err().log();
+
+                                t.again(100);
                             }).unwrap();
                     }
 

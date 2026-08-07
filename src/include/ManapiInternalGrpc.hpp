@@ -139,7 +139,7 @@ namespace manapi::net::wgrpc {
         void init_ ();
     };
 
-    class event_engine_wrapper final : public grpc_event_engine::experimental::EventEngine {
+class event_engine_wrapper final : public grpc_event_engine::experimental::EventEngine {
         std::string_view magic_;
         async::shared_cthread primary;
         int flags;
