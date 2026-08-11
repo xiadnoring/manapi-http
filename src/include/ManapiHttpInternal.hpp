@@ -1,5 +1,8 @@
 #pragma once
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include "ManapiHttp.hpp"
 #include "std/ManapiRef.hpp"
 
