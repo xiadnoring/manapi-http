@@ -15,6 +15,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
 
     router->GET("/", folder, [] (http::req &req, http::resp &resp)
         -> manapi::future<> {
+        resp.compress("br");
+        resp.compress_enabled(true);
         co_return;
     });
 
@@ -105,6 +107,16 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
 
         co_return resp.file("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
     });
+
+    router->GET("/err/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        resp.replacers({
+               {"status_code", std::to_string(resp.status_code())},
+               {"status_message", std::string{resp.status_message()}}
+       }).unwrap();
+
+        co_return resp.file("/home/timur/Рбочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
+    });
+
 
     router->POST ("/uploadtest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
@@ -235,7 +247,7 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         co_return resp.text(std::format("{} : {}", result, b)).unwrap();
     });
 
-    router->GET("/mem", "/home/Timur/Downloads/VideoDownloader");
+    router->GET("/mem", "/home/timur/Загрузки/VideoDownloader");
 
     router->POST ("/formdata", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {

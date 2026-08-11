@@ -291,7 +291,7 @@ static int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int f
     int status = manapi::net::http::BAD_REQUEST_400;
 
     if (conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_CONN_RETRY) {
-        status = manapi::net::http::SERVICE_UNAVAILABLE_503;
+        status = manapi::net::http::TOO_MANY_REQUESTS_429;
         goto send_error;
     }
 
@@ -467,11 +467,11 @@ exec:
 
 
             cdata->router = manapi::net::http::server::cast(w->site().get())->handler(req_ptr);
-            cdata->req_data->handler = cdata->router->handler;
+            cdata->req_data->cdata = cdata.get();
 
 
-            if (wrk_data->req.handler) {
-                if (wrk_data->req.handler->trailers.size() > trailers_header.size()) {
+            if (cdata->router && cdata->router->handler) {
+                if (cdata->router->handler->trailers.size() > trailers_header.size()) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailers too large");
                     goto send_error;
                 }
@@ -480,7 +480,9 @@ exec:
                     for (auto &c : value.value)
                         c = static_cast<char> (std::tolower(c));
 
-                    if (!wrk_data->req.handler->trailers.contains(value.value)) {
+                    auto &allowed_trailers = cdata->router->handler->trailers;
+
+                    if (allowed_trailers.find(value.value) == allowed_trailers.end()) {
                         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer not allowed");
                         goto send_error;
                     }

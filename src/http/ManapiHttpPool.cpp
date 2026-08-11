@@ -62,7 +62,7 @@ manapi::future<manapi::status> manapi::net::http_pool::run() {
 }
 
 template<typename T>
-std::string concat_keys_in_map (const std::map<std::string, T> &m) {
+std::string concat_keys_in_map (const std::unordered_map<std::string, T, manapi::text_hash, std::equal_to<>> &m) {
     std::string available;
     if (!m.empty()) {
         auto it = m.begin();

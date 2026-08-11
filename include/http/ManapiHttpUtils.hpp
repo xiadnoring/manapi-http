@@ -9,12 +9,17 @@
 #include "../compress/ManapiCompress.hpp"
 #include "../std/ManapiAsyncContext.hpp"
 #include "../std/ManapiBuffer.hpp"
+#include "../std/ManapiRef.hpp"
 
 namespace manapi::net::http {
     struct http_handler_function;
 
+    namespace internal {
+        struct handle_data_t;
+    }
+
     struct response_features_t {
-        typedef std::move_only_function<future<manapi::status>(std::string src, std::string dest)> compress_file_cb;
+        typedef std::move_only_function<future<manapi::status>(manapi::ev::file src, manapi::ev::file dest)> compress_file_cb;
         typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb;
 
         std::string compress;
@@ -68,7 +73,8 @@ namespace manapi::net::http {
 
         uint32_t trailers_size;
 
-        std::shared_ptr<http_handler_function> handler;
+        manapi::net::http::internal::handle_data_t *cdata;
+//        manapi::reference<http_handler_function> handler;
 
         int32_t flags;
     };

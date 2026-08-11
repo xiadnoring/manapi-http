@@ -8,6 +8,10 @@
 namespace manapi::fs {
     class fstream : public std::enable_shared_from_this<fstream> {
         fstream (std::string path, ctoken cancellation);
+
+        fstream (ev::unique_file path, ctoken cancellation);
+
+        fstream (ev::file path, bool own, ctoken cancellation);
     public:
         struct fstream_data_t;
 
@@ -20,6 +24,10 @@ namespace manapi::fs {
         operator bool () const MANAPIHTTP_NOEXCEPT;
 
         static manapi::status_or<std::shared_ptr<fstream>> create (std::string path, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+
+        static manapi::status_or<std::shared_ptr<fstream>> create (ev::unique_file fd, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+
+        static manapi::status_or<std::shared_ptr<fstream>> create (ev::file fd, bool own, ctoken cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         fstream (fstream &&n) MANAPIHTTP_NOEXCEPT = delete;
 

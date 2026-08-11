@@ -56,13 +56,38 @@ enum handler_template_types {
     HANDLER_TEMPLATE_ASYNC_CB_TYPE
 };
 
-std::shared_ptr<manapi::net::http::http_handler_function> http_default_error_handler = std::make_shared<manapi::net::http::http_handler_function>(
-    [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text(manapi::net::http::internal::generate_default_page(resp.status_code(), resp.status_message())).unwrap();
-    }
-);
+struct manapi__cache_pair_hash {
+    using is_transparent = void;
 
-static std::string_view http_default_config_name = "config.json";
+    template<typename T1, typename T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+        std::size_t h1 = std::hash<std::string_view>{}(p.first);
+        std::size_t h2 = std::hash<std::string_view>{}(p.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+struct manapi__cache_pair_eq {
+    using is_transparent = void;
+
+    template<typename T1, typename T2, typename U1, typename U2>
+    bool operator()(const std::pair<T1, T2>& a, const std::pair<U1, U2>& b) const {
+        return a.first == b.first && a.second == b.second;
+    }
+};
+
+static manapi::reference <manapi::net::http::http_handler_function> manapi__http_default_error_handler (new manapi::net::http::http_handler_function{
+    .handler = [](manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        co_return resp.text(manapi::net::http::internal::generate_default_page(resp.status_code(),
+                                                                               resp.status_message())).unwrap();
+    },
+    .refcnt = 1
+});
+
+static std::string_view manapi__http_default_config_name = "config.json";
+
+static std::unordered_set <std::pair<std::string, std::string>, manapi__cache_pair_hash, manapi__cache_pair_eq> manapi__locked_cache;
+static std::mutex manapi__locked_cache_mx;
 
 manapi::net::http::server::~server() = default;
 
@@ -76,14 +101,14 @@ struct manapi::net::http::server::data_t {
     std::size_t event_id;
     std::size_t clean_up_id;
     http_uri_part handlers{};
-    std::unique_ptr<std::map <std::string, compress_file_cb_t, std::less<>>> compressors_for_file{};
-    std::unique_ptr<std::map <std::string, compress_str_cb_t, std::less<>>> compressors_for_string{};
-    std::unique_ptr<std::map <std::string, std::map <std::string, implement_create_cb>>> transport_protocol_workers{};
-    std::unique_ptr<std::map <http::versions::http, std::map <std::string, implemenet_http_cb>>> http_protocol_workers{};
+    std::unique_ptr<std::unordered_map <std::string, compress_file_cb_t, manapi::text_hash, std::equal_to<>>> compressors_for_file;
+    std::unique_ptr<std::unordered_map <std::string, compress_str_cb_t, manapi::text_hash, std::equal_to<>>> compressors_for_string;
+    std::unique_ptr<std::unordered_map <std::string, std::unordered_map <std::string, implement_create_cb, manapi::text_hash, std::equal_to<>>, manapi::text_hash, std::equal_to<>>> transport_protocol_workers;
+    std::unique_ptr<std::unordered_map <http::versions::http, std::unordered_map <std::string, implemenet_http_cb, manapi::text_hash, std::equal_to<>>>> http_protocol_workers;
     manapi::async::mutex mx;
 };
 
-static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
+static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> manapi__create_protocol_worker (manapi::net::worker::interface_worker *w, manapi::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
     auto p = std::make_unique<manapi::net::worker::wrk_interface_global_t>();
     manapi::net::worker::default_wrk_http_preinit(p.get());
     auto res = init_global_cb (p.get(), (w));
@@ -93,7 +118,7 @@ static manapi::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_glob
 }
 
 
-static void http_server_on_config_update(manapi::net::http::server::data_t *data, const manapi::json &n) MANAPIHTTP_NOEXCEPT {
+static void manapi__http_server_on_config_update(manapi::net::http::server::data_t *data, const manapi::json &n) MANAPIHTTP_NOEXCEPT {
     try {
         if (n.is_null())
             return;
@@ -122,14 +147,14 @@ static void http_server_on_config_update(manapi::net::http::server::data_t *data
     }
 }
 
-static void http_server_clean_up(manapi::net::http::server::data_t *data) {
+static void manapi__http_server_clean_up(manapi::net::http::server::data_t *data) {
     // clean
     data->pools.clear();
     // reset
     data->next_pool_id = 0;
 }
 
-static manapi::future<> http_server_setup_config(manapi::json &n) {
+static manapi::future<> manapi__http_server_setup_config(manapi::json &n) {
     using namespace manapi;
 
     if (!n.contains("cache") || !n.is_object())
@@ -161,10 +186,10 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
             cache_rm = false;
         }
 
-        manapi::unwrap(co_await manapi::fs::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true));
+        manapi::unwrap(co_await manapi::fs::async_mkdir(cache_path, ev::IRWXU|ev::IRGRP|ev::IXGRP, true));
 
         manapi::fs::path::append_delimiter(cache_path);
-        auto path = manapi::fs::path::join(cache_path, std::string{http_default_config_name});
+        auto path = manapi::fs::path::join(cache_path, std::string{manapi__http_default_config_name});
 
         try {
             auto exists = co_await manapi::fs::async_exists(path);
@@ -184,7 +209,7 @@ static manapi::future<> http_server_setup_config(manapi::json &n) {
     n["cache_path"] = std::move(cache_path);
 }
 
-static manapi::future<> http_server_save(std::shared_ptr<manapi::net::http::server> srv, manapi::net::http::server::data_t* data) {
+static manapi::future<> manapi__http_server_save(std::shared_ptr<manapi::net::http::server> srv, manapi::net::http::server::data_t* data) {
     using namespace manapi;
     auto &config = *data->config_;
     auto path = config["site_path"].as_string();
@@ -194,7 +219,7 @@ static manapi::future<> http_server_save(std::shared_ptr<manapi::net::http::serv
             config["site"].dump(4), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
 }
 
-static manapi::net::http::http_uri_part *http_server_build_uri_part(manapi::net::http::server::data_t *m_data, std::string_view uri, size_t &type) {
+static manapi::net::http::http_uri_part *manapi__http_server_build_uri_part(manapi::net::http::server::data_t *m_data, std::string_view uri, size_t &type) {
     using namespace manapi::net::http;
     using namespace manapi;
 
@@ -360,7 +385,7 @@ static manapi::net::http::http_uri_part *http_server_build_uri_part(manapi::net:
     return cur;
 }
 
-static manapi::future<> http_server_init_pool(std::shared_ptr<manapi::net::http::server> srv, manapi::net::http::server::data_t *m_data) {
+static manapi::future<> manapi__http_server_init_pool(std::shared_ptr<manapi::net::http::server> srv, manapi::net::http::server::data_t *m_data) {
     using namespace manapi::net::http;
     using namespace manapi::net;
     using namespace manapi;
@@ -416,10 +441,10 @@ manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
 
 
     #if MANAPIHTTP_ZLIB_DEPENDENCY
-    this->compressor_for_file("deflate", +[] (std::string src, std::string dest)
-        -> future<manapi::status> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
-    this->compressor_for_file("gzip", +[] (std::string src, std::string dest)
-        -> future<manapi::status> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
+    this->compressor_for_file("deflate", +[] (ev::file src, ev::file dest)
+        -> future<manapi::status> { return manapi::compress::deflate_compress_file( (src), (dest)); });
+    this->compressor_for_file("gzip", +[] (ev::file src, ev::file dest)
+        -> future<manapi::status> { return manapi::compress::gzip_compress_file((src), (dest)); });
 
     this->compressor_for_string("deflate", +[] (std::string_view data)
         -> status_or<std::string> { return compress::deflate_compress_string(data); });
@@ -428,15 +453,15 @@ manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
 #endif
 
 #if MANAPIHTTP_BROTLI_DEPENDENCY
-    this->compressor_for_file("br", +[] (std::string src, std::string dest)
-        -> future<manapi::status> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
+    this->compressor_for_file("br", +[] (ev::file src, ev::file dest)
+        -> future<manapi::status> { return manapi::compress::brotli_compress_file((src), (dest), 11, 22, 0); });
     this->compressor_for_string("br", +[] (std::string_view data)
         -> status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
 #endif
 
 #if MANAPIHTTP_ZSTD_DEPENDENCY
-    this->compressor_for_file("zstd", +[] (std::string src, std::string dest)
-        -> future<manapi::status> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
+    this->compressor_for_file("zstd", +[] (ev::file src, ev::file dest)
+        -> future<manapi::status> { return manapi::compress::zstd_compress_file((src), (dest), 1); });
     this->compressor_for_string("zstd", +[] (std::string_view data)
         -> status_or<std::string> { return compress::zstd_compress_string(data, 1); });
 #endif
@@ -459,18 +484,18 @@ manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
 #endif
 
     this->http_protocol_worker(http::versions::HTTP_v1_1, "default", [] (worker::interface_worker *w)
-        { return create_protocol_worker (w, worker::default_wrk_http1_global_init); });
+        { return manapi__create_protocol_worker (w, worker::default_wrk_http1_global_init); });
     this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::interface_worker *w)
-        { return create_protocol_worker (w, worker::default_wrk_http2_global_init); });
+        { return manapi__create_protocol_worker (w, worker::default_wrk_http2_global_init); });
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY
     this->http_protocol_worker(http::versions::HTTP_v2, "nghttp", [] (worker::interface_worker *w)
-        { return create_protocol_worker (w, worker::ng_wrk_http2_global_init); });
+        { return manapi__create_protocol_worker (w, worker::ng_wrk_http2_global_init); });
 #endif
 
 #if MANAPIHTTP_NGHTTP3_DEPENDENCY
     this->http_protocol_worker(http::versions::HTTP_v3, "nghttp", [] (worker::interface_worker *w)
-        { return create_protocol_worker (w, worker::ng_wrk_http3_global_init); });
+        { return manapi__create_protocol_worker (w, worker::ng_wrk_http3_global_init); });
 #endif
 }
 
@@ -503,11 +528,11 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
 
         this->m_data->clean_up_id = async::current()->eventloop()->subscribe_clean_up([p = this->shared_from_this()] () mutable
             -> void {
-            http_server_clean_up(p->m_data.get());
+            manapi__http_server_clean_up(p->m_data.get());
         });
 
         this->m_data->server_config = co_await this->m_data->sctx->storage().subscribe([p = this->shared_from_this()] (auto &&f1)
-            -> void { http_server_on_config_update(p->m_data.get(), std::forward<decltype(f1)>(f1)); });
+            -> void { manapi__http_server_on_config_update(p->m_data.get(), std::forward<decltype(f1)>(f1)); });
 
         auto res = co_await this->m_data->sctx->storage().edit_async (this->m_data->server_config,
             [this, path = std::move(path)] (manapi::json &config) mutable -> manapi::future<bool> {
@@ -541,7 +566,7 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
                     config["site_path"] = std::move(path);
                     config["cache_time"] = 0;
 
-                    co_await http_server_setup_config(config);
+                    co_await manapi__http_server_setup_config(config);
                     *this->m_data->config_ = config;
                     co_return true;
                 }
@@ -558,7 +583,7 @@ manapi::future<manapi::status> manapi::net::http::server::config(std::string pat
     auto res = manapi::status_ok();
     try {
         res = co_await this->stop();
-        http_server_clean_up(this->m_data.get());
+        manapi__http_server_clean_up(this->m_data.get());
     }
     catch (std::exception const &e) {
        res = manapi::status_unknown(std::string{e.what()});
@@ -585,11 +610,11 @@ manapi::future<manapi::status> manapi::net::http::server::config_object(json con
 
         this->m_data->clean_up_id = async::current()->eventloop()->subscribe_clean_up([p = this->shared_from_this()] () mutable
             -> void {
-            http_server_clean_up(p->m_data.get());
+            manapi__http_server_clean_up(p->m_data.get());
         });
 
         this->m_data->server_config = co_await this->m_data->sctx->storage().subscribe([p = this->shared_from_this()] (auto &&f1)
-            -> void { http_server_on_config_update(p->m_data.get(), std::forward<decltype(f1)>(f1)); });
+            -> void { manapi__http_server_on_config_update(p->m_data.get(), std::forward<decltype(f1)>(f1)); });
 
         auto res = co_await this->m_data->sctx->storage().edit_async (this->m_data->server_config,
             [this, nconfig = std::move(config)] (manapi::json &config) mutable -> manapi::future<bool> {
@@ -613,7 +638,7 @@ manapi::future<manapi::status> manapi::net::http::server::config_object(json con
                 config["site_path"] = "";
                 config["cache_time"] = 0;
 
-                co_await http_server_setup_config(config);
+                co_await manapi__http_server_setup_config(config);
                 co_return true;
         });
         res.unwrap();
@@ -626,7 +651,7 @@ manapi::future<manapi::status> manapi::net::http::server::config_object(json con
     auto res = manapi::status_ok();
     try {
         res = co_await this->stop();
-        http_server_clean_up(this->m_data.get());
+        manapi__http_server_clean_up(this->m_data.get());
     }
     catch (std::exception const &e) {
         res = manapi::status_unknown(std::string{e.what()});
@@ -659,7 +684,7 @@ manapi::future<manapi::status> manapi::net::http::server::start() {
 
         this->m_data->flags |= MANAPI_HTTP_SERVER_FLAG_RUNNING;
 
-        co_await ::http_server_init_pool(this->shared_from_this(), this->m_data.get());
+        co_await ::manapi__http_server_init_pool(this->shared_from_this(), this->m_data.get());
 
         co_return std::move(res);
     }
@@ -743,14 +768,14 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
                         if (data.contains("site_path")
                             && data["site"].contains("save")
                             && data["site"]["save"] == true)
-                            co_await ::http_server_save(p, p->m_data.get());
+                            co_await ::manapi__http_server_save(p, p->m_data.get());
 
                         // cache config
                         if (data["cache_rm"].as_bool()) {
                             manapi::unwrap(co_await manapi::fs::async_rmdir_all(fs::path::join(data["cache_path"].as_string())));
                         }
                         else {
-                            manapi::unwrap(co_await manapi::fs::async_write(fs::path::join(data["cache_path"].as_string(), std::string{::http_default_config_name}),
+                            manapi::unwrap(co_await manapi::fs::async_write(fs::path::join(data["cache_path"].as_string(), std::string{::manapi__http_default_config_name}),
                                 data["cache"].dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY));
                         }
                     }
@@ -766,7 +791,7 @@ manapi::future<manapi::status> manapi::net::http::server::stop() {
             co_await this->m_data->sctx->storage().unsubscribe(std::move(this->m_data->server_config));
         }
 
-        ::http_server_clean_up(this->m_data.get());
+        ::manapi__http_server_clean_up(this->m_data.get());
 
         if (this->m_data->flags & MANAPI_HTTP_SERVER_FLAG_RUNNING)
             this->m_data->flags ^= MANAPI_HTTP_SERVER_FLAG_RUNNING;
@@ -895,19 +920,39 @@ bool manapi::net::http::server::contains_compressor_for_string(std::string_view 
     return this->m_data->compressors_for_string->find(name) != this->m_data->compressors_for_string->end();
 }
 
-void manapi::net::http::server::transport_protocol_worker(const std::string &type, const std::string &name, implement_create_cb worker) {
-    (*this->m_data->transport_protocol_workers)[type][name] = std::move(worker);
+void manapi::net::http::server::transport_protocol_worker(std::string_view type, std::string_view name, implement_create_cb worker) {
+    auto it = this->m_data->transport_protocol_workers->find(type);
+    if (it == this->m_data->transport_protocol_workers->end()) {
+        it = this->m_data->transport_protocol_workers->insert({std::string {type}, {}}).first;
+    }
+    auto zit = it->second.find (name);
+    if (zit == it->second.end()) {
+        it->second.insert ({std::string {name}, std::move(worker)});
+    }
+    else {
+        zit->second = std::move(worker);
+    }
 }
 
-const std::map<std::string, manapi::net::http::server::implement_create_cb> &manapi::net::http::server::transport_protocol_worker(const std::string &type) {
-    return (*this->m_data->transport_protocol_workers)[type];
+const std::unordered_map<std::string, manapi::net::http::server::implement_create_cb, manapi::text_hash, std::equal_to<>> &manapi::net::http::server::transport_protocol_worker( std::string_view type) {
+    auto it = this->m_data->transport_protocol_workers->find(type);
+    if (it == this->m_data->transport_protocol_workers->end())
+        throw std::runtime_error ("protocol:not found");
+    return it->second;
 }
 
-void manapi::net::http::server::http_protocol_worker(http::versions::http type, const std::string &name, implemenet_http_cb worker) {
-    (*this->m_data->http_protocol_workers)[type][name] = std::move(worker);
+void manapi::net::http::server::http_protocol_worker(http::versions::http type, std::string_view name, implemenet_http_cb worker) {
+    auto &z = (*this->m_data->http_protocol_workers)[type];
+    auto it = z.find(name);
+    if (it == z.end()) {
+        z.insert ({std::string {name}, std::move(worker)});
+    }
+    else {
+        it->second = std::move(worker);
+    }
 }
 
-const std::map<std::string, manapi::net::http::server::implemenet_http_cb> & manapi::net::http::server::http_protocol_worker(http::versions::http type) {
+const std::unordered_map<std::string, manapi::net::http::server::implemenet_http_cb, manapi::text_hash, std::equal_to<>> & manapi::net::http::server::http_protocol_worker(http::versions::http type) {
     return (*this->m_data->http_protocol_workers)[type];
 }
 
@@ -1017,134 +1062,142 @@ manapi::future<manapi::status> manapi::net::http::server::set_compressed_cache_f
     co_return manapi::status_internal("compress:Set cache file failed");
 }
 
-manapi::future<manapi::status> manapi::net::http::server::set_locked_cache_file(std::string file, bool lock, std::string algorithm) {
-    try {
-        bool busy = false;
-        if (this->m_data->config_ && this->m_data->config_->is_object()) {
-            auto cache_config = this->m_data->config_->find("cache");
-            if (cache_config != this->m_data->config_->end<manapi::json::OBJECT>()) {
-                auto algoit = cache_config->second.find(algorithm);
-                if (algoit != cache_config->second.end<manapi::json::OBJECT>()) {
-                    auto it = algoit->second.find(file);
-                    if (it == algoit->second.end<manapi::json::OBJECT>()) {
-                        if (!lock)
-                            co_return status_ok();
-                    }
-                    else {
-                        if (lock) {
-                            if (it->second.is_bool()
-                                && it->second == false)
-                                co_return status_unavailable("compress:Busy");
-                        }
-                        else {
-                            if (it->second.is_object())
-                                co_return status_ok();
-                        }
-                    }
-                }
-            }
-        }
+manapi::status manapi::net::http::server::lock_cache_file(std::string&& file, std::string &&algorithm) {
+//    try {
+//        bool busy = false;
+//        if (this->m_data->config_ && this->m_data->config_->is_object()) {
+//            auto cache_config = this->m_data->config_->find("cache");
+//            if (cache_config != this->m_data->config_->end<manapi::json::OBJECT>()) {
+//                auto algoit = cache_config->second.find(algorithm);
+//                if (algoit != cache_config->second.end<manapi::json::OBJECT>()) {
+//                    auto it = algoit->second.find(file);
+//                    if (it == algoit->second.end<manapi::json::OBJECT>()) {
+//                        if (!lock)
+//                            co_return status_ok();
+//                    }
+//                    else {
+//                        if (lock) {
+//                            if (it->second.is_bool()
+//                                && it->second == false)
+//                                co_return status_unavailable("compress:Busy");
+//                        }
+//                        else {
+//                            if (it->second.is_object())
+//                                co_return status_ok();
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        auto edit_res = co_await this->m_data->sctx->storage().edit(this->m_data->server_config,
+//            [&] (manapi::json &all) -> bool {
+//            auto &n = all["cache"];
+//            auto it = n.find(algorithm);
+//            if (it == n.end<json::OBJECT>()) {
+//                auto const res = n.insert({algorithm, json::object()});
+//                it = res.first;
+//            }
+//
+//            auto fit = it->second.find(file);
+//
+//            if (true) {
+//                if (fit == it->second.end<json::OBJECT>()) {
+//                    it->second.insert({file, false});
+//                }
+//                else {
+//                    if (fit->second.is_object()) {
+//                        auto compressit = fit->second.find("compressed");
+//                        if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
+//                            manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(compressit->second.as_string(),
+//                                manapi::ctokens::timeout(5000)));
+//                        }
+//                    }
+//                    else {
+//                        if (fit->second == false) {
+//                            busy = true;
+//                            return false;
+//                        }
+//                    }
+//
+//                    fit->second = false;
+//                }
+//            }
+//            else {
+//                if (fit != it->second.end<json::OBJECT>()) {
+//                    if (!it->second.is_object())
+//                        it->second.erase(fit);
+//                }
+//            }
+//            return true;
+//        });
+//
+//        edit_res.unwrap();
+//
+//        if (busy)
+//            co_return status_unavailable("compress:Busy");
+//
+//        co_return status_ok();
+//    }
+//    catch (std::exception const &e) {
+//        manapi_log_error("set locked compressed failed due to %s", e.what());
+//    }
+//
+//    co_return status_internal("compress:Set cache file failed");
 
-        auto edit_res = co_await this->m_data->sctx->storage().edit(this->m_data->server_config,
-            [&] (manapi::json &all) -> bool {
-            auto &n = all["cache"];
-            auto it = n.find(algorithm);
-            if (it == n.end<json::OBJECT>()) {
-                auto const res = n.insert({algorithm, json::object()});
-                it = res.first;
-            }
+    std::lock_guard<std::mutex> lk (::manapi__locked_cache_mx);
 
-            auto fit = it->second.find(file);
+    auto res = ::manapi__locked_cache.insert(std::make_pair(std::move(file), std::move(algorithm))).second;
+    if (!res) return manapi::status_unavailable();
 
-            if (lock) {
-                if (fit == it->second.end<json::OBJECT>()) {
-                    it->second.insert({file, false});
-                }
-                else {
-                    if (fit->second.is_object()) {
-                        auto compressit = fit->second.find("compressed");
-                        if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
-                            manapi::async::run<manapi::ev::status>(manapi::fs::async_unlink(compressit->second.as_string(),
-                                manapi::ctokens::timeout(5000)));
-                        }
-                    }
-                    else {
-                        if (fit->second == false) {
-                            busy = true;
-                            return false;
-                        }
-                    }
+    return manapi::status_ok();
+}
 
-                    fit->second = false;
-                }
-            }
-            else {
-                if (fit != it->second.end<json::OBJECT>()) {
-                    if (!it->second.is_object())
-                        it->second.erase(fit);
-                }
-            }
-            return true;
-        });
 
-        edit_res.unwrap();
-
-        if (busy)
-            co_return status_unavailable("compress:Busy");
-
-        co_return status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("set locked compressed failed due to %s", e.what());
-    }
-
-    co_return status_internal("compress:Set cache file failed");
+void manapi::net::http::server::unlock_cache_file(std::string_view file, std::string_view algorithm) MANAPIHTTP_NOEXCEPT {
+    std::lock_guard<std::mutex> lk (::manapi__locked_cache_mx);
+    auto it = ::manapi__locked_cache.find(std::make_pair (file, algorithm));
+    if (it != ::manapi__locked_cache.end())
+        ::manapi__locked_cache.erase(it);
 }
 
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server::handler(http::request_data_t *request_data) const {
     auto handler_page = std::make_unique<http_handler_page>();
 
-    handler_page->error = std::make_unique<http_handler_page>();
-    handler_page->error->handler = http_default_error_handler;
-
+    handler_page->error.reserve(4);
+    handler_page->error.emplace_back(::manapi__http_default_error_handler, 0);
 
     decltype(decltype(this->m_data->handlers)::handlers)::element_type::iterator it;
 
-    // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
-    size_t error_layer_depth = 0;
     bool not_found = false;
     bool page_found = false;
 
-    try
-    {
+    try {
         const http_uri_part *cur = &this->m_data->handlers;
         const size_t path_size = request_data->divided < 0 ? request_data->path.size() : static_cast<std::size_t>(request_data->divided);
         for (size_t i = 0; i <= path_size; i++) {
-            if (cur->statics)
-            {
+            if (cur->statics) {
                 auto static_it = cur->statics->find(request_data->method);
                 if (static_it != cur->statics->end()) {
-                    handler_page->statics = &static_it->second;
+                    handler_page->statics = static_it->second;
                     handler_page->statics_parts_len = i;
                 }
             }
 
 
-            if (cur->layers)
-            {
+            if (cur->layers) {
                 auto shared_it = cur->layers->find(request_data->method);
                 if (shared_it != cur->layers->end()) {
                     handler_page->layer.push_back(shared_it->second);
                 }
             }
 
-            if (cur->errors)
-            {
+            if (cur->errors) {
                 auto error_it = cur->errors->find(request_data->method);
                 if (error_it != cur->errors->end()) {
                     // find errors handlers for method!
-                    handler_page->error->handler = error_it->second;
-                    error_layer_depth = handler_page->layer.size();
+                    // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
+                    handler_page->error.emplace_back(error_it->second, handler_page->layer.size());
                 }
             }
 
@@ -1204,9 +1257,9 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server:
                         }
 
                         // get params
-                        for (size_t z = 0; z < cur->params->size(); z++)
-                        { request_data->params.insert({cur->params->at(z), match.str(z + 1)}); }
-
+                        for (size_t z = 0; z < cur->params->size(); z++) {
+                            request_data->params.insert({cur->params->at(z), match.str(z + 1)});
+                        }
 
                         break;
                     }
@@ -1222,7 +1275,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server:
             break;
         }
 
-        std::copy_n(handler_page->layer.begin(), error_layer_depth, std::back_inserter(handler_page->error->layer));
+//        std::copy_n(handler_page->layer.begin(), cur_layer_depth, std::back_inserter(handler_page->error->layer));
 
         // handler page
 
@@ -1233,22 +1286,21 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::server:
         if (!page_found)
             it = cur->handlers->find (request_data->method);
 
-        std::shared_ptr<http_handler_function> handler{nullptr};
 
         if (it != cur->handlers->end()) {
-            handler = it->second;
+            handler_page->handler = it->second;
         }
-
-        if (!handler) {
-            // TODO: handler error
-        }
-
-        handler_page->handler = handler;
 
         return std::move(handler_page);
     }
     catch (const std::exception &e) {
         manapi_log_trace("%s failed due to %s", "routing", e.what());
+        handler_page->handler = ::manapi__http_default_error_handler;
+
+        handler_page->layer.clear();
+        handler_page->statics.reset();
+        handler_page->statics_parts_len = 0;
+        handler_page->error.clear();
     }
     return std::move(handler_page);
 }
@@ -1259,9 +1311,9 @@ manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::server:
     try {
         size_t type = URI_PAGE_DEFAULT;
 
-        http_uri_part *cur = http_server_build_uri_part(this->m_data.get(), uri, type);
+        http_uri_part *cur = manapi__http_server_build_uri_part(this->m_data.get(), uri, type);
 
-        auto functions = std::make_shared<http_handler_function>();
+        auto functions = manapi::reference <http_handler_function> (new http_handler_function {});
 
         functions->handler = std::move(handler);
 
@@ -1371,7 +1423,7 @@ manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::server:
     try {
         size_t type = URI_PAGE_DEFAULT;
 
-        http_uri_part *cur = http_server_build_uri_part(this->m_data.get(), uri, type);
+        http_uri_part *cur = manapi__http_server_build_uri_part(this->m_data.get(), uri, type);
 
         switch (type) {
             case URI_PAGE_DEFAULT: {
@@ -1380,16 +1432,13 @@ manapi::status_or<manapi::net::http::http_uri_part *> manapi::net::http::server:
                 }
 
 
-                http_static_handler_function func_static_hdl{};
-                func_static_hdl.folder = manapi::fs::path::serialize(folder);
+                manapi::reference<http_static_handler_function> func_static_hdl (new http_static_handler_function {});
+                func_static_hdl->folder = manapi::fs::path::serialize(folder);
                 auto res = cur->statics->insert({std::move(method), std::move(func_static_hdl)});
 
                 if (res.second) {
                     if (handler) {
-                        auto &layer = res.first->second.layer;
-                        layer = std::make_unique<http_handler_function>(
-                            std::move(handler));
-
+                        res.first->second->layer = manapi::reference<http_handler_function>(new http_handler_function (std::move(handler)));
                     }
                 }
                 else {

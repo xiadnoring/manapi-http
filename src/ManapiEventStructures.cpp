@@ -1062,6 +1062,10 @@ void manapi::ev::unique_file::reset(ev::file fd) MANAPIHTTP_NOEXCEPT {
     this->m_fd = fd;
 }
 
+bool manapi::ev::unique_file::has_value() const MANAPIHTTP_NOEXCEPT {
+    return this->m_fd.has_value();
+}
+
 void manapi::ev::dir_deleter_t::operator()(ev::dir_t *ptr) MANAPIHTTP_NOEXCEPT {
     ::uv_fs_t req;
     if (auto rhs = ::uv_fs_closedir(manapi::async::eventloop()->loop(), &req, ptr, nullptr))

@@ -37,9 +37,8 @@ static_assert(manapi::ev::READ == CURL_POLL_IN && manapi::ev::WRITE == CURL_POLL
     } }
 
 #define MANAPIHTTP_EV_CANCEL(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
-    if (w) { w->cancel(); std::unique_ptr<ev::internal::ctxname> data (static_cast<ev::internal::ctxname *>(w->data())); w->data(nullptr); \
-        if (data) { data->token.disable(); data->s_.reset(); } \
-    } }
+    if (w) { if (auto rhs = w->cancel()) { manapi_log_error ("%s failed due to %s", "cancel", ev::strerror (rhs)); } } \
+    }
 
 #define MANAPIHTTP_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
     if (w) { \

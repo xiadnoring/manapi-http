@@ -471,6 +471,8 @@ namespace manapi::ev {
         void reset () MANAPIHTTP_NOEXCEPT;
 
         void reset (ev::file fd) MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool has_value () const MANAPIHTTP_NOEXCEPT;
     private:
         std::optional<ev::file> m_fd;
     };

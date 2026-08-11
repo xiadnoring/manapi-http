@@ -6,21 +6,27 @@
 #include "../include/ManapiWindows.hpp"
 
 enum fstream_status_flags {
-    FILE_READ = 0b1,
-    FILE_WRITE  = 0b10,
-    FILE_CLOSED = 0b100,
-    FILE_EOF = 0b1000
+    FILE_READ   = 1<<0,
+    FILE_WRITE  = 1<<1,
+    FILE_CLOSED = 1<<2,
+    FILE_EOF    = 1<<3,
+    FILE_OWN_FD = 1<<4,
+    FILE_HAS_FD = 1<<5
 };
 
 struct manapi::fs::fstream::fstream_data_t {
     std::string path;
     manapi::ctoken cancellation;
-    manapi::ev::unique_file file;
+    manapi::ev::file file;
     int status;
     off_t off_;
 };
 
-static ssize_t m_fstream_seekg_(manapi::fs::fstream::fstream_data_t *data, ssize_t pos, manapi::fs::fstream::seek_flag_t flag) {
+static bool manapi__check_fd (manapi::fs::fstream::fstream_data_t *data) {
+    return (data->status & FILE_HAS_FD);
+}
+
+static ssize_t manapi__fstream_seekg(manapi::fs::fstream::fstream_data_t *data, ssize_t pos, manapi::fs::fstream::seek_flag_t flag) {
     if (data->off_ < 0) {
         data->off_ = 0;
     }
@@ -43,6 +49,22 @@ manapi::fs::fstream::fstream(std::string path, ctoken cancellation) : m_data(new
     this->m_data->cancellation = std::move(cancellation);
 }
 
+manapi::fs::fstream::fstream(manapi::ev::unique_file path, manapi::ctoken cancellation) : m_data(new fstream_data_t{}) {
+    assert(this->m_data->status == 0);
+    this->m_data->file = path.release().unwrap();
+    this->m_data->status |= FILE_OWN_FD|FILE_HAS_FD;
+    this->m_data->cancellation = std::move(cancellation);
+}
+
+manapi::fs::fstream::fstream(manapi::ev::file path, bool own, manapi::ctoken cancellation) : m_data(new fstream_data_t{}) {
+    assert(this->m_data->status == 0);
+    this->m_data->file = path;
+    this->m_data->status |= FILE_HAS_FD;
+    this->m_data->cancellation = std::move(cancellation);
+
+    if (own) this->m_data->status |= FILE_OWN_FD;
+}
+
 manapi::fs::fstream::operator bool() const MANAPIHTTP_NOEXCEPT {
     return !!this->m_data;
 }
@@ -57,52 +79,56 @@ manapi::status_or<std::shared_ptr<manapi::fs::fstream>> manapi::fs::fstream::cre
 }
 
 manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode) {
-    if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY|ev::FS_O_RDWR))) {
-        this->m_data->off_ = -1;
-    }
-    else {
-        this->m_data->off_ = 0;
-    }
+    if (! (this->m_data->status & FILE_HAS_FD)) {
 
-    try {
-        auto res = co_await manapi::fs::async_open(this->m_data->path, flags, mode,
-            ctoken::unit(this->m_data->cancellation));
-        if (!res.ok())
-            co_return res.err();
+        if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY | ev::FS_O_RDWR))) {
+            this->m_data->off_ = -1;
+        } else {
+            this->m_data->off_ = 0;
+        }
 
-        this->m_data->file = res.unwrap();
-    }
-    catch (std::bad_alloc const  &) {
-        this->m_data->file.reset();
-        co_return manapi::ev::status_resource_exhausted();
-    }
-    catch (manapi::exception const &e) {
-        manapi_log_error("%s due to %s", "file open failed", e.what());
-        this->m_data->file.reset();
-        co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "file open failed", e.what());
-        this->m_data->file.reset();
-        co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
+        try {
+            auto res = co_await manapi::fs::async_open(this->m_data->path, flags, mode,
+                                                       ctoken::unit(this->m_data->cancellation));
+            if (!res.ok())
+                co_return res.err();
+
+            this->m_data->file = res.unwrap().release();
+            this->m_data->status |= FILE_OWN_FD|FILE_HAS_FD;
+        }
+        catch (std::bad_alloc const &) {
+            co_return manapi::ev::status_resource_exhausted();
+        }
+        catch (manapi::exception const &e) {
+            manapi_log_error("%s due to %s", "file open failed", e.what());
+            co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "file open failed", e.what());
+            co_return manapi::ev::status_internal("file open failed", ev::ERR_UNKNOWN);
+        }
     }
 
     co_return manapi::ev::status_ok();
 }
 
 bool manapi::fs::fstream::is_open() const {
-    return (!!this->m_data->file.get()) && !(this->m_data->status & FILE_CLOSED);
+    return (this->m_data->status & FILE_HAS_FD) && !(this->m_data->status & FILE_CLOSED);
 }
 
 manapi::fs::fstream::~fstream() {
+    this->close();
+
     delete this->m_data;
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_size) {
+    if (!::manapi__check_fd (this->m_data)) co_return -1;
+
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file.get(), buff, buff_size, this->m_data->off_,
+        auto res = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -125,10 +151,12 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_s
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t buff_size) {
+    if (!::manapi__check_fd (this->m_data)) co_return -1;
+
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file.get(), buff, buff_size, this->m_data->off_,
+        auto res = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -178,10 +206,12 @@ manapi::future<ssize_t> manapi::fs::fstream::fread(void *buff, std::size_t buff_
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
+    if (!::manapi__check_fd (this->m_data)) co_return -1;
+
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file.get(), slice, this->m_data->off_,
+        auto res = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -204,10 +234,12 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
 }
 
 manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
+    if (!::manapi__check_fd (this->m_data)) co_return -1;
+
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file.get(), slice, this->m_data->off_,
+        auto res = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (!res.ok())
@@ -265,7 +297,15 @@ manapi::future<ssize_t> manapi::fs::fstream::fwrite(manapi::slice_view slice) {
 }
 
 void manapi::fs::fstream::close() {
-    this->m_data->file.reset();
+    if (this->m_data->status & FILE_HAS_FD) {
+        if (this->m_data->status & FILE_OWN_FD) {
+            manapi::ev::unique_file fd(this->m_data->file);
+            this->m_data->status ^= FILE_OWN_FD;
+        }
+
+        this->m_data->status ^= FILE_HAS_FD;
+        this->m_data->file = 0;
+    }
 }
 
 ssize_t manapi::fs::fstream::tellg() const {
@@ -273,26 +313,49 @@ ssize_t manapi::fs::fstream::tellg() const {
 }
 
 ssize_t manapi::fs::fstream::seekg(ssize_t pos, seek_flag_t flag) {
-    return ::m_fstream_seekg_(this->m_data, pos, flag);
+    return ::manapi__fstream_seekg(this->m_data, pos, flag);
 }
 
 manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::fstream::size() const {
+    if (!::manapi__check_fd (this->m_data))
+        co_return manapi::ev::status_not_found("fstream:failed");
+
     std::size_t size;
-    bool failed{false};
-    auto res = co_await manapi::fs::async_fstat(this->m_data->file.get(), [&size, &failed] (ev::stat_t *data)
+    bool failed{true};
+    auto res = co_await manapi::fs::async_fstat(this->m_data->file, [&size, &failed] (ev::stat_t *data)
         -> void {
-        if (data)
-            size = data->st_size;
-        else
-            failed = true;
+        if (data) {
+            size = static_cast<std::size_t>(data->st_size);
+            failed = false;
+        }
     }, ctoken::unit(this->m_data->cancellation));
     if (!res)
         co_return std::move(res);
     if (failed)
-        co_return manapi::ev::status_not_found("fstream::size(): file not found");
+        co_return manapi::ev::status_not_found("fstream:file not found");
     co_return size;
 }
 
 bool manapi::fs::fstream::eof() const {
     return this->m_data->status & FILE_EOF;
+}
+
+manapi::status_or<std::shared_ptr<manapi::fs::fstream>>
+manapi::fs::fstream::create(manapi::ev::unique_file fd, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
+    try {
+        return std::shared_ptr<manapi::fs::fstream> (new manapi::fs::fstream(std::move(fd), std::move(cancellation)));
+    }
+    catch (std::exception const &) {
+        return manapi::status_resource_exhausted();
+    }
+}
+
+manapi::status_or<std::shared_ptr<manapi::fs::fstream>>
+manapi::fs::fstream::create(manapi::ev::file fd, bool own, manapi::ctoken cancellation) MANAPIHTTP_NOEXCEPT {
+    try {
+        return std::shared_ptr<manapi::fs::fstream> (new manapi::fs::fstream(fd, own, std::move(cancellation)));
+    }
+    catch (std::exception const &) {
+        return manapi::status_resource_exhausted();
+    }
 }

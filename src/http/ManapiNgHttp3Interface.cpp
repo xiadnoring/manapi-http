@@ -830,10 +830,12 @@ static int ng_wrk_http3_recv_trailer (nghttp3_conn *conn, int64_t stream_id, int
 
         s->req->trailers_size += static_cast<uint32_t>(name_str.size() + value_str.size());
 
-        if (!s->req->handler || s->req->trailers_size > s->req->handler->trailers_size)
+        if (!s->req->cdata || !s->req->cdata->router || !s->req->cdata->router->handler || s->req->trailers_size > !s->req->cdata->router->handler->trailers_size)
             return NGHTTP3_ERR_REMOVE_HTTP_HEADER;
 
-        if (!s->req->handler->trailers.contains(name_str))
+        auto &allowed_trailers = s->req->cdata->router->handler->trailers;
+
+        if (allowed_trailers.find(name_str) == allowed_trailers.end())
             return NGHTTP3_ERR_REMOVE_HTTP_HEADER;
 
         auto it = s->req->trailers.find(name_str);

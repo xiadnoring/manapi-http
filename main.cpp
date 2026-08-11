@@ -7,8 +7,9 @@
 #else
 // #define FOLDER "/home/Timur/Downloads/RPG"
 // #define FOLDER2 "/home/Timur/Downloads/RPG"
-#define FOLDER "/home/Timur/Downloads/anime-main/"
-#define FOLDER2 "/home/Timur/Documents/http2priorities/"
+//#define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER2 "/home/timur/Документы/http2priorities/"
+#define FOLDER "/home/timur/Документы/http2priorities/"
 #endif
 #include <cstring>
 
@@ -242,8 +243,6 @@ int main () {
                                     std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
                                 else
                                     res.err().log();
-
-                                t.again(100);
                             }).unwrap();
                     }
 

@@ -14,6 +14,8 @@
 namespace manapi::net::http {
     namespace internal {
         struct handle_data_t;
+
+        struct file_fd_t;
     }
 
     struct custom_data_t {
@@ -36,7 +38,7 @@ namespace manapi::net::http {
         using resp_proxy_setup_cb = std::move_only_function<void(const std::shared_ptr<manapi::net::fetch> &)>;
 #endif
 
-        response (internal::handle_data_t* cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req);
+        response (internal::handle_data_t* cdata, uint16_t status, std::unique_ptr<http::request> req);
 
         ~response ();
 
@@ -59,6 +61,8 @@ namespace manapi::net::http {
         void partial_enabled (bool state) MANAPIHTTP_NOEXCEPT;
 
         manapi::status file (std::string path) MANAPIHTTP_NOEXCEPT;
+
+        manapi::status fd (ev::unique_file fd, std::string path = {}) MANAPIHTTP_NOEXCEPT;
 
         manapi::status slice (manapi::slice sv) MANAPIHTTP_NOEXCEPT;
 
@@ -104,13 +108,11 @@ namespace manapi::net::http {
 
         MANAPIHTTP_NODISCARD bool is_slice () const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD bool has_ranges () const MANAPIHTTP_NOEXCEPT;
-
         MANAPIHTTP_NODISCARD bool partial_enabled () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD int data_type() const MANAPIHTTP_NOEXCEPT;
 
-        manapi::status_or<std::string *> file () MANAPIHTTP_NOEXCEPT;
+        manapi::status_or<internal::file_fd_t *> file () MANAPIHTTP_NOEXCEPT;
 
         manapi::status_or<std::string *> text () MANAPIHTTP_NOEXCEPT;
 
@@ -118,9 +120,9 @@ namespace manapi::net::http {
 
         manapi::status_or<manapi::slice *> slice () MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD bool contains_ranges () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool contains_ranges () MANAPIHTTP_NOEXCEPT;
 
-        std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges () MANAPIHTTP_NOEXCEPT;
+        std::unique_ptr<std::vector<std::pair<std::size_t, std::size_t>>> ranges () MANAPIHTTP_NOEXCEPT;
 
         manapi::status_or<formdata_send *> formdata () MANAPIHTTP_NOEXCEPT;
 #ifdef MANAPIHTTP_FETCH_SUPPORT
@@ -166,8 +168,6 @@ namespace manapi::net::http {
         // detect the range header
         void detect_ranges () MANAPIHTTP_NOEXCEPT;
 
-        http::config *m_config;
-
         uint8_t m_type;
 
         uint16_t m_status_code;
@@ -178,7 +178,7 @@ namespace manapi::net::http {
 
         std::map<std::string, std::string, std::less<>> m_headers;
 
-        std::unique_ptr<std::vector <std::pair <ssize_t, ssize_t> > > m_ranges;
+        std::unique_ptr<std::vector <std::pair <std::size_t , std::size_t> > > m_ranges;
 
         // custom data for layers
         std::unique_ptr<custom_data_t, custom_data_deleter_t> m_custom_data;

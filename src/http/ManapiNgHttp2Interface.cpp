@@ -481,10 +481,10 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
                 try {
                     s->req->trailers_size += static_cast<uint32_t>(name_str.size() + value_str.size());
 
-                    if (!s->req->handler)
+                    if (!s->req->cdata || !s->req->cdata->router || !s->req->cdata->router->handler)
                         return NGHTTP2_ERR_FATAL;
 
-                    if (s->req->trailers_size > s->req->handler->trailers_size) {
+                    if (s->req->trailers_size > s->req->cdata->router->handler->trailers_size) {
 #if NGHTTP2_VERSION_NUM >= 0x013b00
                         return NGHTTP2_ERR_FLOODED;
 #else
@@ -492,7 +492,9 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
 #endif
                     }
 
-                    if (!s->req->handler->trailers.contains(name_str))
+                    auto &allowed_trailers = s->req->cdata->router->handler->trailers;
+
+                    if (allowed_trailers.find(name_str) == allowed_trailers.end())
                         return NGHTTP2_ERR_FATAL;
 
                     auto it = s->req->trailers.find(name_str);

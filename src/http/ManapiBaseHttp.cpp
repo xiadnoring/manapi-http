@@ -31,6 +31,440 @@ struct response_proxy_data_t {
 };
 #endif
 
+
+static std::string manapi__generate_cache_name(const std::string &file, const std::string &ext) {
+    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::fs::path::basename(std::forward<const std::string&> (file)),
+                                   manapi::time::current_time (true), manapi::string::random(25), ext);
+
+    return std::move(name);
+}
+
+static manapi::future<manapi::status> manapi__compress_file(std::shared_ptr<manapi::net::http::server> site,
+                                                                                        manapi::net::http::internal::file_fd_t *fdata,
+                                                                                        std::string folder,
+                                                                                        std::string compress,
+                                                                                        manapi::net::http::response_features_t::compress_file_cb *compressor) {
+    std::string cached_path;
+    manapi::ev::unique_file cached_fd;
+    bool cache_prev_found;
+
+    try {
+        {
+            auto res = co_await site->get_compressed_cache_file(fdata->fpath, compress, fdata->flastwrite);
+            cache_prev_found = res.ok();
+            if (res.ok())
+                cached_path = res.unwrap();
+            else {
+                if (res.code() != manapi::ERR_NOT_FOUND)
+                    co_return manapi::status_unavailable("busy");
+            }
+        }
+
+        while (true) {
+            if (!cache_prev_found) {
+                auto zres = site->lock_cache_file(std::string{fdata->fpath}, std::string{compress});
+
+                try {
+                    if (!zres.ok()) {
+                        zres = manapi::status_unavailable("busy");
+                    } else {
+
+                        try {
+                            manapi::unwrap(
+                                    co_await manapi::fs::async_mkdir(folder, manapi::ev::IRWXU|manapi::ev::IRGRP|manapi::ev::IXGRP, true));
+                        }
+                        catch (std::exception const &e) {
+                            manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());
+                            zres = manapi::status_internal("mkdir cache directory failed");
+                        }
+
+                        if (zres.ok()) {
+                            cached_path = manapi::fs::path::join(folder,
+                                                                 ::manapi__generate_cache_name(fdata->fpath, compress));
+                            cached_fd = manapi::unwrap(
+                                    co_await manapi::fs::async_open(cached_path,
+                                                                    manapi::ev::FS_O_RDWR | manapi::ev::FS_O_CREAT,
+                                                                    0755));
+
+                            auto compress_res = co_await (*compressor)(fdata->fd.get(), cached_fd.get());
+                            if (!compress_res.ok()) {
+                                zres = std::move(compress_res);
+                            } else {
+
+                                zres = co_await site->set_compressed_cache_file(fdata->fpath, cached_path, compress,
+                                                                                fdata->flastwrite);
+                                if (!zres.ok()) {
+                                    zres = manapi::status_unavailable("busy");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("%s failed due to %s", "file compress", e.what());
+                    zres = manapi::status_internal("file compress");
+                }
+
+                site->unlock_cache_file(fdata->fpath, compress);
+
+                if (!zres.ok()) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
+                                     "file compress", zres.msg().size(), zres.msg().data());
+                    co_return manapi::status_unavailable("busy");
+                }
+            } else {
+                auto cached_fd_res = co_await manapi::fs::async_open(cached_path, manapi::ev::FS_O_RDONLY, 0755);
+                if (cached_fd_res.syserr() == manapi::ev::ERR_NOENT) {
+                    cache_prev_found = false;
+                    continue;
+                }
+
+                cached_fd = cached_fd_res.unwrap();
+            }
+
+            struct fmeta_t {
+                bool found;
+                uint64_t st_size;
+            } fmeta{};
+
+            fmeta.found = false;
+
+            manapi::unwrap(
+                co_await manapi::fs::async_fstat(cached_fd.get(), [&fmeta](manapi::ev::stat_t *stat) -> void {
+                    if (stat) {
+                        fmeta.st_size = stat->st_size;
+                        fmeta.found = true;
+                    }
+            }, manapi::ctokens::timeout(5000)));
+
+            if (!fmeta.found) {
+                co_return manapi::status_unavailable("not found");
+            }
+
+            fdata->fd = std::move(cached_fd);
+            fdata->fpath = std::move(cached_path);
+            fdata->fsize = static_cast<std::size_t>(fmeta.st_size);
+            fdata->flags |= manapi::net::http::internal::FILE_FD_FLAG_META;
+
+            break;
+        }
+
+        co_return manapi::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("compress:Compress file filed due to %s", e.what());
+    }
+
+    co_return manapi::status_internal("compress:Something gets wrong");
+}
+
+void manapi__send_error_response(manapi::net::http::internal::uq_handle_data_t cdata, int status);
+
+static int manapi__handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
+    auto ipdata = w->ipdata(conn);
+    auto const sa = reinterpret_cast <struct sockaddr *> (ipdata->client.data);
+    auto res = manapi::net::http::strinfigy_ip(sa);
+    if (!res.ok())
+        return res.code();
+
+    auto val = res.unwrap();
+
+    inf->ip = std::move(val.first);
+    inf->port = val.second;
+
+    return manapi::ERR_OK;
+}
+
+
+
+static void manapi__handle_income_request_err (std::unique_ptr<manapi::net::http::response> res, std::exception_ptr err) {
+    manapi::net::http::internal::uq_handle_data_t cdata (res->connection_data_release());
+    char msg[256];
+    std::size_t msg_size = sizeof (msg);
+    manapi::extract_exception_ptr(std::move(err), nullptr, msg, &msg_size);
+    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s",
+                     "an error occurred while processing the HTTP request",
+                     msg_size, msg);
+    manapi__send_error_response(std::move(cdata), manapi::net::http::SERVICE_UNAVAILABLE_503);
+    return;
+}
+
+static manapi::status manapi__execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
+                                                     manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
+    try {
+        if (handle.is_async_cb()) {
+            auto err = handle.async_cb();
+            if (!err.ok())
+                return err.err();
+
+            manapi::async::run(err.unwrap()->operator()(*req, *resp), std::move(after_work));
+        }
+        else if (handle.is_sync_cb()) {
+            auto err = handle.sync_cb();
+            if (!err.ok())
+                return err.err();
+
+            std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
+            if (!after_work_uq)
+                return manapi::status_resource_exhausted();
+
+            manapi::net::http::uresponse uresp (resp, std::move(after_work_uq));
+
+            try {
+                err.unwrap()->operator()(*req, std::move(uresp));
+            }
+            catch (std::exception const &e) {
+                manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
+            }
+        }
+
+        return manapi::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
+        return manapi::status_internal("http:User cb failed");
+    }
+}
+
+static void manapi__handle_income_request_next (manapi::net::http::handler_template_t *handler, std::unique_ptr<manapi::net::http::response> res, uint32_t index) {
+    auto const cdata_ptr = res->connection_data();
+    auto const res_ptr = res.get();
+
+    auto &layer = cdata_ptr->router->layer;
+    if (index >= 0 && index < layer.size()) {
+        auto &layer_handler = layer[index]->handler;
+        auto status = manapi__execute_user_callback (layer_handler, res_ptr->req(), res_ptr,
+                 [handler, res = std::move(res), index = index + 1] (std::exception_ptr err) mutable -> void {
+                     if (err)
+                         return manapi__handle_income_request_err(std::move(res), std::move(err));
+
+                     if (!res->req()->propagation())
+                         // skip other layers and handlers
+                         manapi::net::http::internal::send_response(std::move(res));
+                     else
+                         manapi__handle_income_request_next(handler, std::move(res), index);
+                 });
+
+        return;
+    }
+
+
+    if (handler) {
+        auto status = manapi__execute_user_callback (*handler, res_ptr->req(), res_ptr,
+                     [res = std::move(res)] (std::exception_ptr err) mutable -> void {
+                         if (err)
+                             return manapi__handle_income_request_err(std::move(res), std::move(err));
+
+                         try {
+                             manapi::net::http::internal::send_response(std::move(res));
+                         }
+                         catch (const std::exception &e) {
+                             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s",
+                                              "send_response", e.what());
+                         }
+                     });
+    }
+    else {
+        manapi::net::http::internal::send_response (std::move(res));
+    }
+}
+
+static void manapi__handle_income_request(manapi::net::http::internal::uq_handle_data_t cdata, int status) {
+    try {
+        // handler function not be found
+        if (!cdata->router->handler) {
+            // check exists static folder/file
+            if (cdata->router->statics) {
+
+                // if statics exists
+                std::string path;
+
+
+                auto maxsize = cdata->req_data->divided >= 0
+                               ? static_cast<std::size_t>(cdata->req_data->divided) : cdata->req_data->path.size();
+
+                size_t path_reserved = 0;
+
+                for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
+                    path_reserved += sizeof (manapi::fs::path::delimiter);
+                    path_reserved += cdata->req_data->path[i].size();
+                }
+
+                path.reserve(path_reserved);
+
+                for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
+                    path += manapi::fs::path::delimiter;
+                    path += cdata->req_data->path[i];
+                }
+
+                path = manapi::fs::path::join(cdata->router->statics->folder, path);
+
+                if (!path.starts_with(cdata->router->statics->folder)
+                    || (path.size() != cdata->router->statics->folder.size() && (path[cdata->router->statics->folder.size()] != manapi::fs::path::delimiter))) {
+
+                    manapi__send_error_response(std::move(cdata), manapi::net::http::BAD_REQUEST_400);
+                    return;
+                }
+
+                manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
+                                           -> manapi::future<> {
+                    try {
+                        struct fmeta_t {
+                            uint64_t st_mode;
+                            uint64_t st_size;
+                            std::chrono::time_point<std::chrono::system_clock> st_lastwrite;
+                            bool exists;
+                        } fmeta{};
+
+                        manapi::ev::unique_file fd;
+
+                        {
+                            auto fd_res = co_await manapi::fs::async_open(path, manapi::ev::FS_O_RDONLY, 0755,
+                                                                          manapi::ctokens::timeout(5000));
+
+                            if (!fd_res.ok()) {
+                                if (fd_res.syserr() == manapi::ev::ERR_NOENT) {
+                                    // not found
+                                }
+                                else {
+                                    fd_res.unwrap();
+                                }
+                            }
+                            else {
+                                fd = fd_res.unwrap();
+                            }
+                        }
+
+                        if (fd.has_value()) {
+                            manapi::unwrap(co_await manapi::fs::async_fstat(fd.get(), [&fmeta](manapi::ev::stat_t *stat)
+                                    -> void {
+                                if (stat) {
+                                    fmeta.st_mode = stat->st_mode;
+                                    fmeta.st_size = stat->st_size;
+                                    fmeta.st_lastwrite = std::chrono::system_clock::time_point(std::chrono::seconds{
+                                            stat->st_mtim.tv_sec}/* + std::chrono::nanoseconds{mtime.tv_nsec} */);
+                                    fmeta.exists = true;
+                                } else {
+                                    fmeta.exists = false;
+                                }
+                            }, manapi::ctokens::timeout(5000)));
+
+                            if (fmeta.exists) {
+                                if (fmeta.st_mode & (manapi::ev::IFREG | manapi::ev::IFLNK)) {
+                                    const auto ext = manapi::fs::path::extension(path);
+                                    auto const mime = manapi::mime::mime_by_file_extension(ext);
+                                    bool const binary = manapi::mime::mime_partitial_data(mime);
+                                    auto client = std::make_unique<manapi::net::http::manapi_socket_information>();
+
+                                    if (manapi__handle_request_stringify_ip(client.get(), cdata->worker.get(),
+                                                                    cdata->conn.get())) {
+                                        /* error */
+                                        manapi::async::current()->logger()->error(manapi::ERR_INTERNAL,
+                                                                                  "stringify_ip(): ip get failed");
+                                        co_return;
+                                    }
+
+                                    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
+                                                     cdata->conn.get(), client->ip.data(),
+                                                     static_cast<uint32_t>(client->port));
+
+                                    auto const handler = (cdata->router->statics->layer
+                                                          && cdata->router->statics->layer->handler)
+                                                         ? &cdata->router->statics->layer->handler : nullptr;
+
+                                    cdata->req_data->cdata = cdata.get();
+
+                                    auto req = std::make_unique<manapi::net::http::request>(std::move(client), cdata->req_data,
+                                                                               &cdata->conn, cdata->worker);
+                                    auto res = std::make_unique<manapi::net::http::response>(cdata.release(), status,
+                                                                                std::move(req));
+
+                                    res->compress_enabled(fmeta.st_size < 20 * 1024 * 1024);
+                                    res->partial_enabled(binary);
+                                    res->fd(std::move(fd), std::move(path)).unwrap();
+
+                                    auto zfd = res->file().unwrap();
+                                    zfd->flastwrite = fmeta.st_lastwrite;
+                                    zfd->fsize = static_cast<std::size_t>(fmeta.st_size);
+                                    zfd->flags |= manapi::net::http::internal::FILE_FD_FLAG_META;
+
+                                    manapi__handle_income_request_next(handler, std::move(res), 0);
+                                } else if (fmeta.st_mode & (manapi::ev::IFDIR | manapi::ev::IFCHR | manapi::ev::IFBLK | manapi::ev::IFSOCK)) {
+                                    if (cdata) {
+                                        manapi__send_error_response(std::move(cdata), manapi::net::http::FORBIDDEN_403);
+                                    }
+                                    co_return;
+                                }
+                            }
+                        }
+
+                        if (cdata) {
+                            manapi__send_error_response(std::move(cdata), manapi::net::http::NOT_FOUND_404);
+                        }
+                    }
+                    catch (std::exception const &e) {
+                        manapi_log_trace(e.what());
+                        co_return;
+                    }
+                });
+            }
+            else {
+                manapi__send_error_response(std::move(cdata), manapi::net::http::NOT_FOUND_404);
+            }
+            return;
+        }
+
+        auto client = std::make_unique<manapi::net::http::manapi_socket_information>();
+
+        if (manapi__handle_request_stringify_ip(client.get(),
+                                        cdata->worker.get(), cdata->conn.get())) {
+            /* error */
+            manapi::async::current()->logger()->error(manapi::ERR_INTERNAL, "stringify_ip(): ip get failed");
+            return;
+        }
+
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
+                         cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
+
+        auto handler = &cdata->router->handler->handler;
+
+        cdata->req_data->cdata = cdata.get();
+
+        auto req = std::make_unique<manapi::net::http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker);
+        auto res = std::make_unique<manapi::net::http::response> (cdata.release(), status, std::move(req));
+
+        manapi__handle_income_request_next (handler, std::move(res), 0);
+
+        return;
+    }
+    catch (const manapi::exception &e) {
+        switch (e.err_num()) {
+            case manapi::ERR_ABORTED: return;
+            default: manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
+        }
+    }
+    catch (const std::exception &e) {
+        manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
+    }
+
+    manapi__send_error_response(std::move(cdata), manapi::net::http::SERVICE_UNAVAILABLE_503);
+}
+
+void manapi__send_error_response(manapi::net::http::internal::uq_handle_data_t cdata, int status) {
+    if (!cdata->router || cdata->router->error.empty()) {
+        return;
+    }
+
+    auto &b = cdata->router->error.back();
+    cdata->router->handler = b.handler;
+    cdata->router->layer.resize(b.layer_depth);
+    cdata->router->error.pop_back();
+
+    assert((cdata));
+
+    manapi__handle_income_request(std::move(cdata), status);
+}
+
 manapi::net::http::internal::handle_data_t::~handle_data_t() {
     // std::cout << "DESTRYOED\n";
 }
@@ -59,7 +493,7 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
 
         auto const cdata = res->connection_data();
 
-        if (!features.compress.empty() && !res->partial_enabled()) {
+        if (!features.compress.empty() && !(res->partial_enabled() && res->contains_ranges())) {
             auto pool = http::server::cast(cdata->worker->site().get());
             if (res->is_text()) {
                 features.compressor_for_string = pool->compressor_for_string(features.compress);
@@ -137,229 +571,242 @@ finish:
 }
 
 manapi::future<void> manapi::net::http::internal::send_response_file(std::unique_ptr<response> res, response_features_t features) {
-    std::string filepath;
-    auto reserr = res->file();
     manapi::status err = manapi::status_ok();
-    if (!reserr)
-        co_return;
 
-    auto resfile = std::move(*reserr.unwrap());
+    auto resfile = std::move(*res->file().unwrap());
     auto const cdata = res->connection_data();
 
-    bool force_compress = false;
-
-    while (true) {
+    if (!(resfile.flags & manapi::net::http::internal::FILE_FD_FLAG_META)) {
         try {
-            if (features.compressor_for_file) {
-                if (features.replacers) {
-                    manapi_log_error("send_response_file():replacers can not be using during compress");
-                    co_return;
-                }
+            if (!resfile.fd.has_value()) {
+                resfile.fd = manapi::unwrap(
+                        co_await manapi::fs::async_open(resfile.fpath, manapi::ev::FS_O_RDONLY, 0755,
+                                                        res->req()->cancellation().sub().tm(5000)));
+            }
 
-                bool rst_compress = false;
+            manapi::unwrap(
+                    co_await manapi::fs::async_fstat(resfile.fd.get(), [&resfile](manapi::ev::stat_t *stat) -> void {
+                        if (stat) {
+                            resfile.flags |= internal::FILE_FD_FLAG_META;
+                            resfile.fsize = stat->st_size;
+                            resfile.flastwrite = std::chrono::system_clock::time_point(std::chrono::seconds{
+                                    stat->st_mtim.tv_sec}/* + std::chrono::nanoseconds{mtime.tv_nsec} */);
+                        }
+                    }, res->req()->cancellation().sub().tm(5000)));
+        }
+        catch (std::exception const &e) {
+            manapi_log_trace(e.what());
+        }
 
-                try {
-                    auto rhs = co_await internal::compress_file(std::dynamic_pointer_cast<manapi::net::http::server>(cdata->worker->site()), resfile,
-                        http::server::cast(cdata->worker->site().get())->config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
-                    if (!rhs.ok()) {
-                        if (rhs.code() == manapi::ERR_UNAVAILABLE)
-                            rst_compress = true;
-                        else
-                            rhs.unwrap();
-                    }
+        if (!(resfile.flags & manapi::net::http::internal::FILE_FD_FLAG_META)) {
+
+            uq_handle_data_t uq_cdata (res->connection_data_release());
+            manapi__send_error_response(std::move(uq_cdata), http::NOT_FOUND_404);
+
+            co_return;
+        }
+    }
+
+    try {
+        if (features.compressor_for_file) {
+            if (features.replacers) {
+                manapi_log_error("send_response_file():replacers can not be using during compress");
+                co_return;
+            }
+
+            bool rst_compress = false;
+
+            try {
+                auto rhs = co_await ::manapi__compress_file(std::dynamic_pointer_cast<manapi::net::http::server>(cdata->worker->site()), &resfile,
+                    http::server::cast(cdata->worker->site().get())->config_cache_dir(), features.compress, features.compressor_for_file);
+                if (!rhs.ok()) {
+                    if (rhs.code() == manapi::ERR_UNAVAILABLE)
+                        rst_compress = true;
                     else
-                        filepath = rhs.unwrap();
+                        rhs.unwrap();
                 }
-                catch (std::exception const &e) {
-                    manapi_log_error("compress:Compress file failed due to %s", e.what());
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("compress:Compress file failed due to %s", e.what());
 
-                    rst_compress = true;
-                }
+                rst_compress = true;
+            }
 
 
-                if (rst_compress) {
-                    /* badness */
-                    res->remove_header(http::H_CONTENT_ENCODING);
-                    features.compressor_for_string = nullptr;
-                    features.compressor_for_file = nullptr;
-                    filepath = std::move(resfile);
-                }
+            if (rst_compress) {
+                /* badness */
+                res->remove_header(http::H_CONTENT_ENCODING);
+                features.compressor_for_string = nullptr;
+                features.compressor_for_file = nullptr;
+            }
+        }
+
+        auto status = fs::fstream::create (std::move(resfile.fd), res->req()->cancellation().sub());
+        if (!status) {
+            uq_handle_data_t uq_cdata (res->connection_data_release());
+            manapi__send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+            co_return;
+        }
+
+        auto f = status.unwrap();
+//            auto fres = co_await f->open(ev::FS_O_RDONLY);
+//
+//            if (!fres.ok()) {
+//                if (force_compress) {
+                /** no way */
+//                    cdata->router = std::move(cdata->router->error);
+//                    uq_handle_data_t uq_cdata (res->connection_data_release());
+//                    manapi__send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+//                    co_return;
+////                }
+//
+//                cdata->router = std::move(cdata->router->error);
+//                uq_handle_data_t uq_cdata (res->connection_data_release());
+//                manapi__send_error_response(std::move(uq_cdata), http::NOT_FOUND_404);
+//
+//                manapi_log_warn("Failed to open the file: %s", filepath.data());
+//
+//                co_return;
+//            }
+
+        // set headers
+
+        std::string_view mimetype = mime::mime_by_file_path(resfile.fpath);
+        std::vector<replace_founded_item> replacers;
+
+        if (!res->headers().contains(H_CONTENT_TYPE)) {
+            if (mimetype.starts_with("text/")) {
+                auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                err = res->header(std::string{H_CONTENT_TYPE}, std::move(mimegen));
             }
             else {
-                filepath = std::move(resfile);
+                err = res->header(std::string{H_CONTENT_TYPE}, std::string{mimetype});
             }
+        }
 
-            auto status = fs::fstream::create (filepath);
-            if (!status) {
-                cdata->router = std::move(cdata->router->error);
-                uq_handle_data_t uq_cdata (res->connection_data_release());
-                send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
-                co_return;
-            }
+        if (!err.ok()) {
+            co_return;
+        }
 
-            auto f = status.unwrap();
-            auto fres = co_await f->open(ev::FS_O_RDONLY);
-
-            if (!fres.ok()) {
-                if (force_compress) {
-                    /** no way */
-                    cdata->router = std::move(cdata->router->error);
+        // get file size
+        // replacers
+        if (features.replacers) {
+            if (resfile.fsize <= 65536) {
+//                    manapi::slice sv = manapi::async::memory_fabric()->slice(resfile.fsize).unwrap();
+                std::string b;
+                b.resize(resfile.fsize);
+                auto const recv_result = co_await f->fread(b.data(), b.size());
+                if (recv_result < 0) {
                     uq_handle_data_t uq_cdata (res->connection_data_release());
-                    send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
-                    co_return;
-                }
-
-                cdata->router = std::move(cdata->router->error);
-                uq_handle_data_t uq_cdata (res->connection_data_release());
-                send_error_response(std::move(uq_cdata), http::NOT_FOUND_404);
-
-                manapi_log_warn("Failed to open the file: %s", filepath.data());
-
-                co_return;
-            }
-
-            // set headers
-
-            std::string_view mimetype = mime::mime_by_file_path(
-                resfile.empty() ? filepath : resfile);
-            std::vector<replace_founded_item> replacers;
-
-            if (!res->headers().contains(H_CONTENT_TYPE)) {
-                if (mimetype.starts_with("text/")) {
-                    auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-                    err = res->header(std::string{H_CONTENT_TYPE}, std::move(mimegen));
+                    manapi__send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
                 }
                 else {
-                    err = res->header(std::string{H_CONTENT_TYPE}, std::string{mimetype});
-                }
-            }
-
-            if (!err.ok()) {
-                co_return;
-            }
-
-            // get file size
-            auto stat_res = co_await manapi::fs::async_file_size(filepath);
-            ssize_t fileSize = static_cast<ssize_t>(stat_res.unwrap());
-
-            if (fileSize < 0)
-                co_return;
-
-            ssize_t dynamicFileSize = fileSize;
-
-            // replacers
-            if (features.replacers) {
-                if (fileSize <= 65536) {
-                    auto token = res->req()->cancellation().sub();
-                    token.timeout(5000).unwrap();
-                    auto data = co_await manapi::fs::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
-                    res->text(data.unwrap()).unwrap();
+                    b.resize(static_cast<std::size_t> (recv_result));
+                    res->text(std::move(b)).unwrap();
                     manapi::async::run(send_response_text(std::move(res), std::move(features)));
-                    co_return;
                 }
-
-                manapi_log_error("file too large to use replacers. max size: %d", 65536);
+                co_return;
             }
 
+            manapi_log_error("file too large to use replacers. max size: %d", 65536);
+        }
 
 
-            // partial enabled
-            if (res->partial_enabled() && res->contains_ranges() && res->config()->partial_data_min_size <= static_cast<std::size_t>(fileSize)) {
-                if (features.compressor_for_file) {
-                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "send_response_file()", "compressor_for_file",
-                        "compress with the partial content is not supported");
-                }
 
-                res->status(http::PARTIAL_CONTENT_206);
-                res->header(std::string{H_ACCEPT_RANGES}, "bytes").unwrap();
+        // partial enabled
+        if (res->partial_enabled() && res->contains_ranges() && res->config()->partial_data_min_size <= resfile.fsize) {
+            if (features.compressor_for_file) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "send_response_file()", "compressor_for_file",
+                    "compress with the partial content is not supported");
+            }
 
-                ssize_t start = 0,
-                        back = fileSize - 1,
-                        size;
+            res->status(http::PARTIAL_CONTENT_206);
+            res->header(std::string{H_ACCEPT_RANGES}, "bytes").unwrap();
 
-                auto ranges = res->ranges();
-                ssize_t const ranges_size = ranges ? static_cast<ssize_t>(ranges->size()) : 0;
+            std::size_t start = 0,
+                    back = static_cast<std::size_t>(resfile.fsize) - 1,
+                    size;
 
-                switch (ranges_size) {
-                    case 0:
-                        break;
-                    case 1: {
-                        auto &range = ranges->operator[](0);
-                        if (range.first != -1) {
-                            start = range.first;
-                        }
+            auto ranges = res->ranges();
+            std::size_t const ranges_size = ranges ? ranges->size() : 0;
 
-                        if (range.second != -1) {
-                            back = range.second;
-                        }
-                        else {
-                            back = fileSize - 1;
-                        }
-                        break;
+            switch (ranges_size) {
+                case 0:
+                    break;
+                case 1: {
+                    auto &range = ranges->operator[](0);
+                    if (range.first != std::numeric_limits<std::size_t>::max()) {
+                        start = range.first;
                     }
-                    default: {
-                        manapi_log_error("%s: %s", "send_response_file()", "multi bytes not supported");
+
+                    if (range.second != std::numeric_limits<std::size_t>::max()) {
+                        back = range.second;
                     }
+                    else {
+                        back = resfile.fsize - 1;
+                    }
+                    break;
                 }
+                default: {
+                    manapi_log_error("%s: %s", "send_response_file()", "multi bytes not supported");
+                }
+            }
 
-                size = back - start + 1;
+            size = back + 1 - start;
 
-                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(size)).unwrap();
-                res->header(std::string{H_CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize)).unwrap();
+            res->header(std::string{H_CONTENT_LENGTH}, std::to_string(resfile.fsize)).unwrap();
+            res->header(std::string{H_CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, resfile.fsize)).unwrap();
 
-                auto task = mask_response(res.get(), size == 0);
+            auto task = mask_response(res.get(), size == 0);
+            manapi::async::run<int>(std::move(task),
+                [size, start, f, res = std::move(res)] (std::exception_ptr err, int *value) mutable
+                -> void {
+                    if (err) {
+                        return;
+                    }
+
+                    if (value && *value == ERR_OK) {
+                        // set start position
+                        f->seekg(static_cast<ssize_t>(start));
+                        // set size and send
+                        if (size) {
+                            manapi::async::run (send_file(std::move(res), f, static_cast<std::size_t>(size)));
+                        }
+                    }
+            });
+        }
+        else {
+            res->header(std::string{H_CONTENT_LENGTH}, std::to_string(resfile.fsize)).unwrap();
+
+            if (resfile.fsize) {
+                auto task = mask_response(res.get(), false);
                 manapi::async::run<int>(std::move(task),
-                    [size, start, f, res = std::move(res)] (std::exception_ptr err, int *value) mutable
+                    [res = std::move(res), fileSize = resfile.fsize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, int *value) mutable
                     -> void {
                         if (err) {
                             return;
                         }
 
                         if (value && *value == ERR_OK) {
-                            // set start position
-                            f->seekg(start);
-                            // set size and send
-                            if (size) {
-                                manapi::async::run (send_file(std::move(res), f, static_cast<std::size_t>(size)));
+                            if (replacers.empty()) {
+                                // without replacers
+                                manapi::async::run( send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
+                            }
+                            else {
+                                manapi::async::run(send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
                             }
                         }
                 });
             }
             else {
-                res->header(std::string{H_CONTENT_LENGTH}, std::to_string(dynamicFileSize)).unwrap();
-
-                if (fileSize) {
-                    auto task = mask_response(res.get(), false);
-                    manapi::async::run<int>(std::move(task),
-                        [res = std::move(res), fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, int *value) mutable
-                        -> void {
-                            if (err) {
-                                return;
-                            }
-
-                            if (value && *value == ERR_OK) {
-                                if (replacers.empty()) {
-                                    // without replacers
-                                    manapi::async::run( send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
-                                }
-                                else {
-                                    manapi::async::run(send_file(std::move(res), f, static_cast<std::size_t>(fileSize)));
-                                }
-                            }
-                    });
-                }
-                else {
-                    auto task = mask_response(res.get(), true);
-                    manapi::async::run<int>(std::move(task), [ res = std::move(res)] (std::exception_ptr err, int *result)
-                        -> void { if (err) { return; } res->connection_data()->cb->call(result && *result == ERR_OK); });
-                }
+                auto task = mask_response(res.get(), true);
+                manapi::async::run<int>(std::move(task), [ res = std::move(res)] (std::exception_ptr err, int *result)
+                    -> void { if (err) { return; } res->connection_data()->cb->call(result && *result == ERR_OK); });
             }
         }
-        catch (std::exception const &e) {
-            manapi_log_error("%s failed due to %s", "send_response", e.what());
-        }
-
-        break;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response", e.what());
     }
 }
 
@@ -569,9 +1016,8 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
 #endif
 send_error:
     auto cdata = res->connection_data();
-    cdata->router = std::move(cdata->router->error);
     uq_handle_data_t uq_cdata (res->connection_data_release());
-    send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+    manapi__send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
     co_return;
 }
 
@@ -1045,288 +1491,17 @@ manapi::future<int> manapi::net::http::internal::mask_response(response* res, bo
     return global->send_response(cdata->conn, global, cdata->worker.get(), res, finish);
 }
 
-static int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
-    auto ipdata = w->ipdata(conn);
-    auto const sa = reinterpret_cast <struct sockaddr *> (ipdata->client.data);
-    auto res = manapi::net::http::strinfigy_ip(sa);
-    if (!res.ok())
-        return res.code();
-
-    auto val = res.unwrap();
-
-    inf->ip = std::move(val.first);
-    inf->port = val.second;
-
-    return manapi::ERR_OK;
-}
-
-static manapi::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
-    manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
-    try {
-        if (handle.is_async_cb()) {
-            auto err = handle.async_cb();
-            if (!err.ok())
-                return err.err();
-
-            manapi::async::run(err.unwrap()->operator()(*req, *resp), std::move(after_work));
-        }
-        else if (handle.is_sync_cb()) {
-            auto err = handle.sync_cb();
-            if (!err.ok())
-                return err.err();
-
-            std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
-            if (!after_work_uq)
-                return manapi::status_resource_exhausted();
-
-            manapi::net::http::uresponse uresp (resp, std::move(after_work_uq));
-
-            try {
-                err.unwrap()->operator()(*req, std::move(uresp));
-            }
-            catch (std::exception const &e) {
-                manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
-            }
-        }
-
-        return manapi::status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
-        return manapi::status_internal("http:User cb failed");
-    }
-}
-
-namespace manapi::net::http::internal {
-    static void handle_income_request_err_ (std::unique_ptr<response> res, std::exception_ptr err) {
-        uq_handle_data_t cdata (res->connection_data_release());
-        char msg[256];
-        std::size_t msg_size = sizeof (msg);
-        manapi::extract_exception_ptr(std::move(err), nullptr, msg, &msg_size);
-        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s",
-            "an error occurred while processing the HTTP request",
-            msg_size, msg);
-        cdata->router = std::move(cdata->router->error);
-        send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
-        return;
-    }
-    static void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, uint32_t index) {
-        auto const cdata_ptr = res->connection_data();
-        auto const res_ptr = res.get();
-
-        auto &layer = cdata_ptr->router->layer;
-        if (index >= 0 && index < layer.size()) {
-            auto &layer_handler = layer[index]->handler;
-            auto status = execute_user_callback (layer_handler, res_ptr->req(), res_ptr,
-                [handler, res = std::move(res), index = index + 1] (std::exception_ptr err) mutable -> void {
-                    if (err)
-                        return handle_income_request_err_(std::move(res), std::move(err));
-
-                    if (!res->req()->propagation())
-                        // skip other layers and handlers
-                        send_response(std::move(res));
-                    else
-                        handle_income_request_next_(handler, std::move(res), index);
-            });
-
-            return;
-        }
-
-
-        if (handler) {
-            auto status = execute_user_callback (*handler, res_ptr->req(), res_ptr,
-            [res = std::move(res)] (std::exception_ptr err) mutable -> void {
-                    if (err)
-                        return handle_income_request_err_(std::move(res), std::move(err));
-
-                    try {
-                        send_response(std::move(res));
-                    }
-                    catch (const std::exception &e) {
-                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s",
-                            "send_response", e.what());
-                    }
-            });
-        }
-        else {
-            send_response (std::move(res));
-        }
-    }
-
-    static void handle_income_request_(uq_handle_data_t cdata, int status) {
-        try {
-            // handler function not be found
-            if (!cdata->router->handler) {
-                // check exists static folder/file
-                if (cdata->router->statics) {
-
-                    // if statics exists
-                    std::string path;
-
-
-                    auto maxsize = cdata->req_data->divided >= 0
-                        ? static_cast<std::size_t>(cdata->req_data->divided) : cdata->req_data->path.size();
-
-                    size_t path_reserved = 0;
-
-                    for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                        path_reserved += sizeof (manapi::fs::path::delimiter);
-                        path_reserved += cdata->req_data->path[i].size();
-                    }
-
-                    path.reserve(path_reserved);
-
-                    for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                        path += manapi::fs::path::delimiter;
-                        path += cdata->req_data->path[i];
-                    }
-
-                    path = manapi::fs::path::join(cdata->router->statics->folder, path);
-
-                    if (!path.starts_with(cdata->router->statics->folder)
-                        || (path.size() != cdata->router->statics->folder.size() && (path[cdata->router->statics->folder.size()] != manapi::fs::path::delimiter))) {
-                        cdata->router = std::move(cdata->router->error);
-                        send_error_response(std::move(cdata), http::BAD_REQUEST_400);
-                        return;
-                    }
-
-                    manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
-                        -> manapi::future<> {
-                        bool exists = true;
-                        uint64_t st_mode = 0;
-
-                        co_await manapi::fs::async_stat(path, [&st_mode, &exists] (ev::stat_t *stat)
-                            -> void {
-                            if (stat) {
-                                st_mode = stat->st_mode;
-                            }
-                            else {
-                                exists = false;
-                            }
-                        });
-
-                        if (exists) {
-                            if (st_mode & (ev::IFREG|ev::IFLNK)) {
-                                const auto ext = manapi::fs::path::extension(path);
-                                auto const mime = mime::mime_by_file_extension(ext);
-                                bool const binary = mime::mime_partitial_data(mime);
-                                auto client = std::make_unique<manapi_socket_information>();
-
-                                if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
-                                    /* error */
-                                    manapi::async::current()->logger()->error(ERR_INTERNAL, "stringify_ip(): ip get failed");
-                                    co_return;
-                                }
-
-                                manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
-                                       cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
-
-                                auto const handler = (cdata->router->statics->layer
-                                    && cdata->router->statics->layer->handler) ? &cdata->router->statics->layer->handler : nullptr;
-
-                                cdata->req_data->handler = cdata->router->handler;
-
-                                auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker);
-                                auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
-
-                                res->compress_enabled(!binary);
-                                res->partial_enabled(binary);
-                                res->file(path);
-
-                                handle_income_request_next_ (handler, std::move(res), 0);
-                            }
-
-                            else if (st_mode & (ev::IFDIR|ev::IFCHR|ev::IFBLK|ev::IFSOCK)) {
-                                if (cdata) {
-                                    cdata->router = std::move(cdata->router->error);
-                                    send_error_response(std::move(cdata), http::FORBIDDEN_403);
-                                }
-                                co_return;
-                            }
-                        }
-
-                        if (cdata) {
-                            cdata->router = std::move(cdata->router->error);
-                            send_error_response(std::move(cdata), http::NOT_FOUND_404);
-                        }
-                    },
-                    [] (std::exception_ptr err) mutable
-                        -> void {
-                        if (err) {
-                            return;
-                        }
-                    });
-                }
-                else {
-                    cdata->router = std::move(cdata->router->error);
-                    send_error_response(std::move(cdata), http::NOT_FOUND_404);
-                }
-                return;
-            }
-
-            auto client = std::make_unique<manapi_socket_information>();
-
-            if (handle_request_stringify_ip(client.get(),
-                cdata->worker.get(), cdata->conn.get())) {
-                /* error */
-                manapi::async::current()->logger()->error(ERR_INTERNAL, "stringify_ip(): ip get failed");
-                return;
-            }
-
-            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "conn:%p is %s:%u",
-                   cdata->conn.get(), client->ip.data(), static_cast<uint32_t>(client->port));
-
-            auto handler = &cdata->router->handler->handler;
-
-            cdata->req_data->handler = cdata->router->handler;
-
-            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker);
-            auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
-
-            handle_income_request_next_ (handler, std::move(res), 0);
-
-            return;
-        }
-        catch (const manapi::exception &e) {
-            switch (e.err_num()) {
-                case ERR_ABORTED:
-                    return;
-                default:
-                    manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
-            }
-        }
-        catch (const std::exception &e) {
-            manapi_log_trace("%s failed due to %s", "http:handle requests", e.what());
-        }
-
-        cdata->router = std::move(cdata->router->error);
-        send_error_response(std::move(cdata), SERVICE_UNAVAILABLE_503);
-    }
-}
-
-
 void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "Handle HTTP request on %.*s conn:%p",
          cdata->req_data->uri.size(), cdata->req_data->uri.data(), cdata->conn.get());
     if (status >= 200 && status < 300)
-        return handle_income_request_(std::move(cdata), status);
+        return manapi__handle_income_request(std::move(cdata), status);
 
-    cdata->router = std::move(cdata->router->error);
-    send_error_response(std::move(cdata), status);
-}
-
-void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, int status) {
-    if (!cdata->router) {
-        return;
-    }
-
-    assert((cdata));
-
-    handle_income_request_(std::move(cdata), status);
+    manapi__send_error_response(std::move(cdata), status);
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, std::shared_ptr<fs::fstream> f, std::size_t size) {
-    std::size_t const block_size = 4096 * 16;
+    std::size_t const block_size = manapi::object_pool::area_size() * 16;
     auto const cdata = res->connection_data();
 
     //bool check_conn = false;
@@ -1461,7 +1636,7 @@ void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
     const auto expect = cdata->req_data->headers.find(H_EXPECT);
     if (expect != cdata->req_data->headers.end()) {
         if (expect->second == "100-continue") {
-            auto resp = std::make_unique<http::response>(cdata.release(), http::CONTINUE_100, cdata->worker->config(), nullptr);
+            auto resp = std::make_unique<http::response>(cdata.release(), http::CONTINUE_100, nullptr);
             send_response(std::move(resp));
         }
         else {
@@ -1471,103 +1646,4 @@ void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
     else {
         cdata->cb->call(true);
     }
-}
-
-std::string generate_cache_name(const std::string &file, const std::string &ext) {
-    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::fs::path::basename(std::forward<const std::string&> (file)),
-        manapi::time::current_time (true), manapi::string::random(25), ext);
-
-    return std::move(name);
-}
-
-manapi::future<manapi::status_or<std::string>> manapi::net::http::internal::compress_file(std::shared_ptr<net::http::server> site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
-    std::string filepath;
-    std::string cached;
-
-    try {
-        std::chrono::time_point<std::chrono::system_clock> filetime;
-        {
-            auto ft_res = co_await manapi::fs::async_last_time_write(file);
-            filetime = ft_res.unwrap();
-        }
-        // compressor
-        if (force_compress) {
-            cached.clear();
-        }
-        else {
-            auto res = co_await site->get_compressed_cache_file(file, compress, filetime);
-            if (res.ok())
-                cached = res.unwrap();
-            else {
-                if (res.code() == ERR_NOT_FOUND)
-                    cached.clear();
-                else
-                    co_return manapi::status_unavailable("busy");
-            }
-        }
-
-        if (cached.empty()) {
-            auto res = co_await site->set_locked_cache_file(file, true, compress);
-            try {
-                if (!res.ok()) {
-                    res = manapi::status_unavailable("busy");
-                    goto err;
-                }
-
-                try {
-                    auto exists = co_await fs::async_exists (folder);
-                    if (!exists.ok() || !exists.unwrap())
-                        (co_await fs::async_mkdir(folder, ev::IRUSR|ev::IWUSR)).unwrap();
-                }
-                catch (std::exception const &e) {
-                    manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());
-                    res =  status_internal("mkdir cache directory failed");
-                    goto err;
-                }
-
-                filepath = folder + generate_cache_name(file, compress);
-
-                auto compress_res = co_await (*compressor)(file, filepath);
-                if (!compress_res.ok()) {
-                    res = std::move(compress_res);
-                    goto err;
-                }
-
-                res = co_await site->set_compressed_cache_file(file, filepath, compress, filetime);
-                if (!res.ok()) {
-                    res = manapi::status_unavailable("busy");
-                    goto err;
-                }
-
-                co_return std::move(filepath);
-            }
-            catch (std::exception const &e) {
-                manapi_log_error("%s failed due to %s", "file compress", e.what());
-                res = manapi::status_internal("file compress");
-            }
-
-err:
-            if (!res) {
-                manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
-                    "file compress", res.msg().size(), res.msg().data());
-            }
-
-            res = co_await site->set_locked_cache_file(file, false, compress);
-
-            if (!res.ok())
-                manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());
-
-            co_return manapi::status_unavailable("busy");
-        }
-        else {
-            filepath = std::move(cached);
-        }
-
-        co_return std::move(filepath);
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("compress:Compress file filed due to %s", e.what());
-    }
-
-    co_return status_internal("compress:Something gets wrong");
 }

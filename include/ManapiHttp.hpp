@@ -9,8 +9,8 @@
 #include "./worker/ManapiSite.hpp"
 #include "./ManapiThreadPool.hpp"
 #include "./json/ManapiJsonMask.hpp"
+#include "./std/ManapiRef.hpp"
 #include "./http/ManapiHttpPool.hpp"
-
 #include "./http/ManapiHttpResponse.hpp"
 #include "./http/ManapiHttpRequest.hpp"
 
@@ -28,20 +28,6 @@ namespace manapi::net::http {
     struct http_static_handler_function;
 
     struct http_handler_page;
-
-    struct http_handler_page_error;
-
-    typedef std::map<std::string, std::unique_ptr<http_uri_part>> handlers_map_t;
-
-    typedef std::pair<std::regex, std::unique_ptr<http_uri_part>> handlers_regex_pair_t;
-
-    typedef std::map<std::string, handlers_regex_pair_t> handlers_regex_map_t;
-
-    typedef std::vector<std::string> handlers_regex_titles_t;
-
-    typedef std::map <std::string, http_static_handler_function> handlers_static_types_t;
-
-    typedef std::map <std::string, std::shared_ptr<http_handler_function>> handlers_types_t;
 
     class handler_template_t {
     public:
@@ -96,7 +82,7 @@ namespace manapi::net::http {
         using uresp = manapi::net::http::uresponse;
 
         // Compress file callback
-        typedef std::move_only_function<future<manapi::status>(std::string src, std::string dest)> compress_file_cb_t;
+        typedef std::move_only_function<future<manapi::status>(manapi::ev::file src, manapi::ev::file dest)> compress_file_cb_t;
 
         // Compress string callback
         typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb_t;
@@ -201,14 +187,14 @@ namespace manapi::net::http {
          * @param name Protocol Name
          * @param worker Worker Callback
          */
-        void transport_protocol_worker (const std::string &type, const std::string &name, implement_create_cb worker);
+        void transport_protocol_worker (std::string_view type, std::string_view name, implement_create_cb worker);
 
         /**
          * Get a transport protocol worker by its type
          * @param type transport protocol type
          * @return the list of implements
          */
-        const std::map <std::string, implement_create_cb> &transport_protocol_worker (const std::string &type);
+        const std::unordered_map <std::string, implement_create_cb, manapi::text_hash, std::equal_to<>> &transport_protocol_worker (std::string_view type);
 
         /**
          * Add a protocol worker
@@ -218,14 +204,14 @@ namespace manapi::net::http {
          * @param worker worker callback
          */
 
-        void http_protocol_worker (http::versions::http type, const std::string &name, implemenet_http_cb worker);
+        void http_protocol_worker (http::versions::http type, std::string_view name, implemenet_http_cb worker);
 
         /**
          * get implementations of the protocol worker by its type
          * @param type protocol type
          * @return the implementations
          */
-        const std::map <std::string, implemenet_http_cb> &http_protocol_worker (http::versions::http type);
+        const std::unordered_map <std::string, implemenet_http_cb, manapi::text_hash, std::equal_to<>> &http_protocol_worker (http::versions::http type);
 
         /**
          * start working the server
@@ -298,11 +284,12 @@ namespace manapi::net::http {
         /**
          * Set not avaiable file for compressing for other threads
          * @param file File Path
-         * @param lock Lock Status
          * @param algorithm Algorithm (brotli, gzip and etc)
          * @return InternalError, Unavailable on error
          */
-        manapi::future<manapi::status> set_locked_cache_file (std::string file, bool lock, std::string algorithm);
+        manapi::status lock_cache_file (std::string&& file, std::string &&algorithm);
+
+        void unlock_cache_file (std::string_view file, std::string_view algorithm) MANAPIHTTP_NOEXCEPT;
 
 
         /**

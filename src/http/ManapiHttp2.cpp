@@ -1529,10 +1529,13 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         sdata = s->second->as<http_v2_stream_t>();
                         is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
 
-                        if (is_trailers && (!sdata->req->handler || sdata->req->handler->trailers.empty())) {
-                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
-                                 "trailer not found");
-                            goto repeat;
+                        if (is_trailers) {
+                            if (!sdata->req->cdata || !sdata->req->cdata->router || !sdata->req->cdata->router->handler
+                                        || sdata->req->cdata->router->handler->trailers.empty()) {
+                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
+                                                     "trailer not found");
+                                goto repeat;
+                            }
                         }
                     }
 
@@ -1762,7 +1765,7 @@ header_skip:
                             else {
                                 sdata->flags |= HTTP2_STREAM_RECV_END;
 
-                                if (!sdata->req->handler) {
+                                if (!sdata->req->cdata || !sdata->req->cdata->router || !sdata->req->cdata->router->handler) {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
                                          "handler not found");
                                     goto repeat;
@@ -1797,7 +1800,9 @@ header_skip:
                                                 }
                                             }
 
-                                            if (!sdata->req->handler->trailers.contains(key)) {
+                                            auto &allowed_trailers = sdata->req->cdata->router->handler->trailers;
+
+                                            if (allowed_trailers.find(key) == allowed_trailers.end()) {
                                                 http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
                                                      "trailer not found");
                                                 goto repeat;

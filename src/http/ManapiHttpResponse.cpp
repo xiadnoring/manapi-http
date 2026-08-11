@@ -31,6 +31,8 @@ static void free_response_data (uint8_t m_type, void *m_data) MANAPIHTTP_NOEXCEP
             delete static_cast<manapi::slice *> (m_data);
         break;
         case manapi::net::http::internal::RESPONSE_FILE:
+            delete static_cast<manapi::net::http::internal::file_fd_t *> (m_data);
+            break;
         case manapi::net::http::internal::RESPONSE_PROXY:
         case manapi::net::http::internal::RESPONSE_TEXT:
             delete static_cast<std::string *> (m_data);
@@ -52,8 +54,8 @@ void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
     }
 }
 
-manapi::net::http::response::response(internal::handle_data_t *cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req):
-    m_req(std::move(req)), m_config(config), m_status_code(status) {
+manapi::net::http::response::response(internal::handle_data_t *cdata, uint16_t status, std::unique_ptr<http::request> req):
+    m_req(std::move(req)), m_status_code(status) {
     this->m_cdata = cdata;
     this->m_type = internal::RESPONSE_NO_DATA;
     this->m_flags = 0;
@@ -159,7 +161,8 @@ void manapi::net::http::response::status(uint16_t _status_code) MANAPIHTTP_NOEXC
 
 manapi::status manapi::net::http::response::file(std::string path) MANAPIHTTP_NOEXCEPT {
     try {
-        auto storage = std::make_unique<std::string>(std::move(path));
+        auto storage = std::make_unique<internal::file_fd_t>();
+        storage->fpath = std::move(path);
         ::free_response_data(this->m_type, this->m_data);
 
         this->m_type = internal::RESPONSE_FILE;
@@ -217,15 +220,11 @@ bool manapi::net::http::response::is_slice() const MANAPIHTTP_NOEXCEPT {
     return this->m_type == internal::RESPONSE_SLICE;
 }
 
-bool manapi::net::http::response::has_ranges() const MANAPIHTTP_NOEXCEPT {
-    return this->m_ranges && !this->m_ranges->empty();
-}
-
-manapi::status_or<std::string *> manapi::net::http::response::file() MANAPIHTTP_NOEXCEPT {
+manapi::status_or<manapi::net::http::internal::file_fd_t *> manapi::net::http::response::file() MANAPIHTTP_NOEXCEPT {
     auto err = this->check_type_(internal::RESPONSE_FILE);
     if (!err.ok())
         return std::move(err);
-    return &this->body();
+    return static_cast<internal::file_fd_t *> (this->m_data);
 }
 
 uint16_t manapi::net::http::response::status_code() const MANAPIHTTP_NOEXCEPT {
@@ -266,7 +265,7 @@ void manapi::net::http::response::compress_enabled (bool state) MANAPIHTTP_NOEXC
 
 std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
     std::string compress;
-
+    auto config = this->m_cdata->worker->config();
 
     if ((this->m_flags & internal::RESPONSE_FLAG_COMPRESS_ENABLED)) {
         auto it = this->m_cdata->req_data->headers.find(H_ACCEPT_ENCODING);
@@ -286,7 +285,7 @@ std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
                 if (rhs.ok()) {
                     data = rhs.unwrap();
                     for (auto &a: data) {
-                        if (this->m_config->contains_compressor(a.value)) {
+                        if (config->contains_compressor(a.value)) {
                             last = &a.value;
                             if (compress.empty()) {
                                 break;
@@ -347,8 +346,8 @@ void manapi::net::http::response::detect_ranges () MANAPIHTTP_NOEXCEPT {
 
                 // trans 2 size_t range
                 const char *end_ptr     = range_str.data() + pos_delimiter;
-                const ssize_t first     = pos_delimiter > 0                        ? std::strtoll(range_str.data(), const_cast<char **>(&end_ptr), 10) : -1;
-                const ssize_t second    = pos_delimiter < range_str.size() - 1    ? std::strtoll(end_ptr, nullptr, 10) : -1;
+                const std::size_t first     = pos_delimiter > 0                        ? std::strtoull(range_str.data(), const_cast<char **>(&end_ptr), 10) : std::numeric_limits<std::size_t>::max();
+                const std::size_t second    = pos_delimiter < range_str.size() - 1    ? std::strtoull(end_ptr, nullptr, 10) : std::numeric_limits<std::size_t>::max();
 
                 ranges->emplace_back(first, second);
             }
@@ -439,7 +438,7 @@ manapi::status manapi::net::http::response::custom_data(custom_data_t data) MANA
 }
 
 manapi::net::http::config *manapi::net::http::response::config() MANAPIHTTP_NOEXCEPT {
-    return this->m_config;
+    return this->m_cdata->worker->config();
 }
 
 manapi::net::http::custom_data_t *manapi::net::http::response::custom_data() MANAPIHTTP_NOEXCEPT {
@@ -615,11 +614,13 @@ manapi::status_or<manapi::slice *> manapi::net::http::response::slice() MANAPIHT
     return static_cast<manapi::slice *> (this->m_data);
 }
 
-bool manapi::net::http::response::contains_ranges() const MANAPIHTTP_NOEXCEPT {
+bool manapi::net::http::response::contains_ranges() MANAPIHTTP_NOEXCEPT {
+    this->detect_ranges();
     return !!this->m_ranges && !this->m_ranges->empty();
 }
 
-std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> manapi::net::http::response::ranges() MANAPIHTTP_NOEXCEPT {
+std::unique_ptr<std::vector<std::pair<std::size_t, std::size_t>>> manapi::net::http::response::ranges() MANAPIHTTP_NOEXCEPT {
+    this->detect_ranges();
     return std::move(this->m_ranges);
 }
 
@@ -634,4 +635,23 @@ manapi::status_or<manapi::net::formdata_send *> manapi::net::http::response::for
 std::unique_ptr<manapi::net::http::response::resp_proxy_setup_cb> &manapi::net::http::response::proxy_setup_cb() MANAPIHTTP_NOEXCEPT {
     return this->m_proxy_setup;
 }
+
+manapi::status manapi::net::http::response::fd(manapi::ev::unique_file fd, std::string path) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto storage = std::make_unique<internal::file_fd_t>();
+        storage->fd = std::move(fd);
+        storage->fpath = std::move(path);
+
+        ::free_response_data(this->m_type, this->m_data);
+
+        this->m_type = internal::RESPONSE_FILE;
+        this->m_data = storage.release();
+
+        return status_ok();
+    }
+    catch (std::exception const &) {
+        return status_resource_exhausted();
+    }
+}
+
 #endif
