@@ -108,13 +108,18 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         co_return resp.file("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
     });
 
+    router->GET("/err/+layer", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        resp.header("x-test-header", "APPROVED").unwrap();
+        co_return;
+    });
+
     router->GET("/err/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
         resp.replacers({
                {"status_code", std::to_string(resp.status_code())},
                {"status_message", std::string{resp.status_message()}}
        }).unwrap();
 
-        co_return resp.file("/home/timur/Рбочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
+        co_return resp.file("/home/timur/Рабочий стол/WorkSpace/ManapiHTTP/examples/error.html").unwrap();
     });
 
 

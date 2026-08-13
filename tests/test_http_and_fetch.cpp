@@ -597,9 +597,9 @@ UTEST(http_and_fetch, user_data) {
 
 UTEST(http_and_fetch, post_proxy) {
     using http = manapi::net::http::server;
-    //
-    // manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HARD);
-    // manapi::init_tools::log_name_enable("all", true);
+
+//     manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_HARD);
+//     manapi::init_tools::log_name_enable("all", true);
 
     auto ctx = init_ctx(utest_result);
     auto router = init_router({

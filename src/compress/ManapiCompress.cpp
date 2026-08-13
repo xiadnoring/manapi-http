@@ -885,8 +885,24 @@ manapi::status_or<manapi::slice> manapi::compress::deflate_compress::compress(ma
     manapi::slice out;
     std::size_t indx = 0;
 
-    for (const auto z : input) {
+    std::string_view z;
+    auto it = input.begin();
+
+    if ( it == input.end() ) {
+        goto skip;
+    }
+
+    goto start;
+
+    for (; it != input.end(); ) {
+        it++;
+start:
+        if (it == input.end())
+            break;
+
+        z = std::string_view ( static_cast<char *>(it.buffer()), it.size() );
         indx++;
+skip:
 
         this->m_data->stream.avail_in = static_cast<uint32_t>(z.size());
         this->m_data->stream.next_in = (Byte *)(z.data());
@@ -963,8 +979,23 @@ manapi::status_or<manapi::slice> manapi::compress::deflate_decompress::decompres
     manapi::slice out;
     std::size_t indx = 0;
 
-    for (const auto z : input) {
+    std::string_view z;
+    auto it = input.begin();
+
+    if ( it == input.end() ) {
+        goto skip;
+    }
+
+    goto start;
+
+    for (; it != input.end(); ) {
+        it++;
+start:
+        if (it == input.end())
+            break;
+        z = std::string_view ( static_cast<char *>(it.buffer()), it.size() );
         indx++;
+skip:
 
         this->m_data->stream.avail_in = static_cast<uint32_t>(z.size());
         this->m_data->stream.next_in = (Byte *)(z.data());

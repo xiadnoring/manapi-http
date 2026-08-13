@@ -810,14 +810,14 @@ manapi::future<manapi::ev::status> manapi::fs::async_fstat(ev::file file, std::m
         }, cancellation);
 }
 
-static void clean_delimiters_at_end (std::string_view &str) {
+static void manapi__clean_delimiters_at_end (std::string_view &str) {
     // clean delimiters at the end
     while (!str.empty() && str.back() == manapi::fs::path::delimiter)
         str = str.substr(0, str.size() - 1);
 }
 
 std::string_view manapi::fs::path::back (std::string_view str) {
-    clean_delimiters_at_end(str);
+    manapi__clean_delimiters_at_end(str);
     auto it = str.rfind(fs::path::delimiter);
     if (it != std::string_view::npos)
         str = str.substr(0, it);
@@ -871,7 +871,7 @@ static void fs_path_append (std::string &path, std::string_view next, bool delim
     else {
         if (!path.empty() && path.back() != path::delimiter)
             path.push_back(path::delimiter);
-        clean_delimiters_at_end(next);
+        manapi__clean_delimiters_at_end(next);
         path.append(next.data(), next.size());
     }
 }
@@ -1190,8 +1190,8 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_mkdtemp(std
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::ev::status_or<std::pair<std::string, manapi::ev::file>>> manapi::fs::async_mkstemp(std::string tpl, ctoken cancellation) {
-    typedef ev::status_or<std::pair<std::string, manapi::ev::file>> val;
+manapi::future<manapi::ev::status_or<std::pair<std::string, manapi::ev::unique_file>>> manapi::fs::async_mkstemp(std::string tpl, ctoken cancellation) {
+    typedef ev::status_or<std::pair<std::string, manapi::ev::unique_file>> val;
     typedef manapi::async::promise_sync<val> promise_sync;
 
     co_return co_await async_fs_operation<val>([tpl = std::move(tpl)] (std::shared_ptr<ev::fs> w)
@@ -1202,7 +1202,7 @@ manapi::future<manapi::ev::status_or<std::pair<std::string, manapi::ev::file>>> 
             cancel.disable();
             if (async_fs_operation_result_error<val>(w, resolve, cancel))
                 return;
-            resolve(std::make_pair(std::string{w->custom()->path}, static_cast<ev::file>(w->custom()->result)));
+            resolve(std::make_pair(std::string{w->custom()->path}, manapi::ev::unique_file (static_cast<ev::file>(w->custom()->result))));
         }, std::move(cancellation));
 }
 

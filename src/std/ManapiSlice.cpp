@@ -162,12 +162,13 @@ static void slice_remove_rshift (manapi::slice_data_t *data) {
         if (new_size) {
             auto bf = manapi::async::memory_fabric()->buffer(new_size).unwrap();
             ::memcpy(bf.data(), data->last->buff.base, static_cast<std::size_t>(data->last->buff.len) - data->rshift_);
+
             data->size_ -= static_cast<std::size_t>(data->last->buff.len);
             manapi::async::memory_fabric()->free(data->last->buff.base, data->last->buff.len);
 
-            data->size_ += bf.size();
+            data->size_ += new_size;
 
-            data->last->buff.len = static_cast<decltype(data->last->buff.len)>(bf.size());
+            data->last->buff.len = static_cast<decltype(data->last->buff.len)>(new_size);
             data->last->buff.base = static_cast<char *>(bf.release());
         }
         else {
@@ -198,9 +199,9 @@ static void slice_remove_shift (manapi::slice_data_t *data) {
             data->size_ -= static_cast<std::size_t>(data->first->buff.len);
             manapi::async::memory_fabric()->free(data->first->buff.base, data->first->buff.len);
 
-            data->size_ += bf.size();
+            data->size_ += new_size;
 
-            data->first->buff.len = static_cast<decltype(data->first->buff.len)>(bf.size());
+            data->first->buff.len = static_cast<decltype(data->first->buff.len)>(new_size);
             data->first->buff.base = static_cast<char *>(bf.release());
         }
         else {
@@ -644,7 +645,7 @@ std::size_t manapi::slice_base::rshift() const {
 }
 
 bool manapi::slice_base::empty() const {
-    return this->size_ == 0;
+    return this->size() == 0;
 }
 
 const manapi::slice_part_t * manapi::slice_base::slices_begin() const {
@@ -1134,8 +1135,8 @@ manapi::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOEXCEPT {
 manapi::status manapi::slice::push_back(slice &&s) MANAPIHTTP_NOEXCEPT {
     // WARNING: split(...) uses this function
     if (!s.empty()) {
-        ::slice_remove_rshift(&s);
-        ::slice_remove_shift(this);
+        ::slice_remove_shift(&s);
+        ::slice_remove_rshift(this);
 
         assert (!this->rshift_ && !s.shift_);
 
@@ -1308,14 +1309,16 @@ manapi::status_or<manapi::slice> manapi::slice::split(std::size_t start, std::si
         if (res.first) {
 
             if (res.shift_ || res.rshift_) {
-                auto cc = manapi::async::memory_fabric()->slice(res.shift_ + res.rshift_).unwrap();
+                std::size_t cc_shift_sub = 0, cc_rshift_sub = 0;
+                if (res.first == this->first) cc_shift_sub = this->shift_;
+                if (res.last == this->last) cc_rshift_sub = this->rshift_;
+                auto cc = manapi::async::memory_fabric()->slice(res.shift_ + res.rshift_ - cc_shift_sub - cc_rshift_sub).unwrap();
 
                 assert(!cc.shift());
 
-                cc.copy_from(res.first->buff.base, 0, res.shift_).unwrap();
-                cc.copy_from(res.last->buff.base + static_cast<std::size_t> (res.last->buff.len) - res.rshift_, res.shift_, res.rshift_).unwrap();
-
-                ::slice_remove_rshift(&cc);
+                cc.copy_from(res.first->buff.base + cc_shift_sub, 0, res.shift_ - cc_shift_sub).unwrap();
+                cc.copy_from(res.last->buff.base + static_cast<std::size_t> (res.last->buff.len) - res.rshift_,
+                             res.shift_, res.rshift_ - cc_rshift_sub).unwrap();
 
                 this->count -= res.count;
                 this->size_ -= res.size_;
@@ -1323,6 +1326,10 @@ manapi::status_or<manapi::slice> manapi::slice::split(std::size_t start, std::si
                 auto last = this->last;
                 auto next = res.last->next;
                 res.last->next = nullptr;
+
+                if (last != res.last) {
+                    ::slice_remove_rshift(&cc);
+                }
 
                 if (this->first == res.first) {
                     this->first = nullptr;
@@ -1345,18 +1352,21 @@ manapi::status_or<manapi::slice> manapi::slice::split(std::size_t start, std::si
                     this->push_back(std::move(cc)).unwrap();
                 }
 
-                assert(!this->rshift_);
-                this->rshift_ = rshift;
 
 
                 if (last != res.last) {
                     assert(next);
                     this->last->next = next;
                     this->last = last;
+
+                    assert(!this->rshift_);
+                    this->rshift_ = rshift;
                 }
                 else {
                     assert(!next);
                 }
+
+                assert(!this->last || static_cast<std::size_t>(this->last->buff.len) >= this->rshift_);
             }
             else {
 

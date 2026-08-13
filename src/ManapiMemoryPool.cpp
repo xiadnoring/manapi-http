@@ -274,11 +274,7 @@ manapi::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t su
         delete []static_cast<char*>(buffer);
         return status_resource_exhausted();
     }
-    return this->buffer(buffer, (size));
-}
-
-manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {
-    return {pointer, suggested, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL};
+    return manapi::bytebuffer (buffer, suggested, size, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL);
 }
 
 void * manapi::object_pool::alloc(std::size_t size) MANAPIHTTP_NOEXCEPT {
@@ -371,5 +367,9 @@ int manapi::object_pool::mem_type(std::size_t size) MANAPIHTTP_NOEXCEPT {
 
 std::size_t manapi::object_pool::area_size() MANAPIHTTP_NOEXCEPT {
     return ::area_size;
+}
+
+manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {
+    return manapi::bytebuffer (pointer, suggested, suggested, manapi::bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL);
 }
 

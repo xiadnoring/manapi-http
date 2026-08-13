@@ -119,7 +119,7 @@ namespace manapi::fs {
 
     future<ev::status_or<std::string>> async_mkdtemp (std::string tpl, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::pair<std::string, ev::file>>> async_mkstemp (std::string tpl, ctoken cancellation = nullptr);
+    future<ev::status_or<std::pair<std::string, ev::unique_file>>> async_mkstemp (std::string tpl, ctoken cancellation = nullptr);
 
     future<ev::status> async_fdatasync (ev::file file, ctoken cancellation = nullptr);
 

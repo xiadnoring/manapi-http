@@ -21,6 +21,63 @@ static int rcmp (int a) {
     return 1;
 }
 
+UTEST(slice, slice_buf_1) {
+    auto ctx = init_ctx(utest_result);
+    {
+        auto b = manapi::async::memory_fabric()->buffer(4096).unwrap();
+        ASSERT_TRUE(b.size() == 4096);
+        auto rz = manapi::string::random(4096);
+
+        ::memcpy (b.data(), rz.data(), b.size());
+
+        b.resize(8096);
+
+        ASSERT_TRUE(b.size() == 8096);
+
+        ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_buf_2) {
+    auto ctx = init_ctx(utest_result);
+    {
+        auto b = manapi::async::memory_fabric()->buffer(0).unwrap();
+        ASSERT_TRUE(b.size() == 0);
+        auto rz = manapi::string::random(2000);
+
+        b.resize(2000);
+
+        ::memcpy (b.data(), rz.data(), b.size());
+
+        ASSERT_TRUE(b.size() == 2000);
+
+        ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
+UTEST(slice, slice_buf_3) {
+    auto ctx = init_ctx(utest_result);
+    {
+        auto b = manapi::async::memory_fabric()->buffer(4000).unwrap();
+        ASSERT_TRUE(b.size() == 4000);
+        auto rz = manapi::string::random(200);
+
+        ::memcpy (b.data(), rz.data(), b.size());
+
+        b.resize(4090);
+
+        ASSERT_TRUE(b.size() == 4090);
+
+        ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
 UTEST(slice, slice_push) {
     auto ctx = init_ctx(utest_result);
     {
@@ -282,7 +339,8 @@ UTEST(slice, slice_split) {
         std::string bz;
         bz.append(s1.data(), z1);
         bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
-        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+        ASSERT_TRUE(b.size() == bz.size());
+        ASSERT_TRUE(!b.cmp(bz.data(), bz.size()));
 
         SLICE_CHECK(b);
         SLICE_CHECK(res);
@@ -333,7 +391,8 @@ UTEST(slice, slice_split) {
         std::string bz;
         bz.append(s1.data(), z1);
         bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
-        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
+        ASSERT_TRUE(b.size() == bz.size());
+        ASSERT_TRUE(!b.cmp(bz.data(), bz.size()));
 
         SLICE_CHECK(b);
         SLICE_CHECK(res);
@@ -350,10 +409,11 @@ UTEST(slice, slice_split) {
         std::string bz;
         bz.append(s1.data(), z1);
         bz.append(s1.data() + z1 + z2, s1.size() - z1 - z2);
-        ASSERT_TRUE(b.size() == bz.size() && !b.cmp(bz.data(), bz.size()));
-
         SLICE_CHECK(b);
         SLICE_CHECK(res);
+        ASSERT_TRUE(b.size() == bz.size());
+        ASSERT_TRUE(!b.cmp(bz.data(), bz.size()));
+
     }
     manapi::async::run(ctx->stop());
     wait_ctx(ctx);

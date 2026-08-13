@@ -32,12 +32,14 @@ UTEST(compress, compress_deflate) {
 
         {
             manapi::compress::deflate_compress dc (9);
-            ri = dc.compress(z, true).unwrap();
+            ri = dc.compress(z, false).unwrap();
+            ri.push_back(dc.compress( manapi::slice () , true).unwrap());
         }
 
         {
             manapi::compress::deflate_decompress dd;
-            ro = dd.decompress(ri, true).unwrap();
+            ro = dd.decompress(ri, false).unwrap();
+            ro.push_back(dd.decompress(manapi::slice (), true).unwrap());
         }
 
         ASSERT_TRUE(z.cmp(ro) == 0);

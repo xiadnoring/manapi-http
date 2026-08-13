@@ -1588,7 +1588,7 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
     while (sent != 0) {
         const ssize_t result = co_await cdata->worker->write(cdata->conn, current, sent, true);
 
-        if (result <= 0) {
+        if (result < 0) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_text()",
                 "write failed");
             co_return;
@@ -1614,7 +1614,7 @@ manapi::future<> manapi::net::http::internal::send_slice(std::unique_ptr<respons
     while (!sv.empty()) {
         const ssize_t result = co_await cdata->worker->write(cdata->conn, sv, true);
 
-        if (result <= 0) {
+        if (result < 0) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_slice()",
                 "write failed");
             co_return;

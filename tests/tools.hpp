@@ -106,7 +106,9 @@ inline std::shared_ptr<manapi::net::http::server> init_router (manapi::json cnf,
                 {"max_merge_buffer_stack", 1},
                 {"max_connections", 2},
                 {"max_connections_by_ip", 2},
-                {"keep_alive", 0}
+                {"keep_alive", 0},
+//                {"speed_check_delay", 1},
+//                {"speed_stream_check_delay", 1}
             });
 
             if (cnf.contains("http1_cnf") && cnf["http1_cnf"].is_object()) {

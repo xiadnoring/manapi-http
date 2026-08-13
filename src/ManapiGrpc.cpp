@@ -712,7 +712,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
             bytebuffer buffer;
 
             if (buf && buf->base) {
-                buffer = bytebuffer (buf->base, buf->len, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL);
+                buffer = manapi::async::memory_fabric()->buffer(buf->base, buf->len);
             }
 
             if (nread < 0 || !buf) {

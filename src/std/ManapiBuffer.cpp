@@ -28,10 +28,10 @@ manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
     this->flags_ = 0;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, std::size_t size, uint8_t flags_) {
+manapi::bytebuffer::bytebuffer(void *src, std::size_t size, std::size_t reserved, uint8_t flags_) {
     this->src = static_cast <uint8_t *> (src);
     this->s = static_cast<uint32_t>(size);
-    this->reserved = static_cast<uint32_t>(size);
+    this->reserved = static_cast<uint32_t>(reserved);
     this->flags_ = flags_;
     this->shift_ = 0;
 }
@@ -100,41 +100,54 @@ std::size_t manapi::bytebuffer::size() const {
 }
 
 std::size_t manapi::bytebuffer::realsize() const {
-    return this->reserved < 0 ? this->s : this->reserved;
+    return this->reserved == 0 ? this->s : this->reserved;
 }
 
 manapi::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_NOEXCEPT {
+
     if (this->s == s)
         return status_ok();
 
     if (this->reserved >= s) {
         this->s = static_cast<uint32_t>(s);
-        this->shift_ = std::min<uint32_t>(this->shift_, this->s);
+//        this->shift_ = std::min<uint32_t>(this->shift_, this->s);
         return status_ok();
     }
 
     if (this->flags_ & BYTEBUFFER_FLAG_OBJECT_POOL) {
+        auto z = manapi::async::memory_fabric();
+        s -= this->shift_;
 
         /* is slice */
-        auto nm = manapi::memory::alloc<uint8_t>(s);
-        if (!nm) {
-            return status_resource_exhausted();
+        if (z->mem_type(static_cast<std::size_t>(this->reserved)) == z->mem_type(s)) {
+            ::memmove(this->src, this->src + this->shift_, static_cast<std::size_t>(this->reserved) - this->shift_);
+            this->s = static_cast<uint32_t>(s);
+        }
+        else {
+            if (s) {
+                auto bf = manapi::async::memory_fabric()->buffer(s).unwrap();
+
+                ::memcpy(bf.data(), this->src + this->shift_, static_cast<std::size_t>(this->s) - this->shift_);
+                manapi::async::memory_fabric()->free(this->src, static_cast<std::size_t>(this->reserved));
+
+                this->s = static_cast<uint32_t>(s);
+                this->reserved = static_cast<uint32_t>(bf.realsize());
+                this->src = static_cast<uint8_t *>(bf.release());
+
+                assert(this->reserved >= this->s);
+            }
+            else {
+                z->free(this->src, static_cast<std::size_t>(this->reserved));
+                this->src = nullptr;
+                this->reserved = 0;
+                this->s = 0;
+            }
         }
 
-        this->flags_ ^= BYTEBUFFER_FLAG_OBJECT_POOL;
-
-        memcpy(nm, this->src, this->s);
-
-        std::swap(this->src, nm);
-
-        auto nsize = this->reserved;
-        this->s = static_cast<uint32_t>(s);
-
-        this->reserved = this->s;
-
-        manapi::async::current()->memory_fabric().free(nm, nsize);
+        this->shift_ = 0;
     }
     else {
+        manapi_log_warn("buffer:non-pool memory is deprecated");
         if (this->src) {
             this->src = manapi::memory::realloc(this->src, s);
             if (!this->src) {
@@ -154,7 +167,7 @@ manapi::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_NOEXCEPT
         this->s = static_cast<uint32_t>(s);
     }
 
-    this->shift_ = static_cast<uint32_t>(std::min<std::size_t>(this->shift_, this->s));
+//    this->shift_ = static_cast<uint32_t>(std::min<std::size_t>(this->shift_, this->s));
     return status_ok();
 }
 

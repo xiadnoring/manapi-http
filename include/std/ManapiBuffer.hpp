@@ -29,7 +29,7 @@ namespace manapi {
 
         bytebuffer (void *src, std::size_t size);
 
-        bytebuffer (void *src, std::size_t size, uint8_t flags);
+        bytebuffer (void *src, std::size_t size, std::size_t reserved, uint8_t flags);
 
         static manapi::status_or<bytebuffer> create (std::size_t size);
 
