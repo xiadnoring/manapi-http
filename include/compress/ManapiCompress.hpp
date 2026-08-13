@@ -33,44 +33,41 @@ namespace manapi::compress {
     protected:
         struct data_t;
     public:
-        deflate_compress (int level = 0, int strategy = 0);
+        deflate_compress (int level, int strategy = 0);
+
+        deflate_compress (int method, int window_bits, int mem_level, int level, int strategy);
 
         ~deflate_compress();
 
         manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
     protected:
-        virtual void init (int level, int strategy);
-
         std::unique_ptr <data_t> m_data;
     };
 
     class deflate_decompress : public decompress_base {
     protected:
         struct data_t;
+
     public:
+        deflate_decompress (int window_bits);
+
         deflate_decompress ();
 
         ~deflate_decompress();
 
         manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
     protected:
-        virtual void init ();
-
         std::unique_ptr <data_t> m_data;
     };
 
     class gzip_compress : public deflate_compress {
     public:
-        gzip_compress (int level = 0, int strategy = 0);
-    protected:
-        void init(int level, int strategy) override;
+        gzip_compress (int level, int strategy = 0);
     };
 
     class gzip_decompress : public deflate_decompress {
     public:
         gzip_decompress ();
-    protected:
-        void init() override;
     };
 #endif
 

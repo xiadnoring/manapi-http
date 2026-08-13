@@ -93,7 +93,7 @@ manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode
             if (!res.ok())
                 co_return res.err();
 
-            this->m_data->file = res.unwrap().release();
+            this->m_data->file = res.unwrap().release().unwrap();
             this->m_data->status |= FILE_OWN_FD|FILE_HAS_FD;
         }
         catch (std::bad_alloc const &) {

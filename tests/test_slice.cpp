@@ -21,6 +21,32 @@ static int rcmp (int a) {
     return 1;
 }
 
+UTEST(slice, slice_concat_small) {
+    auto ctx = init_ctx(utest_result);
+    {
+        manapi::slice sv;
+        auto rz1 = manapi::string::random(10);
+        auto rz2 = manapi::string::random(20);
+        auto g1 = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size()).unwrap();
+        auto g2 = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size()).unwrap();
+
+        g1.copy_from(rz1.data(), 0, rz1.size()).unwrap();
+        g2.copy_from(rz2.data(), 0, rz2.size()).unwrap();
+
+        g1.resize(rz1.size()).unwrap();
+        g2.resize(rz2.size()).unwrap();
+
+        sv.push_back(std::move(g1)).unwrap();
+        sv.push_back(std::move(g2)).unwrap();
+
+        std::string rz = rz1 + rz2;
+
+        ASSERT_TRUE( sv.cmp(rz.data(), rz.size()) == 0 );
+    }
+    manapi::async::run(ctx->stop());
+    wait_ctx(ctx);
+}
+
 UTEST(slice, slice_buf_1) {
     auto ctx = init_ctx(utest_result);
     {

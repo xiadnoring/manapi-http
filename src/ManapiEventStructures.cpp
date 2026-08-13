@@ -1032,7 +1032,7 @@ manapi::status_or<manapi::ev::file> manapi::ev::unique_file::release() MANAPIHTT
     if (this->m_fd.has_value()) {
         auto val = this->m_fd.value();
         this->m_fd.reset();
-        return val;
+        return manapi::ev::file( val );
     }
     return manapi::status_not_found("unique_file:empty");
 }

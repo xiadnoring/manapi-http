@@ -869,8 +869,18 @@ struct manapi::compress::deflate_compress::data_t {
     std::size_t cursor;
 };
 
-manapi::compress::deflate_compress::deflate_compress(int level, int strategy) : m_data(std::make_unique<manapi::compress::deflate_compress::data_t>()) {
-    this->init(level, strategy);
+manapi::compress::deflate_compress::deflate_compress(int method, int window_bits, int mem_level, int level, int strategy)  {
+    this->m_data = std::make_unique<data_t>();
+    if (deflateInit2(&this->m_data->stream, level, method, window_bits, mem_level, strategy) != Z_OK) {
+        throw manapi::exception(ERR_UNKNOWN, "gzip_compress:deflateInit2 failed");
+    }
+}
+
+manapi::compress::deflate_compress::deflate_compress(int level, int strategy)  {
+    this->m_data = std::make_unique<manapi::compress::deflate_compress::data_t>();
+    if(deflateInit(&this->m_data->stream, level) != Z_OK) {
+        throw manapi::exception ( ERR_UNKNOWN,  "deflate_compress:deflateInit failed");
+    }
 }
 
 manapi::compress::deflate_compress::~deflate_compress() {
@@ -952,20 +962,17 @@ skip:
     return std::move(out);
 }
 
-void manapi::compress::deflate_compress::init(int level, int strategy) {
-    if(deflateInit(&this->m_data->stream, level) != Z_OK) {
-        throw manapi::exception ( ERR_UNKNOWN,  "deflate_compress:deflateInit failed");
-    }
-}
-
 struct manapi::compress::deflate_decompress::data_t {
     z_stream stream = { nullptr };
     manapi::bytebuffer buffer;
     std::size_t cursor;
 };
 
-manapi::compress::deflate_decompress::deflate_decompress() : m_data(std::make_unique<data_t>()) {
-    this->init();
+manapi::compress::deflate_decompress::deflate_decompress() {
+    this->m_data = std::make_unique<data_t>();
+    if (inflateInit(&this->m_data->stream) != Z_OK) {
+        throw manapi::exception(ERR_UNKNOWN, "deflate_decompress:inflateInit failed");
+    }
 }
 
 manapi::compress::deflate_decompress::~deflate_decompress() {
@@ -1045,29 +1052,18 @@ skip:
     return std::move(out);
 }
 
-void manapi::compress::deflate_decompress::init() {
-    if(inflateInit(&this->m_data->stream) != Z_OK) {
-        throw manapi::exception ( ERR_UNKNOWN,  "deflate_decompress:inflateInit failed");
-    }
-}
-
-manapi::compress::gzip_compress::gzip_compress(int level, int strategy) : deflate_compress(level, strategy) {
-}
-
-void manapi::compress::gzip_compress::init(int level, int strategy) {
-    if(deflateInit2(&this->m_data->stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK) {
-        throw manapi::exception ( ERR_UNKNOWN,  "gzip_compress:deflateInit2 failed");
-    }
-}
-
-manapi::compress::gzip_decompress::gzip_decompress() : deflate_decompress () {
-
-}
-
-void manapi::compress::gzip_decompress::init() {
-    if(inflateInit2(&this->m_data->stream, 15 | 16) != Z_OK) {
+manapi::compress::deflate_decompress::deflate_decompress(int window_bits) {
+    this->m_data = std::make_unique<data_t>();
+    if(inflateInit2(&this->m_data->stream, window_bits) != Z_OK) {
         throw manapi::exception(ERR_UNKNOWN, "gzip_decompress:inflateInit2 failed");
     }
+
+}
+
+manapi::compress::gzip_compress::gzip_compress(int level, int strategy) : deflate_compress( Z_DEFLATED, 15 | 16, 8, level, strategy) {
+}
+
+manapi::compress::gzip_decompress::gzip_decompress() : deflate_decompress (15 | 16) {
 }
 
 #endif
