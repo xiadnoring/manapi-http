@@ -47,11 +47,11 @@ UTEST(slice, slice_buf_2) {
         ASSERT_TRUE(b.size() == 0);
         auto rz = manapi::string::random(2000);
 
-        b.resize(2000);
-
-        ::memcpy (b.data(), rz.data(), rz.size());
+        b.resize(2000).unwrap();
 
         ASSERT_TRUE(b.size() == 2000);
+
+        ::memcpy (b.data(), rz.data(), rz.size());
 
         ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
     }

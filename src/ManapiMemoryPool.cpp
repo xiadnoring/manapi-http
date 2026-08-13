@@ -148,6 +148,7 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
     auto const lvl = bufflen2level(suggested);
     if (lvl == BUFF_LEVEL_0) {
         *ptr = nullptr;
+        *ptr_size = 0;
         return manapi::ERR_OK;
     }
     auto size = level2bufflen(lvl);
