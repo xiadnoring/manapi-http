@@ -28,7 +28,7 @@ UTEST(slice, slice_buf_1) {
         ASSERT_TRUE(b.size() == 4096);
         auto rz = manapi::string::random(4096);
 
-        ::memcpy (b.data(), rz.data(), b.size());
+        ::memcpy (b.data(), rz.data(), rz.size());
 
         b.resize(8096);
 
@@ -49,7 +49,7 @@ UTEST(slice, slice_buf_2) {
 
         b.resize(2000);
 
-        ::memcpy (b.data(), rz.data(), b.size());
+        ::memcpy (b.data(), rz.data(), rz.size());
 
         ASSERT_TRUE(b.size() == 2000);
 
@@ -66,7 +66,7 @@ UTEST(slice, slice_buf_3) {
         ASSERT_TRUE(b.size() == 4000);
         auto rz = manapi::string::random(200);
 
-        ::memcpy (b.data(), rz.data(), b.size());
+        ::memcpy (b.data(), rz.data(), rz.size());
 
         b.resize(4090);
 
