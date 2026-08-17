@@ -53,12 +53,12 @@ bool async_fs_operation_result_error (std::shared_ptr<manapi::ev::fs> &w, typena
 }
 
 template<typename T>
-using async_fs_operation_event_cb = std::move_only_function<void(std::shared_ptr<manapi::ev::fs>, typename manapi::async::promise_sync<T>::resolve_t&, manapi::ctoken &cancellation)>;
+using async_fs_operation_event_cb = std::move_only_function<bool(std::shared_ptr<manapi::ev::fs>, typename manapi::async::promise_sync<T>::resolve_t&, manapi::ctoken &cancellation)>;
 
 template<typename T>
-void async_fs_operation_event_handler (std::shared_ptr<manapi::ev::fs> w, typename manapi::async::promise_sync<T>::resolve_t resolve, manapi::ctoken cancellation, async_fs_operation_event_cb<T> &event_cb) {
+bool async_fs_operation_event_handler (std::shared_ptr<manapi::ev::fs> &&w, typename manapi::async::promise_sync<T>::resolve_t &resolve, manapi::ctoken &cancellation, async_fs_operation_event_cb<T> &event_cb) {
     try {
-        event_cb(w, resolve, cancellation);
+        return event_cb(std::forward<decltype(w)>(w), resolve, cancellation);
     }
     catch (std::bad_alloc const &) {
         resolve(manapi::ev::status_resource_exhausted());
@@ -67,6 +67,7 @@ void async_fs_operation_event_handler (std::shared_ptr<manapi::ev::fs> w, typena
         manapi_log_error("%s due to %s", "fs callback failed", e.what());
         resolve(manapi::ev::status_internal("fs callback failed", manapi::ev::ERR_UNKNOWN));
     }
+    return true;
 }
 
 template<typename T>
@@ -95,9 +96,10 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
     try {
         co_return co_await promise_sync([&t] (typename promise_sync::resolve_t resolve, typename promise_sync::reject_t reject)
             -> void {
-            auto watcher_res = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(*t.event_cb), cancellation = *t.c] (const std::shared_ptr<manapi::ev::fs> &w) mutable
-                -> void {
-                async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(cancellation), event_cb);
+            auto watcher_res = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(*t.event_cb), cancellation = *t.c]
+                    (std::shared_ptr<manapi::ev::fs> w) mutable
+                -> bool {
+                return async_fs_operation_event_handler<T>(std::move(w), (resolve), (cancellation), (event_cb));
             });
 
             manapi::ev::shared_fs watcher;
@@ -134,11 +136,12 @@ manapi::future<manapi::ev::status> async_fs_simple_operation (std::move_only_fun
     co_return co_await async_fs_operation<manapi::ev::status>(std::move(start_cb),
         [](std::shared_ptr<manapi::ev::fs> w,
             promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel))
-                return;
+                return true;
 
             resolve(manapi::ev::status_ok());
+            return true;
         }, std::move(cancellation));
 }
 
@@ -239,14 +242,15 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
                     return !w->mkdir(path.data(), mode);
                 },
                 +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-                -> void {
+                -> bool {
                     auto rhs = w->result();
                     if (rhs != ev::ERR_EXIST ) {
                         if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
-                            return;
+                            return true;
                         }
                     }
                     resolve(ev::status_ok());
+                    return true;
                 }, cancellation.sub());
 
             if (!err.ok())
@@ -260,14 +264,15 @@ manapi::future<manapi::ev::status> manapi::fs::async_mkdir(std::string path, int
                 return !(w->mkdir(path.data(), mode));
             },
             +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-            -> void {
+            -> bool {
                 auto rhs = w->result();
                 if ((rhs != ev::ERR_EXIST)) {
                     if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
-                        return;
+                        return true;
                     }
                 }
                 resolve(ev::status_ok());
+                return true;
             }, cancellation);
     }
 }
@@ -280,13 +285,14 @@ manapi::future<manapi::ev::status_or<manapi::ev::unique_file>> manapi::fs::async
         -> bool {
         return !w->open(path.data(), flags, mode);
     }, +[] (std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-    -> void {
+    -> bool {
         if (async_fs_operation_result_error<manapi::ev::status_or<ev::unique_file>>(w, resolve, cancel)) {
-            return;
+            return true;
         }
         auto file = static_cast<manapi::ev::file>(w->result());
         manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d open", file);
         resolve (manapi::ev::unique_file (file));
+        return true;
     }, cancellation);
     co_return fileno;
 }
@@ -300,14 +306,15 @@ manapi::future<manapi::ev::status> manapi::fs::async_close(ev::file file, ctoken
         -> bool {
             return !w->close(file);
         }, [file](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-        -> void {
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status>(w, resolve, cancel)) {
                 manapi_log_error("fs:fd %d close failed due to %s",
                     file, ev::strerror(static_cast<int>(w->result())));
-                return;
+                return true;
             }
             manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d finished", file);
             resolve(ev::status_ok());
+            return true;
         }, std::move(cancellation));
 }
 
@@ -447,10 +454,10 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
     dd.file = file;
     dd.offset = offset;
     dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-        -> void {
+        -> bool {
         try {
             if (async_fs_operation_result_error<ev::status_or<ssize_t>>(w, resolve, cancel))
-                return;
+                return true;
 
             auto rhs = w->result();
 
@@ -461,7 +468,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 }
                 cancel.disable();
                 resolve(static_cast<ssize_t>(rhs));
-                return;
+                return true;
             }
 
             dd.result += rhs;
@@ -480,13 +487,13 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 /* retry */
                 auto wres = manapi::async::current()->eventloop()->create_watcher_fs(
                     [&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
-                    -> void {
-                    async_fs_operation_event_handler<manapi::ev::status_or<ssize_t>>(std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
+                    -> bool {
+                    return async_fs_operation_event_handler<manapi::ev::status_or<ssize_t>>(std::move(w), (resolve), (cancel), dd.event_cb);
                 });
 
                 if (!wres) {
                     resolve(wres.err());
-                    return;
+                    return true;
                 }
 
                 auto w1 = wres.unwrap();
@@ -496,7 +503,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
 
                 if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
-                    return;
+                    return true;
                 }
 
                 if (cancel.contains_cancel_callback()) {
@@ -513,13 +520,15 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
             manapi_log_error("%s due to %s", "async_write:Failed", e.what());
             resolve(ev::status_internal("async_write:Failed", ev::ERR_UNKNOWN));
         }
+
+        return true;
     };
 
     auto status = co_await async_fs_operation<manapi::ev::status_or<ssize_t>>([&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->write(dd.file, dd.buff, dd.nbuff, dd.offset);
-        }, [&dd] (std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) -> void {
-            dd.event_cb(std::move(w), resolve, cancel);
+        }, [&dd] (std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) -> bool {
+            return dd.event_cb(std::move(w), resolve, cancel);
         }, cancellation);
 
     if (!status.ok())
@@ -584,10 +593,10 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
     dd.buff = buff;
 
     dd.event_cb = [&dd](std::shared_ptr<ev::fs> wlocal, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-        -> void {
+        -> bool {
         try {
             if (async_fs_operation_result_error<manapi::ev::status_or<ssize_t>>(wlocal, resolve, cancel)) {
-                return;
+                return true;
             }
 
             auto rhs = wlocal->result();
@@ -598,7 +607,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
                 }
                 cancel.disable();
                 resolve(static_cast<ssize_t>(rhs));
-                return;
+                return true;
             }
 
             if (dd.offset >= 0)
@@ -616,14 +625,14 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
             if (dd.nbuff && rhs) {
                 /* retry */
                 auto wres  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
-                    -> void {
-                    async_fs_operation_event_handler<manapi::ev::status_or<ssize_t>>( std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
+                    -> bool {
+                    return async_fs_operation_event_handler<manapi::ev::status_or<ssize_t>>( std::move(w), (resolve), (cancel), dd.event_cb);
                 });
 
                 if (!wres) {
                     cancel.disable();
                     resolve(wres.err());
-                    return;
+                    return true;
                 }
 
                 auto w = wres.unwrap();
@@ -633,7 +642,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
 
                 if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
                     resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
-                    return;
+                    return true;
                 }
 
                 if (cancel.contains_cancel_callback()) {
@@ -651,14 +660,16 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
             cancel.disable();
             resolve(ev::status_internal("async_read:Failed", ev::ERR_UNKNOWN));
         }
+
+        return true;
     };
 
     auto status = co_await async_fs_operation<ev::status_or<ssize_t>>([&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->read(dd.file, dd.buff, dd.nbuff, dd.offset);
         }, [&dd](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel)
-        -> void {
-            dd.event_cb(std::move(w), resolve, cancel);
+        -> bool {
+            return dd.event_cb(std::move(w), resolve, cancel);
         }, cancellation);
 
     if (!status.ok())
@@ -773,18 +784,19 @@ manapi::future<manapi::ev::status> manapi::fs::async_stat(std::string path, std:
         -> bool {
             return !w->stat(path.data());
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
+        -> bool {
             cancel.disable();
 
             if (w->result()) {
                 resolve(ev::status_internal("async_stat failed", static_cast<int>(w->result())));
-                return;
+                return true;
             }
 
             if (callback) {
                 callback(&w->custom()->statbuf);
             }
             resolve(ev::status_ok());
+            return true;
         }, cancellation);
 }
 
@@ -795,18 +807,19 @@ manapi::future<manapi::ev::status> manapi::fs::async_fstat(ev::file file, std::m
         -> bool {
             return !w->fstat(file);
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
+        -> bool {
             cancel.disable();
 
             if (w->result()) {
                 resolve(ev::status_internal("async_fstat failed", static_cast<int>(w->result())));
-                return;
+                return true;
             }
 
             if (callback) {
                 callback(&w->custom()->statbuf);
             }
             resolve(ev::status_ok());
+            return true;
         }, cancellation);
 }
 
@@ -923,7 +936,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir (std::string path, ct
 }
 
 manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path, ctoken cancellation) {
-    std::unique_ptr<manapi::ev::dirent_t, manapi::ev::impl_array_deleter<manapi::ev::dirent_t>> dirents (new manapi::ev::dirent_t[32]);
+    std::unique_ptr<manapi::ev::dirent_t, manapi::ev::impl_array_deleter<manapi::ev::dirent_t>> dirents (new manapi::ev::dirent_t[128]);
     std::vector<std::string> folders;
     std::vector<std::unique_ptr<uv_dir_s, ev::dir_deleter_t>> dirs;
     std::vector<std::string> paths;
@@ -951,14 +964,16 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path,
         }
 
         b->dirents = dirents.get();
-        b->nentries = 32;
+        b->nentries = 128;
 
         std::vector<std::string> files;
 
         while (true) {
-            auto res = co_await manapi::fs::async_readdir(b.get(), [&] (ev::dir_t *handle, std::size_t cnt) -> void {
+            std::size_t cnt;
+            auto res = co_await manapi::fs::async_readdir(b.get(), [&files, &folders, &paths, &err, &cnt] (ev::dir_t *handle, std::size_t cnt1) -> bool {
                 try {
-                    for (std::size_t i = 0; i < cnt; i++) {
+                    cnt = cnt1;
+                    for (std::size_t i = 0; i < cnt1; i++) {
                         std::string_view name = handle->dirents[i].name;
                         auto type = handle->dirents[i].type;
 
@@ -976,10 +991,11 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path,
                 catch (...) {
                     err = std::current_exception();
                 }
+                return true;
             }, cancellation.sub());
 
             if (!res)
-                co_return res.err();
+                co_return std::move(res);
 
             if (err)
                 std::rethrow_exception(std::move(err));
@@ -994,7 +1010,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_rmdir_all(std::string path,
                 files.pop_back();
             }
 
-            if (res.unwrap() != b->nentries) {
+            if (cnt != b->nentries) {
                 dirs.back() = nullptr;
 
                 break;
@@ -1037,18 +1053,19 @@ manapi::future<manapi::ev::status> manapi::fs::async_statfs (std::string path, s
         -> bool {
             return !w->statfs(path.data());
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
+        -> bool {
             cancel.disable();
 
             if (w->result()) {
                 resolve(ev::status_internal("async_statfs failed", static_cast<int>(w->result())));
-                return;
+                return true;
             }
 
             if (callback) {
                 callback(static_cast<ev::statfs_t*>(w->custom()->ptr));
             }
             resolve(ev::status_ok());
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1079,12 +1096,13 @@ manapi::future<manapi::ev::status> manapi::fs::async_access (std::string path, i
         -> bool {
             return !w->access(path.data(), mode);
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
+        -> bool {
             cancel.disable();
             if (w->result())
                 resolve(ev::status_internal("access failed", static_cast<int>(w->result())));
             else
                 resolve(ev::status_ok());
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1125,11 +1143,11 @@ manapi::future<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::
         -> bool {
             return !w->opendir(path.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status_or<std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>>>(w, resolve, cancel))
-                return;
+                return true;
             resolve(std::unique_ptr<manapi::ev::dir_t, manapi::ev::dir_deleter_t>(static_cast<ev::dir_t *> (w->custom()->ptr)));
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1140,11 +1158,11 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_readlink (s
         -> bool {
             return !w->readlink(path.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status_or<std::string>>(w, resolve, cancel))
-                return;
+                return true;
             resolve(std::string{static_cast<const char *> (w->custom()->ptr)});
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1155,12 +1173,12 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_realpath (s
         -> bool {
             return !w->realpath(path.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status_or<std::string>>(w, resolve, cancel)) {
-                return;
+                return true;
             }
             resolve(std::string{static_cast<const char *> (w->custom()->ptr)});
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1181,12 +1199,12 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_mkdtemp(std
         -> bool {
             return !w->mkdtemp(tpl.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<manapi::ev::status_or<std::string>>(w, resolve, cancel)) {
-                return;
+                return true;
             }
             resolve(std::string{w->custom()->path});
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1198,11 +1216,11 @@ manapi::future<manapi::ev::status_or<std::pair<std::string, manapi::ev::unique_f
         -> bool {
             return !w->mkstemp(tpl.data());
         }, +[](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<val>(w, resolve, cancel))
-                return;
+                return true;
             resolve(std::make_pair(std::string{w->custom()->path}, manapi::ev::unique_file (static_cast<ev::file>(w->custom()->result))));
+            return true;
         }, std::move(cancellation));
 }
 
@@ -1213,31 +1231,43 @@ manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_scandir (st
         -> bool {
             return !w->scandir(path.data(), flags);
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
+        -> bool {
             if (async_fs_operation_result_error<ev::status_or<std::size_t>>(w, resolve, cancel)) {
-                return;
+                return true;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
             callback(ptr, static_cast<std::size_t>(w->result()));
             resolve(static_cast<std::size_t>(w->result()));
+            return true;
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, ctoken cancellation) {
-    typedef manapi::async::promise_sync<ev::status_or<std::size_t>> promise_sync;
+manapi::future<manapi::ev::status> manapi::fs::async_readdir (ev::dir_t *dir, std::move_only_function<bool (ev::dir_t *, std::size_t)> callback, ctoken cancellation) {
+    typedef manapi::async::promise_sync<ev::status> promise_sync;
 
-    co_return co_await async_fs_operation<ev::status_or<std::size_t>>([dir] (std::shared_ptr<ev::fs> w)
+    co_return co_await async_fs_operation<ev::status>([dir] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->readdir(dir);
-        }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
-        -> void {
-            cancel.disable();
-            if (async_fs_operation_result_error<ev::status_or<std::size_t>>(w, resolve, cancel)) {
-                return;
+        }, [dir, callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise_sync::resolve_t &resolve, manapi::ctoken &cancel) mutable
+        -> bool {
+            auto const result = w->result();
+            if (result < 0) {
+                if (async_fs_operation_result_error<ev::status>(w, resolve, cancel)) {
+                    return true;
+                }
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
-            callback(ptr, static_cast<std::size_t>(w->result()));
-            resolve(static_cast<std::size_t>(w->result()));
+            if (callback(ptr, static_cast<std::size_t>(result)) || static_cast<std::size_t>(result) != dir->nentries) {
+                resolve(manapi::ev::status_ok());
+                return true;
+            }
+
+            auto rhs = w->readdir(dir);
+            if (rhs) {
+                resolve (manapi::ev::status_unknown("fs i/o readdir failed", rhs));
+                return true;
+            }
+
+            return false;
         }, std::move(cancellation));
 }

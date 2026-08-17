@@ -46,7 +46,7 @@ namespace manapi::ev {
 
     typedef std::move_only_function<void(const ev::shared_write &, int status)> write_cb;
 
-    typedef std::move_only_function<void(const ev::shared_fs &)> fs_cb;
+    typedef std::move_only_function<bool(const ev::shared_fs &)> fs_cb;
 
     typedef std::move_only_function<void(const ev::shared_random &w, int status, void *buff, std::size_t size)> random_cb;
 

@@ -9,6 +9,28 @@
 #include "./utest.h"
 #include "./tools.hpp"
 
+UTEST(fs_path, basename_1) {
+    std::string path = manapi::fs::path::join ("hello", "test", "no");
+    ASSERT_TRUE(manapi::fs::path::basename(path) == "no");
+}
+
+UTEST(fs_path, basename_2) {
+    std::string path = manapi::fs::path::join ("hello", "..", "test", "..", "no.ext");
+    ASSERT_TRUE(manapi::fs::path::basename(path) == "no.ext");
+}
+
+UTEST(fs_path, basename_3) {
+    std::string path = "hello";
+    ASSERT_TRUE(manapi::fs::path::basename(path) == "hello");
+    path = "hello.ext";
+    ASSERT_TRUE(manapi::fs::path::basename(path) == "hello.ext");
+}
+
+UTEST(fs_path, basename_4) {
+    std::string path = manapi::fs::path::join ("hello", "test", ".no");
+    ASSERT_TRUE(manapi::fs::path::basename(path) == ".no");
+}
+
 UTEST(fs_path, join_1) {
     std::string path = manapi::fs::path::join ("hello", "test", "no");
     std::string s{"hello"};

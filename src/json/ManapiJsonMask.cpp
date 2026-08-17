@@ -1026,7 +1026,7 @@ static manapi::json_error::status json_mask_valid (int flags, const manapi::json
             }
         }
         catch (std::exception const &e) {
-            manapi_log_trace2("manapi::json_mask", e.what());
+            manapi_log_trace2("manapihttp::json_mask", e.what());
             return  manapi::json_error::status_invalid_argument("json_mask: failed", 0, manapi::json_format_path2(paths));
         }
 

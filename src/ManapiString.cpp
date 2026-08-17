@@ -161,6 +161,7 @@ std::size_t manapi::string::count(char c, std::string_view str) MANAPIHTTP_NOEXC
 std::size_t manapi::string::replace(std::string &s, std::string_view from, std::string_view to, ssize_t cnt) {
     std::size_t res = 0;
     std::size_t shift;
+    std::size_t start = 0;
     bool flg;
 
     if (to.size() > from.size()) {
@@ -173,7 +174,7 @@ std::size_t manapi::string::replace(std::string &s, std::string_view from, std::
     }
 
     while (cnt != 0) {
-        auto it = s.find(from);
+        auto it = s.find(from, start);
         if (it == std::string::npos) {
             break;
         }
@@ -193,6 +194,8 @@ std::size_t manapi::string::replace(std::string &s, std::string_view from, std::
 
         res++;
         cnt--;
+
+        start = it + to.size();
     }
     return res;
 }

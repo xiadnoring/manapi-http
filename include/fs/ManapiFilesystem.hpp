@@ -129,7 +129,7 @@ namespace manapi::fs {
 
     future<ev::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, ctoken cancellation = nullptr);
 
-    future<ev::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, ctoken cancellation = nullptr);
+    future<ev::status> async_readdir (ev::dir_t *dir, std::move_only_function<bool (ev::dir_t *, std::size_t)> callback, ctoken cancellation = nullptr);
 }
 
 

@@ -562,6 +562,7 @@ ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, std::size_t nbuff,
 }
 
 int manapi::ev::fs::close(ev::file fileno, uv_fs_cb close_cb) MANAPIHTTP_NOEXCEPT {
+    manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", fileno);
     return uv_fs_close(this->loop_, &this->s_, fileno, close_cb);
 }
 
@@ -998,6 +999,10 @@ manapi::ev::status manapi::ev::status_internal(std::string_view msg, int syserr)
     return ev::status{ERR_INTERNAL, msg, syserr};
 }
 
+manapi::ev::status manapi::ev::status_unknown(std::string_view msg, int syserr) {
+    return ev::status (manapi::ERR_UNKNOWN, msg, syserr );
+}
+
 manapi::ev::status manapi::ev::status_not_found(std::string_view msg) {
     return ev::status{ERR_NOT_FOUND, msg, ev::ERR_NOENT};
 }
@@ -1051,6 +1056,7 @@ void manapi::ev::unique_file::reset() MANAPIHTTP_NOEXCEPT {
     if (this->m_fd.has_value()) {
         auto fd = this->release().unwrap();
         ::uv_fs_t req;
+        manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", fd);
         if (auto rhs = ::uv_fs_close(manapi::async::eventloop()->loop(), &req, fd, nullptr))
             manapi_log_error("%s failed due to %s", "uv_fs_close", ev::strerror(rhs));
         ::uv_fs_req_cleanup(&req);

@@ -37,7 +37,7 @@ static_assert(manapi::ev::READ == CURL_POLL_IN && manapi::ev::WRITE == CURL_POLL
     } }
 
 #define MANAPIHTTP_EV_CANCEL(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
-    if (w) { if (auto rhs = w->cancel()) { manapi_log_error ("%s failed due to %s", "cancel", ev::strerror (rhs)); } } \
+    if (w && w->data()) { if (auto rhs = w->cancel()) { manapi_log_error ("%s failed due to %s", "cancel", ev::strerror (rhs)); } } \
     }
 
 #define MANAPIHTTP_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
@@ -533,15 +533,24 @@ void manapi::ev::callback_watcher_fs(uv_fs_t *req) MANAPIHTTP_NOEXCEPT {
 
     if (req->data) {
         /* otherwise it was cancelled */
-        std::unique_ptr<manapi::ev::internal::fs_ctx> ss (static_cast<manapi::ev::internal::fs_ctx *> (req->data));
-        std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
-        req->data = nullptr;
+        bool finish = true;
+
 
         MANAPIHTTP_EV_TRY_CALLBACK
-        if (ss->cb)
-            ss->cb(ss->s_);
+        auto ss = static_cast<manapi::ev::internal::fs_ctx *> (req->data);
+        if (ss->cb) {
+            finish = ss->cb(ss->s_);
+        }
         MANAPIHTTP_EV_CATCH_CALLBACK("fs")
-        ss->token.disable();
+
+        if (finish) {
+            std::unique_ptr<manapi::ev::internal::fs_ctx> ss1 (static_cast<manapi::ev::internal::fs_ctx *> (req->data));
+            std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
+            req->data = nullptr;
+
+            ss1->token.disable();
+        }
+
     }
     else {
         std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);

@@ -17,6 +17,22 @@ UTEST(std_string, str_replace_1) {
     ASSERT_TRUE(1 == res);
 }
 
+UTEST(std_string, str_replace_dup) {
+    std::string a = "/path/to/file";
+    auto res = manapi::string::replace(a, "/", "/");
+
+    ASSERT_TRUE(a == "/path/to/file");
+    ASSERT_TRUE(3 == res);
+}
+
+UTEST(std_string, str_replace_dup2) {
+    std::string a = "/path/to/file";
+    auto res = manapi::string::replace(a, "/", "//");
+
+    ASSERT_TRUE(a == "//path//to//file");
+    ASSERT_TRUE(3 == res);
+}
+
 UTEST(std_string, str_replace_2) {
     std::string a = "Hello$2!Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world");

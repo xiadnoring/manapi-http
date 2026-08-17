@@ -1181,6 +1181,14 @@ namespace manapi::ev {
     ev::status status_internal (std::string_view msg, int syserr);
 
     /**
+     * Generate an UnknownError error
+     * @param msg the error msg
+     * @param syserr the system error code
+     * @return the generated error
+     */
+    ev::status status_unknown (std::string_view msg, int syserr);
+
+    /**
      * Generate an NotFound error
      * @param msg the error msg
      * @return the generated error
