@@ -1,8 +1,8 @@
 #include "ManapiFetch2.hpp"
 
 #include "http/ManapiHttpTypes.hpp"
-#include "std/ManapiAsyncParallelRun.hpp"
-#include "std/ManapiAsyncPromise.hpp"
+#include "std/ManapiParallelRun.hpp"
+#include "std/ManapiPromise.hpp"
 #include "std/ManapiScopePtr.hpp"
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT

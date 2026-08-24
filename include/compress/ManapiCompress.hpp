@@ -2,7 +2,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../std/ManapiSlice.hpp"
-#include "../std/ManapiAsyncContext.hpp"
+#include "../std/ManapiContext.hpp"
 #include "../std/ManapiCancellation.hpp"
 
 namespace manapi::compress {

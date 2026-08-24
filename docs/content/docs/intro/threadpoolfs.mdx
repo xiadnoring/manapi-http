@@ -9,7 +9,7 @@ Operating systems contain many blocking operations. To handle these efficiently,
 
 ### Initialize ThreadPoolFs
 ```cpp
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     /* Configures event loops to use 2 threads for blocking I/O system calls */
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
 
 #include <manapihttp/ManapiDebug.hpp>
 #include <manapihttp/ManapiEventLoop.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(2);

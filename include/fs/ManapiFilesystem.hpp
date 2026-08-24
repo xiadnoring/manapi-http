@@ -4,7 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
-#include "../std/ManapiAsyncContext.hpp"
+#include "../std/ManapiContext.hpp"
 #include "../ManapiAsync.hpp"
 #include "../std/ManapiCancellation.hpp"
 

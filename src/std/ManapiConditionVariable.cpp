@@ -1,5 +1,5 @@
-#include "std/ManapiAsyncConditionVariable.hpp"
-#include "std/ManapiAsyncMutex.hpp"
+#include "std/ManapiConditionVariable.hpp"
+#include "std/ManapiMutex.hpp"
 
 struct manapi::async::condition_variable::promise {
     std::function<bool()> cond;

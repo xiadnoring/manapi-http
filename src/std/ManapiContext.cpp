@@ -4,8 +4,8 @@
 #include "ManapiEventLoop.hpp"
 #include "ManapiTimerPool.hpp"
 #include "ManapiThreadPool.hpp"
-#include "std/ManapiAsyncLogger.hpp"
-#include "std/ManapiAsyncContext.hpp"
+#include "std/ManapiLogger.hpp"
+#include "std/ManapiContext.hpp"
 
 #include <thread>
 

@@ -1,4 +1,4 @@
-#include <std/ManapiAsyncTimer.hpp>
+#include <std/ManapiTimer.hpp>
 
 #include "ManapiInitTools.hpp"
 #include "ManapiProcess.hpp"

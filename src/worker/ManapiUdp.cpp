@@ -6,7 +6,7 @@
 #include "ManapiParams.hpp"
 #include "ManapiEventLoop.hpp"
 #include "worker/ManapiUdp.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "std/ManapiEasyCancellation.hpp"
 #include "../include/ManapiUtils.hpp"
 

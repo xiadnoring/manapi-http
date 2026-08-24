@@ -471,7 +471,7 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(manapi::e
 
                 auto zrhs = deflate(&stream, flush);
 
-                if (zrhs < 0) {
+                if (zrhs < 0 && zrhs != Z_BUF_ERROR) {
                     deflateEnd(&stream);
                     co_return manapi::status_unknown("deflate:failed");
                 }
@@ -543,7 +543,7 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(manapi:
                 stream.next_out = reinterpret_cast<Byte*>(outbuff);
                 result = inflate(&stream, flush);
 
-                if(result < 0) {
+                if(result < 0&& result != Z_BUF_ERROR) {
                     manapi_log_trace("deflate:failed");
                     goto err;
                 }
@@ -618,7 +618,7 @@ manapi::status_or<std::string> manapi::compress::deflate_decompress_string(std::
             stream.avail_out = CHUNK_SIZE;
             stream.next_out = reinterpret_cast<Byte*>(outbuff);
             result = inflate(&stream, flush);
-            if(result < 0) {
+            if(result < 0&& result != Z_BUF_ERROR) {
                 inflateEnd(&stream);
                 return status_internal("deflate:failed");
             }
@@ -663,7 +663,7 @@ manapi::status_or<std::string> manapi::compress::gzip_compress_string(std::strin
             stream.next_out     = reinterpret_cast<Byte*>(out_buff);
 
             auto zres = deflate(&stream, flush);
-            if (zres < 0) {
+            if (zres < 0 && zres != Z_BUF_ERROR) {
                 deflateEnd (&stream);
                 return manapi::status_unknown("gzip:failed");
             }
@@ -712,7 +712,7 @@ manapi::status_or<std::string> manapi::compress::gzip_decompress_string(std::str
             stream.avail_out = CHUNK_SIZE;
             stream.next_out = reinterpret_cast<Byte*>(outbuff);
             result = inflate(&stream, flush);
-            if(result < 0) {
+            if(result < 0&& result != Z_BUF_ERROR) {
                 inflateEnd(&stream);
                 return status_internal ("gzip:failed");
             }
@@ -770,7 +770,7 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(manapi::ev::
                 stream.next_out     = reinterpret_cast<Byte*>(out_buff);
 
                 auto zres = deflate(&stream, flush); assert(CHUNK_SIZE >= stream.avail_out);
-                if (zres < 0) {
+                if (zres < 0 && zres != Z_BUF_ERROR) {
                     goto err;
                 }
 
@@ -836,7 +836,7 @@ manapi::future<manapi::status> manapi::compress::gzip_decompress_file(manapi::ev
                 stream.avail_out = CHUNK_SIZE;
                 stream.next_out = reinterpret_cast<Byte*>(outbuff);
                 result = inflate(&stream, flush);
-                if(result < 0) {
+                if(result < 0&& result != Z_BUF_ERROR) {
                     goto err;
                 }
 
@@ -935,7 +935,7 @@ skip:
 
             auto rhs = deflate(&this->m_data->stream, flush);
 
-            if (rhs < 0) {
+            if (rhs < 0 && rhs != Z_BUF_ERROR) {
                 return manapi::status_unknown("deflate_compress:failed");
             }
 
@@ -1025,7 +1025,7 @@ skip:
 
             auto rhs = inflate(&this->m_data->stream, flush);
 
-            if (rhs < 0) {
+            if (rhs < 0&& rhs != Z_BUF_ERROR) {
                 return manapi::status_unknown("deflate_decompress:failed");
             }
 

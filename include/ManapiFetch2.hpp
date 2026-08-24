@@ -4,7 +4,7 @@
 #include "./ManapiFetch.hpp"
 #include "./json/ManapiJsonBuilder.hpp"
 #include "./http/ManapiFileTransferInfo.hpp"
-#include "./std/ManapiAsyncTimer.hpp"
+#include "./std/ManapiTimer.hpp"
 #include "./std/ManapiCancellation.hpp"
 #include "./http/ManapiFileTransferInfo.hpp"
 

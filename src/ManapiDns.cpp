@@ -1,6 +1,6 @@
 #include "ManapiDns.hpp"
 #include "ManapiEventLoop.hpp"
-#include "std/ManapiAsyncPromise.hpp"
+#include "std/ManapiPromise.hpp"
 
 manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, ctoken token) {
     try {

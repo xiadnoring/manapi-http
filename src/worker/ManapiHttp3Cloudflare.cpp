@@ -11,7 +11,7 @@
 #include "ManapiTimerPool.hpp"
 #include "http/ManapiHttpResponse.hpp"
 #include "http/ManapiURLDecodeStream.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiString.hpp"
 #include "ManapiVersions.hpp"

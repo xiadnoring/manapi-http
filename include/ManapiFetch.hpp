@@ -12,7 +12,7 @@
 
 # include "./json/ManapiJson.hpp"
 # include "./http/ManapiHttpRequest.hpp"
-# include "./std/ManapiAsyncParallelRun.hpp"
+# include "./std/ManapiParallelRun.hpp"
 # include "./http/ManapiFileTransferInfo.hpp"
 # include "./std/ManapiCancellation.hpp"
 

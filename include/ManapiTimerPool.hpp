@@ -7,8 +7,8 @@
 
 #include "./ManapiUtils.hpp"
 #include "./ManapiAsync.hpp"
-#include "./std/ManapiAsyncMutex.hpp"
-#include "./std/ManapiAsyncConditionVariable.hpp"
+#include "./std/ManapiMutex.hpp"
+#include "./std/ManapiConditionVariable.hpp"
 #include "./ManapiTimerObject.hpp"
 #include "./ManapiErrors.hpp"
 #include "./ManapiEventStructures.hpp"

@@ -10,7 +10,7 @@
 #include "./ManapiTime.hpp"
 #include "./std/ManapiFunction.hpp"
 #include "./std/ManapiChain.hpp"
-#include "./std/ManapiAsyncLogger.hpp"
+#include "./std/ManapiLogger.hpp"
 
 namespace manapi {
     enum task_types {

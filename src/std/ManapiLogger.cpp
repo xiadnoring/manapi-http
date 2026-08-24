@@ -4,9 +4,9 @@
 #include <cstring>
 
 #include "ManapiTime.hpp"
-#include "std/ManapiAsyncLogger.hpp"
-#include "std/ManapiAsyncContext.hpp"
-#include "std/ManapiAsyncThreadsMutex.hpp"
+#include "std/ManapiLogger.hpp"
+#include "std/ManapiContext.hpp"
+#include "std/ManapiThreadsMutex.hpp"
 
 const char debug_label[] = "DEBUG";
 const char warning_label[] = "WARNING";

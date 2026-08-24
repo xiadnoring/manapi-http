@@ -670,10 +670,10 @@ set(MANAPIHTTP_HTTP_FILES
         include/http/ManapiFormData.hpp
         src/ManapiAsync.cpp
         include/ManapiAsync.hpp
-        include/std/ManapiAsyncMutex.hpp
-        include/std/ManapiAsyncConditionVariable.hpp
+        include/std/ManapiMutex.hpp
+        include/std/ManapiConditionVariable.hpp
         include/std/ManapiChain.hpp
-        include/std/ManapiAsyncTimer.hpp
+        include/std/ManapiTimer.hpp
         include/crypto/ManapiAEAD.hpp
         include/crypto/ManapiHKDF.hpp
         include/crypto/ManapiCryptoUtils.hpp
@@ -683,7 +683,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiInitTools.hpp
         include/worker/ManapiHttp3Cloudflare.hpp
         src/worker/ManapiHttp3Cloudflare.cpp
-        include/std/ManapiAsyncPromise.hpp
+        include/std/ManapiPromise.hpp
         include/encoding/ManapiURL.hpp
         include/ManapiErrors.hpp
         src/ManapiErrors.cpp
@@ -699,14 +699,14 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiWolfSslOverTcp.cpp
         include/ManapiEventLoop.hpp
         src/ManapiEventLoop.cpp
-        include/std/ManapiAsyncContext.hpp
-        src/std/ManapiAsyncContext.cpp
-        src/std/ManapiAsyncMutex.cpp
-        src/std/ManapiAsyncConditionVariable.cpp
+        include/std/ManapiContext.hpp
+        src/std/ManapiContext.cpp
+        src/std/ManapiMutex.cpp
+        src/std/ManapiConditionVariable.cpp
         include/fs/ManapiFileStream.hpp
         src/fs/ManapiFileStream.cpp
         include/ext/pq/AsyncPostgreClient.hpp
-        include/std/ManapiAsyncSocket.hpp
+        include/std/ManapiSocket.hpp
         include/ext/pq/AsyncPostgreResult.hpp
         include/ext/pq/AsyncPostgreRow.hpp
         include/ext/pq/AsyncPostgreField.hpp
@@ -715,7 +715,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/pq/AsyncPostgreNotification.hpp
         include/ext/pq/AsyncPostgrePool.hpp
         include/ext/pq/AsyncPostgreImpl.ipp
-        include/std/ManapiAsyncParallelRun.hpp
+        include/std/ManapiParallelRun.hpp
         include/ManapiFetch2.hpp
         include/ManapiTimerObject.hpp
         src/ManapiTimerObject.cpp
@@ -724,7 +724,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiMemoryPool.hpp
         src/ManapiInitTools.cpp
         include/http/ManapiFileTransferInfo.hpp
-        src/std/ManapiAsyncSocket.cpp
+        src/std/ManapiSocket.cpp
         include/std/ManapiCancellation.hpp
         src/std/ManapiCancellation.cpp
         include/http/ManapiURLDecodeStream.hpp
@@ -736,8 +736,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiVersions.hpp
         src/worker/ManapiTlsOverTcp.cpp
         include/worker/ManapiTlsOverTcp.hpp
-        src/std/ManapiAsyncLogger.cpp
-        include/std/ManapiAsyncLogger.hpp
+        src/std/ManapiLogger.cpp
+        include/std/ManapiLogger.hpp
         include/ManapiEventStructures.hpp
         src/ManapiEventStructures.cpp
         src/include/ManapiWindows.hpp
@@ -748,8 +748,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiProcess.cpp
         include/http/ManapiHttpCtx.hpp
         src/http/ManapiHttpCtx.cpp
-        include/std/ManapiAsyncThreadsMutex.hpp
-        src/std/ManapiAsyncThreadsMutex.cpp
+        include/std/ManapiThreadsMutex.hpp
+        src/std/ManapiThreadsMutex.cpp
         include/std/ManapiEasyCancellation.hpp
         src/std/ManapiEasyCancellation.cpp
         src/ManapiMemoryPool.cpp

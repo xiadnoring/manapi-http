@@ -12,7 +12,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
-#include "../std/ManapiAsyncConditionVariable.hpp"
+#include "../std/ManapiConditionVariable.hpp"
 #include "../utils/ManapiConfig.hpp"
 
 #ifdef _WIN32

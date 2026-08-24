@@ -4,7 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "./ManapiAsyncContext.hpp"
+#include "./ManapiContext.hpp"
 #include "../ManapiThreadPool.hpp"
 
 namespace manapi::async::internal {

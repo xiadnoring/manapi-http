@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-#include "./ManapiAsyncMutex.hpp"
-#include "./ManapiAsyncContext.hpp"
+#include "./ManapiMutex.hpp"
+#include "./ManapiContext.hpp"
 
 namespace manapi::async {
     template<typename T = void>

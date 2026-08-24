@@ -12,7 +12,7 @@
 #include "http/ManapiHttpResponse.hpp"
 #include "fs/ManapiFilesystem.hpp"
 #include "fs/ManapiFileStream.hpp"
-#include "std/ManapiAsyncParallelRun.hpp"
+#include "std/ManapiParallelRun.hpp"
 #include "std/ManapiEasyCancellation.hpp"
 #include "ext/ManapiMustache.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
@@ -20,7 +20,7 @@
 #include "../include/ManapiHttpInternal.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "../include/ManapiHttpStructs.hpp"
-#include "std/ManapiAsyncTimer.hpp"
+#include "std/ManapiTimer.hpp"
 #include "std/ManapiChannel.hpp"
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT

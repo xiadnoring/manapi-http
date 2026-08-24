@@ -21,7 +21,7 @@
 #include "http/ManapiBaseHttp.hpp"
 #include "http/ManapiHttpRequest.hpp"
 #include "http/ManapiHttpResponse.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "../include/http/ManapiHttp2.hpp"
 #include "../include/ManapiUtils.hpp"

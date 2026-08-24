@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./std/ManapiAsyncContext.hpp"
+#include "./std/ManapiContext.hpp"
 #include "./std/ManapiCancellation.hpp"
 
 namespace manapi::dns {

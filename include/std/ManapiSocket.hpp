@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-#include "./ManapiAsyncContext.hpp"
+#include "./ManapiContext.hpp"
 #include "./ManapiCancellation.hpp"
 
 namespace manapi::async {

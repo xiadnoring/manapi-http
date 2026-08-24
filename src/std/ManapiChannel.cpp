@@ -1,5 +1,5 @@
 #include "std/ManapiChannel.hpp"
-#include "std/ManapiAsyncPromise.hpp"
+#include "std/ManapiPromise.hpp"
 
 enum channel__flags {
     CHANNEL__FLAG_RECV_FINISHED = 1<<0,

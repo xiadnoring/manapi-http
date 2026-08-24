@@ -1,7 +1,7 @@
 #include "ManapiParams.hpp"
 #include "ManapiInitTools.hpp"
 #include "ManapiTimerPool.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "worker/ManapiOpenSslOverTcp.hpp"
 #include "../include/ManapiUtils.hpp"

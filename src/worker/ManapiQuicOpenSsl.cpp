@@ -9,7 +9,7 @@
 #include "ManapiDns.hpp"
 #include "http/ManapiHttpUtils.hpp"
 #include "worker/ManapiBaseUtils.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "std/ManapiEasyCancellation.hpp"
 #include "../include/worker/ManapiQuicOpenSsl.hpp"
 

@@ -1,7 +1,7 @@
 #include <fcntl.h>
 
 #include "ManapiEventLoop.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #if defined(__unix__)||defined(__APPLE__)

@@ -5,8 +5,8 @@
 #include <memory>
 #include <functional>
 
-#include "../std/ManapiAsyncContext.hpp"
-#include "../std/ManapiAsyncThreadsMutex.hpp"
+#include "../std/ManapiContext.hpp"
+#include "../std/ManapiThreadsMutex.hpp"
 #include "../std/ManapiBeforeDelete.hpp"
 #include "../json/ManapiJson.hpp"
 

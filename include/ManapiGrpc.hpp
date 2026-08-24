@@ -8,7 +8,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include "./utils/ManapiConfig.hpp"
-#include "./std/ManapiAsyncContext.hpp"
+#include "./std/ManapiContext.hpp"
 #include "./utils/ManapiMultithreadStorage.hpp"
 
 

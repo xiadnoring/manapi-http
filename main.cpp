@@ -20,7 +20,7 @@
 #include "ManapiMath.hpp"
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
-#include "std/ManapiAsyncTimer.hpp"
+#include "std/ManapiTimer.hpp"
 #include "std/ManapiEasyCancellation.hpp"
 #include "ext/ManapiMustache.hpp"
 

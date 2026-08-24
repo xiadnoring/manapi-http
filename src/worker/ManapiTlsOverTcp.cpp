@@ -14,7 +14,7 @@
 #include "ManapiTimerPool.hpp"
 #include "ManapiEventLoop.hpp"
 #include "ManapiInitTools.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "worker/ManapiTlsOverTcp.hpp"
 
 #include "worker/ManapiBaseUtils.hpp"

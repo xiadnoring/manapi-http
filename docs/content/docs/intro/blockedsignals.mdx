@@ -7,7 +7,7 @@ In networking, errors can sometimes generate special signals that need to be han
 
 ```cpp
 #include <manapihttp/ManapiEventLoop.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     auto blockedsignals = manapi::async::context::blockedsignals();
@@ -28,7 +28,7 @@ For most use cases, the default configuration is sufficient:
 
 ```cpp
 #include <manapihttp/ManapiEventLoop.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::gbs(manapi::async::context::blockedsignals());

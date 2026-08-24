@@ -9,8 +9,8 @@
 #include "ManapiThreadPool.hpp"
 #include "ManapiTimerPool.hpp"
 
-#include "std/ManapiAsyncSocket.hpp"
-#include "std/ManapiAsyncThreadsMutex.hpp"
+#include "std/ManapiSocket.hpp"
+#include "std/ManapiThreadsMutex.hpp"
 #include "./include/ManapiUtils.hpp"
 #include "./include/ManapiEventStructuresInternal.hpp"
 #include "./include/ManapiDefaultErrors.hpp"

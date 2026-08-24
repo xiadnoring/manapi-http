@@ -16,7 +16,7 @@ The context that executes the ```manapi::async::context::run``` method can creat
 #include <thread>
 
 #include <manapihttp/ManapiEventLoop.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(4);
@@ -51,7 +51,7 @@ DEBUG main.cpp:12: Async Context #4 has started. threadid=17555092437611076153
 ```cpp
 #include <manapihttp/ManapiEventLoop.hpp>
 #include <manapihttp/ManapiThreadPool.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(4);
@@ -90,7 +90,7 @@ TimerPool manages timeouts and intervals. Each timer has a priority level:
 #include <manapihttp/ManapiEventLoop.hpp>
 #include <manapihttp/ManapiTimerPool.hpp>
 #include <manapihttp/ManapiThreadPool.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(4);
@@ -119,7 +119,7 @@ This code will print ```5000ms timeout reached``` and then terminate.
 #include <manapihttp/ManapiEventLoop.hpp>
 #include <manapihttp/ManapiTimerPool.hpp>
 #include <manapihttp/ManapiThreadPool.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(4);
@@ -223,7 +223,7 @@ To execute ```manapi::future<>``` tasks, use the ```manapi::async::run``` method
 #include <manapihttp/ManapiTimerPool.hpp>
 #include <manapihttp/ManapiFetch2.hpp>
 #include <manapihttp/ManapiThreadPool.hpp>
-#include <manapihttp/std/ManapiAsyncContext.hpp>
+#include <manapihttp/std/ManapiContext.hpp>
 
 int main(int argc, char *argv[]) {
     manapi::async::context::threadpoolfs(4);

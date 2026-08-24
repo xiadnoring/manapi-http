@@ -7,7 +7,7 @@
 
 #include "ManapiString.hpp"
 #include "ManapiEventLoop.hpp"
-#include "std/ManapiAsyncPromise.hpp"
+#include "std/ManapiPromise.hpp"
 #include "std/ManapiCancellation.hpp"
 #include "fs/ManapiFilesystem.hpp"
 #include "std/ManapiBeforeDelete.hpp"

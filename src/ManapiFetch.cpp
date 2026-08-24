@@ -9,7 +9,7 @@
 
 #   include "ManapiHttp.hpp"
 #   include "ManapiString.hpp"
-#   include "std/ManapiAsyncPromise.hpp"
+#   include "std/ManapiPromise.hpp"
 #   include "./include/ManapiUtils.hpp"
 
 #   define MANAPIHTTP_CURL_VERSION_REQUIRE(major, minor, patch) MANAPIHTTP_SINCE_AT_CUSTOM(LIBCURL_VERSION_MAJOR,LIBCURL_VERSION_MINOR,LIBCURL_VERSION_PATCH, major, minor, patch)

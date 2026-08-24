@@ -12,7 +12,7 @@
 #include <regex>
 
 #include "ManapiHttp.hpp"
-#include "std/ManapiAsyncPromise.hpp"
+#include "std/ManapiPromise.hpp"
 #include "fs/ManapiFilesystem.hpp"
 #include "./include/ManapiHttpInternal.hpp"
 #include "./include/ManapiUtils.hpp"

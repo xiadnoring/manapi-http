@@ -2,10 +2,10 @@
 
 
 #include "../../ManapiUtils.hpp"
-#include "../../std/ManapiAsyncContext.hpp"
-#include "../../std/ManapiAsyncSocket.hpp"
+#include "../../std/ManapiContext.hpp"
+#include "../../std/ManapiSocket.hpp"
 #include "../../std/ManapiEasyCancellation.hpp"
-#include "../../std/ManapiAsyncMutex.hpp"
+#include "../../std/ManapiMutex.hpp"
 #include "../../json/ManapiJson.hpp"
 
 #include "./AsyncPostgreResult.hpp"

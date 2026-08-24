@@ -31,7 +31,7 @@ static_assert(false, "WolfSSL must be built with --enable-all and --enable-opens
 #include "ManapiString.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiInitTools.hpp"
-#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiSocket.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/worker/ManapiBaseUtils.hpp"
 

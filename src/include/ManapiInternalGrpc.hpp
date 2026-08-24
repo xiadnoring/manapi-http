@@ -13,7 +13,7 @@
 #include <grpcpp/grpcpp.h>
 // #include <grpcpp/version_info.h>
 
-#include "std/ManapiAsyncContext.hpp"
+#include "std/ManapiContext.hpp"
 
 #define MANAPIHTTP_GRPC_SINCE_AT(major, minor, patch) MANAPIHTTP_SINCE_AT_CUSTOM(GRPC_CPP_VERSION_MAJOR, GRPC_CPP_VERSION_MINOR, GRPC_CPP_VERSION_PATCH, major, minor, patch)
 
