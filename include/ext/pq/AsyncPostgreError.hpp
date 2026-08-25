@@ -53,6 +53,8 @@ namespace manapi::ext::pq {
 
         ~status () override;
 
+        status (manapi::err_num code, std::string_view msg);
+
         status (manapi::err_num code, std::string_view msg, std::size_t sqlcode, std::string sqlmsg);
 
         status (manapi::err_num code, std::string msg, std::size_t sqlcode, std::string sqlmsg);

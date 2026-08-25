@@ -71,19 +71,32 @@ void manapi::string::random(char *dst, size_t len, std::string_view src) MANAPIH
     }
 }
 
-std::vector<std::string_view> manapi::string::split(std::string_view s, char c) {
+std::vector<std::string_view> manapi::string::split(std::string_view s, std::string_view c, ssize_t cnt) {
     std::vector<std::string_view> n;
 
-    std::size_t j = 0;
-    for (std::size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == c) {
-            n.emplace_back(s.data() + j, s.data() + i);
-            j = i + 1;
+    if (c.empty()) {
+        n.resize(s.size());
+        for (std::size_t i = 0; i < s.size(); i++) {
+            n[i] = std::string_view (&s[i], 1);
         }
     }
+    else {
 
-    if (s.size())
-        n.emplace_back(s.data() + j, s.data() + s.size());
+        while (!s.empty() && !!cnt) {
+            std::size_t j = s.find(c);
+
+            if (j == std::string::npos) {
+                break;
+            }
+
+            n.emplace_back(s.data(), j);
+
+            s = s.substr(j + c.size());
+            cnt--;
+        }
+
+        n.emplace_back(s);
+    }
 
     return std::move(n);
 }

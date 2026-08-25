@@ -979,38 +979,6 @@ std::string_view manapi::ev::status::sysmsg() const {
     return ev::strerror(this->m_syserr);
 }
 
-manapi::ev::status manapi::ev::status_invalid_argument(std::string_view msg, int syserr) {
-    return ev::status{ERR_INVALID_ARGUMENT, msg, syserr};
-}
-
-manapi::ev::status manapi::ev::status_resource_exhausted() {
-    return ev::status{ERR_RESOURCE_EXHAUSTED, "bad alloc", ev::ERR_NOMEM};
-}
-
-manapi::ev::status manapi::ev::status_cancelled() {
-    return ev::status_cancelled("cancelled");
-}
-
-manapi::ev::status manapi::ev::status_cancelled(std::string_view msg) {
-    return ev::status{ERR_CANCELLED, msg, ev::ERR_CANCELED};
-}
-
-manapi::ev::status manapi::ev::status_internal(std::string_view msg, int syserr) {
-    return ev::status{ERR_INTERNAL, msg, syserr};
-}
-
-manapi::ev::status manapi::ev::status_unknown(std::string_view msg, int syserr) {
-    return ev::status (manapi::ERR_UNKNOWN, msg, syserr );
-}
-
-manapi::ev::status manapi::ev::status_not_found(std::string_view msg) {
-    return ev::status{ERR_NOT_FOUND, msg, ev::ERR_NOENT};
-}
-
-manapi::ev::status manapi::ev::status_ok() {
-    return ev::status{ERR_OK, "OK", 0};
-}
-
 manapi::ev::unique_file::unique_file() {
 }
 

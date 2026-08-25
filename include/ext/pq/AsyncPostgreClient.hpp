@@ -42,11 +42,11 @@ namespace manapi::ext::pq {
 
         manapi::future<manapi::ev::status> connect (std::string_view uri, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (std::string host, std::string port, std::string username, std::string password, std::string database, manapi::ctoken token = nullptr);
+        manapi::future<manapi::ev::status> connect (std::string host, std::string port, std::string username, std::string password, std::string database, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (manapi::json params, manapi::ctoken token = nullptr);
+        manapi::future<manapi::ev::status> connect (manapi::json params, manapi::ctoken token = nullptr);
 
-        manapi::future<manapi::status> connect (const char * const *keywords, const char * const *values, manapi::ctoken token = nullptr);
+        manapi::future<manapi::ev::status> connect (const char * const *keywords, const char * const *values, manapi::ctoken token = nullptr);
 
         manapi::future<pq::status_or<pq::result>> pexec (const char *command, std::size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths, const int *paramFormats, int resultFormat, manapi::ctoken token = nullptr);
 

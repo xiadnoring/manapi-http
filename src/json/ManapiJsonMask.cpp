@@ -104,18 +104,6 @@ std::size_t manapi::json_error::status::pos() const {
     return this->m_pos;
 }
 
-manapi::json_error::status manapi::json_error::status_invalid_argument(std::string_view msg, std::size_t pos, std::string path) {
-    return {ERR_INVALID_ARGUMENT, msg, pos, std::move(path)};
-}
-
-manapi::json_error::status manapi::json_error::status_invalid_argument(std::string_view msg, std::string data, std::size_t pos, std::string path) {
-    return {ERR_INVALID_ARGUMENT, msg, std::move(data), pos, std::move(path)};
-}
-
-manapi::json_error::status manapi::json_error::status_ok() {
-    return {ERR_OK, "OK", {}, {}};
-}
-
 static std::unique_ptr<manapi::json_mask_object_t> json_mask_initial_resolve_data(manapi::json obj) {
     auto zres = std::make_unique<manapi::json_mask_object_t>();
 

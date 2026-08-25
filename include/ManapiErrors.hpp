@@ -397,133 +397,30 @@ namespace manapi {
         E err_;
     };
 
-    status status_ok ();
+#define MANAPI__STATUS_GEN(label, code) \
+    inline status status_ ## label () { return manapi::status (manapi::ERR_ ## code, #label); } \
+    inline status status_ ## label (std::string_view msg) { return manapi::status (manapi::ERR_ ## code, msg); } \
+    inline status status_ ## label (std::string &&msg) { return manapi::status (manapi::ERR_ ## code, std::forward<decltype(msg)> (msg)); } \
+    inline status status_ ## label (const char * msg) { return manapi::status (manapi::ERR_ ## code, std::string_view (msg)); }
 
-    status status_unknown ();
+    MANAPI__STATUS_GEN (ok, OK);
+    MANAPI__STATUS_GEN (unknown, UNKNOWN);
+    MANAPI__STATUS_GEN (cancelled, CANCELLED);
+    MANAPI__STATUS_GEN (invalid_argument, INVALID_ARGUMENT);
+    MANAPI__STATUS_GEN (deadline_exceeded, DEADLINE_EXCEEDED);
+    MANAPI__STATUS_GEN (not_found, NOT_FOUND);
+    MANAPI__STATUS_GEN (already_exists, ALREADY_EXISTS);
+    MANAPI__STATUS_GEN (permission_denied, PERMISSION_DENIED);
+    MANAPI__STATUS_GEN (resource_exhausted, RESOURCE_EXHAUSTED);
+    MANAPI__STATUS_GEN (failed_precondition, FAILED_PRECONDITION);
+    MANAPI__STATUS_GEN (aborted, ABORTED);
+    MANAPI__STATUS_GEN (unavailable, UNAVAILABLE);
+    MANAPI__STATUS_GEN (out_of_range, OUT_OF_RANGE);
+    MANAPI__STATUS_GEN (unimplemented, UNIMPLEMENTED);
+    MANAPI__STATUS_GEN (internal, INTERNAL);
+    MANAPI__STATUS_GEN (data_loss, DATA_LOSS);
 
-    status status_cancelled ();
-
-    status status_invalid_argument ();
-
-    status status_deadline_exceeded ();
-
-    status status_not_found ();
-
-    status status_already_exists ();
-
-    status status_permission_denied ();
-
-    status status_resource_exhausted ();
-
-    status status_failed_precondition ();
-
-    status status_aborted ();
-
-    status status_unavailable ();
-
-    status status_out_of_range ();
-
-    status status_unimplemented ();
-
-    status status_internal ();
-
-    status status_data_loss ();
-
-    status status_data_loss (std::string msg);
-
-    status status_unknown (std::string msg);
-
-    status status_cancelled (std::string msg);
-
-    status status_invalid_argument (std::string msg);
-
-    status status_deadline_exceeded (std::string msg);
-
-    status status_not_found (std::string msg);
-
-    status status_already_exists (std::string msg);
-
-    status status_permission_denied (std::string msg);
-
-    status status_unauthenticated (std::string msg);
-
-    status status_resource_exhausted (std::string msg);
-
-    status status_failed_precondition (std::string msg);
-
-    status status_aborted (std::string msg);
-
-    status status_unavailable (std::string msg);
-
-    status status_out_of_range (std::string msg);
-
-    status status_unimplemented (std::string msg);
-
-    status status_internal (std::string msg);
-
-    status status_data_loss (const char * msg);
-
-    status status_unknown (const char * msg);
-
-    status status_cancelled (const char * msg);
-
-    status status_invalid_argument (const char * msg);
-
-    status status_deadline_exceeded (const char * msg);
-
-    status status_not_found (const char * msg);
-
-    status status_already_exists (const char * msg);
-
-    status status_permission_denied (const char * msg);
-
-    status status_unauthenticated (const char * msg);
-
-    status status_resource_exhausted (const char * msg);
-
-    status status_failed_precondition (const char * msg);
-
-    status status_aborted (const char * msg);
-
-    status status_unavailable (const char * msg);
-
-    status status_out_of_range (const char * msg);
-
-    status status_unimplemented (const char * msg);
-
-    status status_internal (const char * msg);
-
-    status status_data_loss (std::string_view msg);
-
-    status status_unknown (std::string_view msg);
-
-    status status_cancelled (std::string_view msg);
-
-    status status_invalid_argument (std::string_view msg);
-
-    status status_deadline_exceeded (std::string_view msg);
-
-    status status_not_found (std::string_view msg);
-
-    status status_already_exists (std::string_view msg);
-
-    status status_permission_denied (std::string_view msg);
-
-    status status_unauthenticated (std::string_view msg);
-
-    status status_resource_exhausted (std::string_view msg);
-
-    status status_failed_precondition (std::string_view msg);
-
-    status status_aborted (std::string_view msg);
-
-    status status_unavailable (std::string_view msg);
-
-    status status_out_of_range (std::string_view msg);
-
-    status status_unimplemented (std::string_view msg);
-
-    status status_internal (std::string_view msg);
+#undef MANAPI__STATUS_GEN
 
     template<typename T>
     auto unwrap (T &&status) {

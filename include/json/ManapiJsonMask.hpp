@@ -74,11 +74,33 @@ namespace manapi {
             }
         };
 
-        json_error::status status_invalid_argument (std::string_view msg, std::size_t pos, std::string path);
 
-        json_error::status status_invalid_argument (std::string_view msg, std::string data, std::size_t pos, std::string path);
+#define MANAPI__JSON_STATUS_GEN(label, code) \
+    inline status status_ ## label (std::string &&data, std::size_t pos, std::string &&path) { return manapi::json_error::status (manapi::ERR_ ## code, #label, std::forward<decltype(path)>(data), pos, std::forward<decltype(path)>(path)); } \
+    inline status status_ ## label (std::string &&data, std::string_view msg, std::size_t pos, std::string &&path) { return manapi::json_error::status (manapi::ERR_ ## code, msg, std::forward<decltype(path)>(data), pos, std::forward<decltype(path)>(path)); } \
+    inline status status_ ## label (std::string &&data, std::string &&msg, std::size_t pos, std::string &&path) { return manapi::json_error::status (manapi::ERR_ ## code, std::forward<decltype(msg)> (msg), std::forward<decltype(path)>(data), pos, std::forward<decltype(path)>(path)); } \
+    inline status status_ ## label (std::string &&data, const char * msg, std::size_t pos, std::string &&path) { return manapi::json_error::status (manapi::ERR_ ## code, std::string_view (msg), std::forward<decltype(path)>(data), pos, std::forward<decltype(path)>(path)); }
 
-        json_error::status status_ok ();
+    MANAPI__JSON_STATUS_GEN (ok, OK);
+    MANAPI__JSON_STATUS_GEN (unknown, UNKNOWN);
+    MANAPI__JSON_STATUS_GEN (cancelled, CANCELLED);
+    MANAPI__JSON_STATUS_GEN (invalid_argument, INVALID_ARGUMENT);
+    MANAPI__JSON_STATUS_GEN (deadline_exceeded, DEADLINE_EXCEEDED);
+    MANAPI__JSON_STATUS_GEN (not_found, NOT_FOUND);
+    MANAPI__JSON_STATUS_GEN (already_exists, ALREADY_EXISTS);
+    MANAPI__JSON_STATUS_GEN (permission_denied, PERMISSION_DENIED);
+    MANAPI__JSON_STATUS_GEN (resource_exhausted, RESOURCE_EXHAUSTED);
+    MANAPI__JSON_STATUS_GEN (failed_precondition, FAILED_PRECONDITION);
+    MANAPI__JSON_STATUS_GEN (aborted, ABORTED);
+    MANAPI__JSON_STATUS_GEN (unavailable, UNAVAILABLE);
+    MANAPI__JSON_STATUS_GEN (out_of_range, OUT_OF_RANGE);
+    MANAPI__JSON_STATUS_GEN (unimplemented, UNIMPLEMENTED);
+    MANAPI__JSON_STATUS_GEN (internal, INTERNAL);
+    MANAPI__JSON_STATUS_GEN (data_loss, DATA_LOSS);
+
+#undef MANAPI__JSON_STATUS_GEN
+
+        inline json_error::status status_ok () { return manapi::json_error::status (manapi::ERR_OK, "ok", 0, std::string{}); }
     }
 
     class json_mask {

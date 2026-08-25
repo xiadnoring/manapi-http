@@ -9,6 +9,34 @@
 #include "./utest.h"
 #include "tools.hpp"
 
+UTEST(std_string, str_split_1) {
+    std::string c = "hello12world12two1";
+    auto z = manapi::string::split (c, "12");
+    ASSERT_TRUE( z.size() == 3 );
+    ASSERT_TRUE( z[0] == "hello" && z[1] == "world" && z[2] == "two1");
+}
+
+UTEST(std_string, str_split_2) {
+    std::string c = "test1test2test3test4";
+    auto z = manapi::string::split (c, "test", 2);
+    ASSERT_TRUE( z.size() == 3 );
+    ASSERT_TRUE( z[0] == "" && z[1] == "1" && z[2] == "2test3test4");
+}
+
+UTEST(std_string, str_split_3) {
+    std::string c = "test1test2test3test4";
+    auto z = manapi::string::split (c, '1');
+    ASSERT_TRUE( z.size() == 2 );
+    ASSERT_TRUE( z[0] == "test" && z[1] == "test2test3test4");
+}
+
+UTEST(std_string, str_split_4) {
+    std::string c = "hello";
+    auto z = manapi::string::split (c, "");
+    ASSERT_TRUE( z.size() == c.size() );
+    ASSERT_TRUE( z[0] == "h" && z[1] == "e" && z[4] == "o");
+}
+
 UTEST(std_string, str_replace_1) {
     std::string a = "Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world");

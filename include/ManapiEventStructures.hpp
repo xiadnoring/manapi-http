@@ -1145,61 +1145,30 @@ namespace manapi::ev {
         }
     };
 
-    /**
-     * Generate an InvalidArgument error
-     * @param msg the error msg
-     * @param syserr the system error code
-     * @return the generated error
-     */
-    ev::status status_invalid_argument (std::string_view msg, int syserr);
+#define MANAPI__EV_STATUS_GEN(label, code, sys_code) \
+    inline status status_ ## label (int sys_err = (sys_code)) { return manapi::ev::status (manapi::ERR_ ## code, #label, sys_err); } \
+    inline status status_ ## label (std::string_view msg, int sys_err = (sys_code)) { return manapi::ev::status (manapi::ERR_ ## code, msg, sys_err); } \
+    inline status status_ ## label (std::string &&msg, int sys_err = (sys_code)) { return manapi::ev::status (manapi::ERR_ ## code, std::forward<decltype(msg)> (msg), sys_err); } \
+    inline status status_ ## label (const char * msg, int sys_err = (sys_code)) { return manapi::ev::status (manapi::ERR_ ## code, std::string_view (msg), sys_err); }
 
-    /**
-     * Generate an ResourceExhausted error
-     * @return the generated error
-     */
-    ev::status status_resource_exhausted ();
+    MANAPI__EV_STATUS_GEN (ok, OK, 0);
+    MANAPI__EV_STATUS_GEN (unknown, UNKNOWN, ERR_UNKNOWN);
+    MANAPI__EV_STATUS_GEN (cancelled, CANCELLED, ERR_CANCELED);
+    MANAPI__EV_STATUS_GEN (invalid_argument, INVALID_ARGUMENT, ERR_INVAL);
+    MANAPI__EV_STATUS_GEN (deadline_exceeded, DEADLINE_EXCEEDED, ERR_CANCELED);
+    MANAPI__EV_STATUS_GEN (not_found, NOT_FOUND, ERR_NOENT);
+    MANAPI__EV_STATUS_GEN (already_exists, ALREADY_EXISTS, ERR_ALREADY);
+    MANAPI__EV_STATUS_GEN (permission_denied, PERMISSION_DENIED, ERR_PERM);
+    MANAPI__EV_STATUS_GEN (resource_exhausted, RESOURCE_EXHAUSTED, ERR_BUSY);
+    MANAPI__EV_STATUS_GEN (failed_precondition, FAILED_PRECONDITION, ERR_INVAL);
+    MANAPI__EV_STATUS_GEN (aborted, ABORTED, ERR_CANCELED);
+    MANAPI__EV_STATUS_GEN (unavailable, UNAVAILABLE, ERR_BUSY);
+    MANAPI__EV_STATUS_GEN (out_of_range, OUT_OF_RANGE, ERR_OVERFLOW);
+    MANAPI__EV_STATUS_GEN (unimplemented, UNIMPLEMENTED, ERR_UNKNOWN);
+    MANAPI__EV_STATUS_GEN (internal, INTERNAL, ERR_INTR);
+    MANAPI__EV_STATUS_GEN (data_loss, DATA_LOSS, ERR_UNKNOWN);
 
-    /**
-     * Generate an ResourceExhausted error
-     * @return the generated error
-     */
-    ev::status status_cancelled ();
-
-    /**
-     * Generate an ResourceExhausted error
-     * @param msg the error msg
-     * @return the generated error
-     */
-    ev::status status_cancelled (std::string_view msg);
-
-    /**
-     * Generate an InternalError error
-     * @param msg the error msg
-     * @param syserr the system error code
-     * @return the generated error
-     */
-    ev::status status_internal (std::string_view msg, int syserr);
-
-    /**
-     * Generate an UnknownError error
-     * @param msg the error msg
-     * @param syserr the system error code
-     * @return the generated error
-     */
-    ev::status status_unknown (std::string_view msg, int syserr);
-
-    /**
-     * Generate an NotFound error
-     * @param msg the error msg
-     * @return the generated error
-     */
-    ev::status status_not_found (std::string_view msg);
-
-    /**
-     * Generate an Ok error
-     * @return the generated Ok error
-     */
-    ev::status status_ok ();
+#undef MANAPI__EV_STATUS_GEN
 }
 
 #undef MANAPIHTTP_EV_CAST_HANDLE

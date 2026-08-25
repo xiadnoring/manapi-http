@@ -76,7 +76,18 @@ namespace manapi::string {
      * @param c the separator
      * @return array of parts of the source string
      */
-    std::vector<std::string_view> split (std::string_view s, char c);
+    std::vector<std::string_view> split (std::string_view s, std::string_view c, ssize_t cnt = -1);
+
+    /**
+     * Split the string by the separator
+     *
+     * @param s the source string
+     * @param c the separator
+     * @return array of parts of the source string
+     */
+    inline std::vector<std::string_view> split (std::string_view s, char c, ssize_t cnt = -1) {
+        return manapi::string::split (s, std::string_view(&c, 1), cnt );
+    }
 
     /**
      * Equals two strings and return a result
