@@ -114,7 +114,7 @@ jobs:
     #    key: ${{ steps.cache-conan-ubuntu.outputs.cache-primary-key }}
 
     - name: Configure CMake
-      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
+      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=ON
 
     - name: Build
       run: cmake --build build/Release -j4 --config Release
@@ -210,7 +210,7 @@ jobs:
       #    key: ${{ steps.cache-conan-windows.outputs.cache-primary-key }}
 
       - name: Configure CMake
-        run: cmake --preset conan-default -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF -DMANAPIHTTP_CPPTRACE_DEPENDENCY=ON
+        run: cmake --preset conan-default -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=ON -DMANAPIHTTP_CPPTRACE_DEPENDENCY=ON
 
       - name: Build
         run: cmake --build build -j4 --config Release

@@ -152,8 +152,7 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
     }
     catch (std::exception const &) {
         if (fetch->m_data->resolve) {
-            std::exchange(fetch->m_data->resolve, {})(
-                    manapi::status_unknown("fetch2:failed"));
+            std::exchange(fetch->m_data->resolve, {})( manapi::status_unknown("fetch2:failed") );
         }
 
         co_return manapi::status_internal("fetch2:response failed");
