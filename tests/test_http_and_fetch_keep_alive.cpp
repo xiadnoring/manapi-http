@@ -24,7 +24,6 @@ UTEST (http_and_fetch, keep_alive_1) {
             {"speed_check_bytes", 100000000}
         }}
     }, [&] () -> manapi::future<> {
-
         for (int i =0 ; i < 2; i++) {
             if (i) {
                 co_await manapi::async::delay{1500};

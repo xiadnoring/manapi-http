@@ -134,7 +134,8 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
             }).unwrap();
 
             manapi::async::run <manapi::status> ( fetch->m_data->data->perform ( std::move(token) ),
-                    [ z = fetch->weak_from_this() ] ( std::exception_ptr err, manapi::status *st ) -> void {
+                    [ z = fetch->weak_from_this(), _ = fetch->m_data->data ]
+                        ( std::exception_ptr err, manapi::status *st ) -> void {
                 auto fetch2 = z.lock();
                 
                 if (!fetch2 || !fetch2->m_data->resolve) {

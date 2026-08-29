@@ -1036,20 +1036,34 @@ manapi::status manapi::net::fetch::send_header(std::string_view key, std::string
         } else {
             auto const val = std::make_pair(key, value);
             auto const ss = http::stringify_header_size(val);
-#ifdef _MSC_VER
-            char *m_data = static_cast<char*>(alloca(ss + 1));
-#else
-            char m_data[ss + 1];
-#endif
-            auto hv = manapi::net::http::stringify_header(m_data, ss, val);
+
+            char *buff;
+            bool buff_own = false;
+
+            if (ss < 4096) {
+                buff = static_cast<char*>(alloca(ss + 1));
+            }
+            else {
+                buff = static_cast<char*>(malloc ( ss + 1 ));
+                if (!buff)
+                    return manapi::status_resource_exhausted();
+                buff_own = true;
+            }
+            auto hv = manapi::net::http::stringify_header(buff, ss, val);
             assert(ss == hv);
-            m_data[ss] = '\0';
+            buff[ss] = '\0';
 
-            this->m_data->builder.send_headers.reset(
-                    curl_slist_append(this->m_data->builder.send_headers.release(), m_data));
+            auto header = (
+                    curl_slist_append(this->m_data->builder.send_headers.get(), buff));
 
-            if (!this->m_data->builder.send_headers)
+            if (buff_own)
+                free ( buff );
+
+            if (!header)
                 return manapi::status_resource_exhausted();
+
+            this->m_data->builder.send_headers.release ();
+            this->m_data->builder.send_headers.reset( header );
         }
 
         return manapi::status_ok();
