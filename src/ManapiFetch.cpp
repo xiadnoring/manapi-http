@@ -1032,8 +1032,6 @@ manapi::status manapi::net::fetch::send_header(std::string_view key, std::string
 
     try {
         if (key == http::H_CONTENT_LENGTH) {
-            CURLcode status;
-
             return this->send_content_length(manapi::string::strtoll(value));
         } else {
             auto const val = std::make_pair(key, value);

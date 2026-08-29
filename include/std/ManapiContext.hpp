@@ -357,8 +357,7 @@ namespace manapi::async::internal {
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
         task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
-        if (!rhs)
-            task_data.release();
+        if (!rhs) task_data.release();
     }
 
     /**
@@ -384,8 +383,7 @@ namespace manapi::async::internal {
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
         task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
-        if (!rhs)
-            task_data.release();
+        if (!rhs) task_data.release();
     }
 
     /**
@@ -407,8 +405,7 @@ namespace manapi::async::internal {
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
         task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
-        if (!rhs)
-            task_data.release();
+        if (!rhs) task_data.release();
     }
 
     /**
@@ -431,8 +428,7 @@ namespace manapi::async::internal {
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
         task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
-        if (!rhs)
-            task_data.release();
+        if (!rhs) task_data.release();
     }
 }
 

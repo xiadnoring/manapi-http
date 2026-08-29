@@ -121,13 +121,13 @@ UTEST(http_and_fetch, callback_sync_get_request) {
 
     router->GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "100000").unwrap();
-         co_return resp.callback_sync([left = ssize_t(100000)] (char *buffer, ssize_t size, bool &fin) mutable -> ssize_t {
-             auto const copy = std::min<ssize_t>(left, size);
+         co_return resp.callback_sync([left = size_t(100000)] (char *buffer, size_t size, bool &fin) mutable -> ssize_t {
+             auto const copy = std::min<std::size_t>(left, size);
              memset(buffer, '2', copy);
              left -= copy;
              if (!left)
                  fin = true;
-             return copy;
+             return static_cast<ssize_t>(copy);
          }).unwrap();
     }).unwrap();
 
@@ -153,7 +153,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
 #undef return
 
         auto zz = manapi::string::fill(300000, '2');
-        for (int i = 0; i < zz.size(); i+=100)
+        for (uint32_t i = 0; i < zz.size(); i+=100)
             zz[i] = '3';
         size_t read = 0;
         auto data_res = co_await fetch->callback_async([&, f =int(0)] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
@@ -186,7 +186,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
 #undef return
                 read += it.size();
             }
-            co_return buffs.size();
+            co_return static_cast<ssize_t>(buffs.size());
         });
 #define return co_return
         ASSERT_TRUE_MSG((data_res.ok() && read == 300000), "check response data");
@@ -195,10 +195,10 @@ UTEST(http_and_fetch, callback_async_get_request) {
 
     router->GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          resp.header(std::string{manapi::net::http::H_CONTENT_LENGTH}, "300000").unwrap();
-         co_return resp.callback_async([left = ssize_t(300000), f = bool(false)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+         co_return resp.callback_async([left = size_t(300000), f = bool(false)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
              size_t res = 0;
              for (auto it = buffs.begin(); it != buffs.end(); it++) {
-                 auto const copy = std::min<ssize_t>(left, it.size());
+                 auto const copy = std::min<size_t>(left, it.size());
                  memset (it.buffer(), '2', copy);
                  // 0->0 73->100 100->100
                  auto i = 100 - ((300000 - left) % 100);
@@ -217,7 +217,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
                      break;
                  }
              }
-             co_return res;
+             co_return static_cast<ssize_t>(res);
          }).unwrap();
     }).unwrap();
 
@@ -270,7 +270,7 @@ UTEST(http_and_fetch, formdata_request) {
             return [res = size_t(0)] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
                 for (auto it = buffs.begin(); it != buffs.end(); it++) {
                     char const *c = (const char*)it.buffer();
-                    for (int i = 0; i < it.size(); i++) {
+                    for (uint32_t i = 0; i < it.size(); i++) {
                         if (c[i] != 'A')
                             co_return -1;
                     }
@@ -280,7 +280,7 @@ UTEST(http_and_fetch, formdata_request) {
                     if (res != 500)
                         co_return -1;
                 }
-                co_return buffs.size();
+                co_return static_cast<ssize_t>(buffs.size());
             };
         });
         data.unwrap();
@@ -454,9 +454,9 @@ UTEST(http_and_fetch, chunked_request) {
         auto data_res = co_await fetch->text();
         auto data = data_res.unwrap();
 
-        for (int i = 0 ; i < data.size(); i++) {
+        for (uint32_t i = 0 ; i < data.size(); i++) {
 #define return co_return
-            ASSERT_TRUE_MSG((data[i] == (i % 10)), "memory corruption #1");
+            ASSERT_TRUE_MSG((static_cast<uint32_t>(data[i]) == (i % 10)), "memory corruption #1");
 #undef return
         }
 
@@ -469,7 +469,7 @@ UTEST(http_and_fetch, chunked_request) {
     router->GET ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         co_return resp.callback_stream([] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
             char zz[100000];
-            for(int i = 0; i < sizeof (zz); i++) {
+            for(uint32_t i = 0; i < sizeof (zz); i++) {
                 zz[i] = (char)(i % 10);
             }
             manapi::slice_ref ref;
@@ -499,7 +499,7 @@ UTEST(http_and_fetch, chunked_response) {
     }, [&] () -> manapi::future<> {
         std::string zz;
         zz.resize(100000);
-        for (int i = 0; i < zz.size(); i++)
+        for (uint32_t i = 0; i < zz.size(); i++)
             zz[i] = (char)(i % 10);
         manapi::json jparams = {
             {"method", "POST"},
@@ -515,7 +515,7 @@ UTEST(http_and_fetch, chunked_response) {
             cursor += copy;
             if (cursor == zz.size())
                 fin = true;
-            co_return copy;
+            co_return static_cast<ssize_t>(copy);
         }, manapi::ctokens::timeout(5000));
 
         auto fetch = fetch_res.unwrap();
@@ -530,9 +530,9 @@ UTEST(http_and_fetch, chunked_response) {
     router->POST ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
         auto data_res = co_await req.text();
         auto data = data_res.unwrap();
-        for (int i = 0 ; i < data.size(); i++) {
+        for (uint32_t i = 0 ; i < data.size(); i++) {
 #define return co_return
-            ASSERT_TRUE_MSG((data[i] == (i % 10)), "memory corruption #1");
+            ASSERT_TRUE_MSG((static_cast<uint32_t>(data[i]) == (i % 10)), "memory corruption #1");
 #undef return
         }
 

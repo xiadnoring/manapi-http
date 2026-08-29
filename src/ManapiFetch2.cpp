@@ -7,53 +7,53 @@
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
-struct manapi::net::fetch2::fetch_data {
+struct manapi::net::fetch2::fetch_data_t {
     std::shared_ptr<manapi::net::fetch> data;
     manapi::async::promise_sync<manapi::status>::resolve_t resolve;
 };
 
-static manapi::status manapi__fetch2_setup_fetch(manapi::net::fetch2::fetch_data *fetchdata, manapi::json params) MANAPIHTTP_NOEXCEPT {
+static manapi::status manapi__fetch2_setup_fetch(manapi::net::fetch2::fetch_data_t *m_data, manapi::json params) MANAPIHTTP_NOEXCEPT {
     manapi::status res;
     try {
         auto &params_obj = params.as_object();
         
         auto it = params_obj.find("method");
         if (it != params_obj.end()) {
-            res = fetchdata->data->method(std::move(it->second.as_string()));
+            res = m_data->data->method(std::move(it->second.as_string()));
             if (!res)
                 goto err;
         }
 
         it = params_obj.find("verify_peer");
         if (it != params_obj.end()) {
-            res = fetchdata->data->option( manapi::net::fetch::OPTION_VERIFY_PEER, it->second.cast_bool().as_bool());
+            res = m_data->data->option( manapi::net::fetch::OPTION_VERIFY_PEER, it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
 
         it = params_obj.find("verify_host");
         if (it != params_obj.end()) {
-            res = fetchdata->data->option( manapi::net::fetch::OPTION_VERIFY_HOST,it->second.cast_bool().as_bool());
+            res = m_data->data->option( manapi::net::fetch::OPTION_VERIFY_HOST,it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
 
         it = params_obj.find("verbose");
         if (it != params_obj.end()) {
-            res = fetchdata->data->option( manapi::net::fetch::OPTION_VERBOSE,it->second.cast_bool().as_bool());
+            res = m_data->data->option( manapi::net::fetch::OPTION_VERBOSE,it->second.cast_bool().as_bool());
             if (!res)
                 goto err;
         }
         it = params_obj.find("alpn");
         if (it != params_obj.end()) {
-            res = fetchdata->data->option( manapi::net::fetch::OPTION_ALPN,params["alpn"].as_bool());
+            res = m_data->data->option( manapi::net::fetch::OPTION_ALPN,params["alpn"].as_bool());
             if (!res)
                 goto err;
         }
 
         it = params_obj.find("timeout");
         if (it != params_obj.end()) {
-            res = fetchdata->data->option( manapi::net::fetch::OPTION_TIMEOUT, static_cast<int32_t>(it->second.cast_integer().as_integer()));
+            res = m_data->data->option( manapi::net::fetch::OPTION_TIMEOUT, static_cast<int32_t>(it->second.cast_integer().as_integer()));
             if (!res)
                 goto err;
         }
@@ -69,13 +69,13 @@ static manapi::status manapi__fetch2_setup_fetch(manapi::net::fetch2::fetch_data
                 version = storage;
             }
             if (version == "0.9" || version == "1.0" || version == "1" || version == "1.1") {
-                res = fetchdata->data->option( manapi::net::fetch::OPTION_HTTP1_1, 1);
+                res = m_data->data->option( manapi::net::fetch::OPTION_HTTP1_1, 1);
             }
             else if (version == "2.0" || version == "2") {
-                res = fetchdata->data->option( manapi::net::fetch::OPTION_HTTP2, 1);
+                res = m_data->data->option( manapi::net::fetch::OPTION_HTTP2, 1);
             }
             else if (version == "3.0" || version == "3") {
-                res = fetchdata->data->option( manapi::net::fetch::OPTION_HTTP3, 1);
+                res = m_data->data->option( manapi::net::fetch::OPTION_HTTP3, 1);
             }
             if (!res)
                 goto err;
@@ -87,14 +87,14 @@ static manapi::status manapi__fetch2_setup_fetch(manapi::net::fetch2::fetch_data
             && it->second.is_object()) {
 
             for (const auto & b : it->second.entries()) {
-                res = fetchdata->data->send_header( b.first, b.second.as_string() );
+                res = m_data->data->send_header( b.first, b.second.as_string() );
                 if (!res)
                     goto err;
             }
         }
 
 
-        res = fetchdata->data->recv_body(+[] (char *buffer, std::size_t size)
+        res = m_data->data->recv_body(+[] (char *buffer, std::size_t size)
             -> ssize_t { return static_cast<ssize_t>(size); });
 
         if (!res)
@@ -118,9 +118,9 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
 
         co_await promise ([ &fetch, &token ] ( promise::resolve_t resolve ) -> void {
 
-            fetch->fetchdata->resolve = std::move(resolve);
+            fetch->m_data->resolve = std::move(resolve);
 
-            fetch->fetchdata->data->recv_async_headers ([ data = fetch->fetchdata.get()]
+            fetch->m_data->data->recv_async_headers ([ data = fetch->m_data.get()]
                     (const std::shared_ptr<manapi::net::fetch> &) mutable
                 -> manapi::future<bool> {
 
@@ -130,17 +130,19 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
                     else resolve ( manapi::status_unavailable() );
                 });
 
-                co_return st.ok();
+                co_return st.ok() || st.code() == manapi::ERR_ABORTED;
             }).unwrap();
 
-            manapi::async::run <manapi::status> ( fetch->fetchdata->data->perform ( std::move(token) ),
-                    [fetch] ( std::exception_ptr err, manapi::status *st ) -> void {
-                if (!fetch->fetchdata->resolve) {
+            manapi::async::run <manapi::status> ( fetch->m_data->data->perform ( std::move(token) ),
+                    [ z = fetch->weak_from_this() ] ( std::exception_ptr err, manapi::status *st ) -> void {
+                auto fetch2 = z.lock();
+                
+                if (!fetch2 || !fetch2->m_data->resolve) {
                     return;
                 }
 
-                if (err) std::exchange(fetch->fetchdata->resolve, {}) ( manapi::status_unknown("fetch2:failed") );
-                else std::exchange(fetch->fetchdata->resolve, {}) ( std::move (*st) );
+                if (err) std::exchange(fetch2->m_data->resolve, {}) ( manapi::status_unknown("fetch2:failed") );
+                else std::exchange(fetch2->m_data->resolve, {}) ( std::move (*st) );
 
             });
         });
@@ -148,8 +150,8 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
         co_return manapi::status_ok();
     }
     catch (std::exception const &) {
-        if (fetch->fetchdata->resolve) {
-            std::exchange(fetch->fetchdata->resolve, {})(
+        if (fetch->m_data->resolve) {
+            std::exchange(fetch->m_data->resolve, {})(
                     manapi::status_unknown("fetch2:failed"));
         }
 
@@ -163,11 +165,11 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
 
     manapi::status res;
 
-    if (!( res = response->fetchdata->data->send_body(std::move(body)) )) {
+    if (!( res = response->m_data->data->send_body(std::move(body)) )) {
         co_return std::move(res);
     }
 
-    if (!( res = manapi__fetch2_setup_fetch(response->fetchdata.get(), std::move(params)) ))
+    if (!( res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params)) ))
         co_return std::move(res);
 
     if (!( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
@@ -177,18 +179,18 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
 }
 
 manapi::net::fetch2::~fetch2() {
-
+    this->finish ();
 }
 
 manapi::net::fetch2::fetch2(std::string url) {
-    this->fetchdata = std::make_unique<fetch_data>(manapi::net::fetch::create (std::move(url)).unwrap());
+    this->m_data = std::make_unique<fetch_data_t>(manapi::net::fetch::create (std::move(url)).unwrap());
 }
 
 manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::net::fetch2::fetch(std::string url, manapi::json params, ctoken cancellation) {
     auto response = std::shared_ptr<manapi::net::fetch2>(new manapi::net::fetch2(std::move(url)));
 
     manapi::status res;
-    if (! ( res = manapi__fetch2_setup_fetch(response->fetchdata.get(), std::move(params)) ))
+    if (! ( res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params)) ))
         co_return std::move(res);
 
     if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
@@ -217,10 +219,10 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
     auto response = std::shared_ptr<fetch2>(new fetch2(std::move(url)));
 
     manapi::status res;
-    if (! ( res = response->fetchdata->data->send_async_body(std::move(body)) ))
+    if (! ( res = response->m_data->data->send_async_body(std::move(body)) ))
         co_return std::move(res);
 
-    if (! ( res = manapi__fetch2_setup_fetch(response->fetchdata.get(), std::move(params)) ))
+    if (! ( res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params)) ))
         co_return std::move(res);
 
     if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
@@ -234,11 +236,11 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
 
     manapi::status res;
 
-    if (! ( res = co_await response->fetchdata->data->send_body(std::move(body)) )) {
+    if (! ( res = co_await response->m_data->data->send_body(std::move(body)) )) {
         co_return std::move(res);
     }
 
-    if (! ( res = manapi__fetch2_setup_fetch(response->fetchdata.get(), std::move(params)) ))
+    if (! ( res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params)) ))
         co_return std::move(res);
 
     if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
@@ -253,33 +255,33 @@ bool manapi::net::fetch2::ok() const MANAPIHTTP_NOEXCEPT {
 }
 
 uint16_t manapi::net::fetch2::status() const MANAPIHTTP_NOEXCEPT {
-    return this->fetchdata->data->status_code();
+    return this->m_data->data->status_code();
 }
 
 std::map<std::string, std::string, std::less<>> &manapi::net::fetch2::headers() MANAPIHTTP_NOEXCEPT {
-    return this->fetchdata->data->headers();
+    return this->m_data->data->headers();
 }
 
 manapi::future<manapi::status> manapi::net::fetch2::callback_async(std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
     if (!this->is_processing()) co_return manapi::status_invalid_argument("fetch2:not active");
-    auto st = this->fetchdata->data->recv_async_body (std::move(cb));
+    auto st = this->m_data->data->recv_async_body (std::move(cb));
     if (!st) co_return std::move(st);
     using promise = manapi::async::promise_sync <manapi::status>;
     co_return co_await promise ([this] (promise::resolve_t resolve)
             -> void {
-        if (this->fetchdata->resolve) std::exchange(this->fetchdata->resolve, std::move(resolve)) ( manapi::status_ok() );
+        if (this->m_data->resolve) std::exchange(this->m_data->resolve, std::move(resolve)) ( manapi::status_ok() );
         else resolve ( manapi::status_invalid_argument("fetch2:not active") );
     });
 }
 
 manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::move_only_function<ssize_t(char *buffer, std::size_t size)> cb) {
     if (!this->is_processing()) co_return manapi::status_invalid_argument("fetch2:not active");
-    auto st = this->fetchdata->data->recv_body (std::move(cb));
+    auto st = this->m_data->data->recv_body (std::move(cb));
     if (!st) co_return std::move(st);
     using promise = manapi::async::promise_sync <manapi::status>;
     co_return co_await promise ([this] (promise::resolve_t resolve)
             -> void {
-        if (this->fetchdata->resolve) std::exchange(this->fetchdata->resolve, std::move(resolve)) ( manapi::status_ok() );
+        if (this->m_data->resolve) std::exchange(this->m_data->resolve, std::move(resolve)) ( manapi::status_ok() );
         else resolve ( manapi::status_invalid_argument("fetch2:not active") );
     });
 }
@@ -367,7 +369,13 @@ manapi::future<manapi::status_or<manapi::slice>> manapi::net::fetch2::slice() {
 }
 
 bool manapi::net::fetch2::is_processing() const {
-    return !!this->fetchdata->resolve;
+    return !!this->m_data->resolve;
+}
+
+void manapi::net::fetch2::finish() MANAPIHTTP_NOEXCEPT {
+    if (this->m_data->resolve) {
+        std::exchange( this->m_data->resolve, {} ) ( manapi::status_aborted("fetch2:finish") );
+    }
 }
 
 #endif

@@ -81,7 +81,7 @@ static manapi::reference <manapi::net::http::http_handler_function> manapi__http
         co_return resp.text(manapi::net::http::internal::generate_default_page(resp.status_code(),
                                                                                resp.status_message())).unwrap();
     },
-    .refcnt = 1
+    .refcnt = 0
 });
 
 static std::string_view manapi__http_default_config_name = "config.json";

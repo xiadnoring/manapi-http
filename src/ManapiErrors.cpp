@@ -173,6 +173,7 @@ manapi::messages::messages(messages &&n) MANAPIHTTP_NOEXCEPT {
 
 manapi::messages & manapi::messages::operator=(messages &&n) MANAPIHTTP_NOEXCEPT {
     if (this != &n) {
+        if (this->m_errnum & (1U<<31)) this->m_data.m_str.~basic_string();
         this->m_errnum = std::exchange(n.m_errnum, 0);
         if (this->m_errnum & (1U<<31)) {
             new (&this->m_data.m_str) std::string (std::move(n.m_data.m_str));
@@ -197,6 +198,7 @@ manapi::messages::messages(const messages &n) {
 
 manapi::messages & manapi::messages::operator=(const messages &n) {
     if (this != &n) {
+        if (this->m_errnum & (1U<<31)) this->m_data.m_str.~basic_string();
         this->m_errnum = n.m_errnum;
         if (this->m_errnum & (1U<<31)) {
             new (&this->m_data.m_str) std::string (n.m_data.m_str);
@@ -336,13 +338,27 @@ manapi::status::status(err_num code, std::string msg) {
     this->m_data.msg(std::move(msg));
 }
 
-manapi::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::status::status(status &&n) MANAPIHTTP_NOEXCEPT {
+    this->m_data = std::move(n.m_data);
+}
 
-manapi::status & manapi::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
+manapi::status & manapi::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT {
+    if (this != &n) {
+        this->m_data = std::move(n.m_data);
+    }
+    return *this;
+}
 
-manapi::status::status(const status &n) = default;
+manapi::status::status(const status &n) {
+    this->m_data = (n.m_data);
+}
 
-manapi::status & manapi::status::operator=(const status &n) = default;
+manapi::status & manapi::status::operator=(const status &n) {
+    if (this != &n) {
+        this->m_data = n.m_data;
+    }
+    return *this;
+}
 
 std::string_view manapi::status::msg() const {
     return this->m_data.msg_view();

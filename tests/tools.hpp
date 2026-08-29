@@ -23,7 +23,7 @@ int main(int argc, const char *const argv[]) { \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 30000, int threads = 0) {
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 30000, std::size_t threads = 0) {
     auto ctx = manapi::async::context::create(threads).unwrap();
     /* task killer */
     ctx->timerpool()->append_interval_sync(timout_in_ms, manapi::TIMER_DEFAULT,[utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {

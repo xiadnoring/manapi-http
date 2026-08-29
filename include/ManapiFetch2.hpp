@@ -24,7 +24,7 @@ namespace manapi::net {
 
         fetch2 (std::string url);
     public:
-        struct fetch_data;
+        struct fetch_data_t;
 
         ~fetch2();
 
@@ -60,9 +60,11 @@ namespace manapi::net {
 
         manapi::future<manapi::status> form (formdata_recv::onparam_cb_t cb);
 
+        void finish () MANAPIHTTP_NOEXCEPT;
+
         bool is_processing () const;
     private:
-        std::unique_ptr <fetch_data> fetchdata;
+        std::unique_ptr <fetch_data_t> m_data;
     };
 }
 

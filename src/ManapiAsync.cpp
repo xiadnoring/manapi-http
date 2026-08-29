@@ -8,6 +8,12 @@ struct current_data_t {
     std::size_t st_max = 15;
     std::shared_ptr<manapi::async::cthread> cthread;
     std::coroutine_handle<> root;
+
+    ~current_data_t () {
+        if (this->root) {
+            manapi_log_trace("current coroutine_handle is alive");
+        }
+    }
 };
 
 
@@ -44,10 +50,6 @@ void manapi::async::internal::current_stack_cnt_set (std::size_t cnt) MANAPIHTTP
 std::size_t manapi::async::internal::max_stack_depth_crt () MANAPIHTTP_NOEXCEPT {
     return current_ctxasync().st_max;
 }
-
-// void manapi::async::internal::cnt_finish_inc() MANAPIHTTP_NOEXCEPT {
-//     // current_finish_cnt++;
-// }
 
 bool manapi::async::internal::future_final_awaiter_ready() MANAPIHTTP_NOEXCEPT {
     return false;
@@ -100,30 +102,6 @@ std::suspend_always manapi::async::internal::promise_base_future::initial_suspen
     return {};
 }
 
-// void manapi::async::internal::future_final_awaiter_suspend(std::coroutine_handle<promise_base_future> original, std::coroutine_handle<promise_base_future> handle) MANAPIHTTP_NOEXCEPT {
-//     auto &promise = original.promise();
-//     //auto &npromise = handle.promise();
-//
-//     promise.waiting = handle;
-//
-//     auto current_stack_cnt_ = manapi::async::internal::current_stack_cnt_crt ();
-//     if (current_stack_cnt_ >= async::internal::max_stack_depth_crt()) {
-//         auto &thr = manapi::async::current();
-//         if (thr) {
-//             async::internal::ethreadpool_(thr)->append_static_task([original] () -> void {
-//                  async::coro_resume(original);
-//             });
-//         }
-//
-//         return;
-//     }
-//
-//     manapi::async::internal::current_stack_cnt_set (current_stack_cnt_ + 1);
-//     async::coro_resume(original);
-//     manapi::async::internal::current_stack_cnt_set (current_stack_cnt_);
-// }
-
-
 manapi::async::internal::promise<void>::promise() : manapi::async::internal::promise_base_future () {
 
 }
@@ -165,11 +143,13 @@ void manapi::async::coro_resume(std::coroutine_handle<> handle) {
             handle.resume();
 
             if (z.root) {
+//                printf("coro_resume destroy child = %p from %p\n", z.root.address(), handle.address());
                 std::exchange(z.root, nullptr).destroy();
             }
         }
         catch (std::exception const &) {
             if (z.root) {
+//                printf("coro_resume destroy child = %p from %p\n", z.root.address(), handle.address());
                 std::exchange(z.root, nullptr).destroy();
             }
 
@@ -181,4 +161,5 @@ void manapi::async::coro_resume(std::coroutine_handle<> handle) {
 void manapi::async::coro_finish(std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT {
     assert(!current_ctxasync().root);
     current_ctxasync().root = handle;
+//    printf("coro_finish %p\n", handle.address());
 }

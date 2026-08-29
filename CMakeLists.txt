@@ -97,6 +97,20 @@ if(MANAPIHTTP_STRICT_BUILD)
     endif()
 endif()
 
+if (MANAPIHTTP_STRICT_MEM)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(
+                -fsanitize=address
+                -fstack-protector-strong
+        )
+        add_link_options(
+                -fsanitize=address
+        )
+    else()
+        add_compile_options(/WX /Zi /fsanitize=address)
+    endif()
+endif()
+
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
 

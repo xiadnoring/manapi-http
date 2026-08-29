@@ -1009,6 +1009,8 @@ manapi::slice::slice(slice &&n) MANAPIHTTP_NOEXCEPT : slice() {
 }
 
 manapi::slice & manapi::slice::operator=(slice &&n) MANAPIHTTP_NOEXCEPT {
+    this->clear();
+
     this->first = n.first;
     this->last = n.last;
     this->count = n.count;
