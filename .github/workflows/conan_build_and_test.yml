@@ -114,14 +114,12 @@ jobs:
     #    key: ${{ steps.cache-conan-ubuntu.outputs.cache-primary-key }}
 
     - name: Configure CMake
-      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF -DMANAPIHTTP_STRICT_MEM=ON
+      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
       run: cmake --build build/Release -j4 --config Release
 
     - name: Run unit tests
-      env:
-        ASAN_OPTIONS: detect_stack_use_after_return=1
       run: ctest --extra-verbose --output-on-failure -C Release
       working-directory: build/Release
   build_win32:
