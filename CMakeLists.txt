@@ -1216,8 +1216,8 @@ else ()
     endif ()
 
     if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
-        message(STATUS "cpptrace: libs=${CPPTRACE_LIBRARIES} include=${CPPTRACE_INCLUDE_DIRS}")
-        target_link_libraries(${PROJECT_NAME} PUBLIC ${CPPTRACE_LIBRARIES})
+        message(STATUS "cpptrace: libs=${CPPTRACE_LIBRARIES} ${CPPTRACE_DWARF_LIBRARIES} include=${CPPTRACE_INCLUDE_DIRS}")
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${CPPTRACE_LIBRARIES} ${CPPTRACE_DWARF_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${CPPTRACE_INCLUDE_DIRS})
     endif ()
 
