@@ -215,10 +215,7 @@ int main () {
             //  */
             //
             auto thrcntind = thrcnt.fetch_add(1);
-            uint32_t azz;
-            std::cin >> azz;
-            char x[azz];
-            std::memset(x,0,100000);
+
 
 //            auto grpc_server = manapi::net::wgrpc::server::create (grpc_server_ctx).unwrap();
 //            manapi::async::run([grpc_server, thrcntind] () mutable -> manapi::future<> {

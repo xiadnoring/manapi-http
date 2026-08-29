@@ -440,7 +440,7 @@ static void manapi__log (manapi::debug::log_level type, int level, const char *f
     if (func) {
         // Print timestamp, log level, and file info
         fprintf(
-            stderr,
+            stdout,
             "%s%-5s\x1b[0m \x1b[90m%s %s:%d(%s):\x1b[0m ",
             level_colors[type],
             manapi__level_strings[type],
@@ -453,7 +453,7 @@ static void manapi__log (manapi::debug::log_level type, int level, const char *f
     else {
         // Print timestamp, log level, and file info
         fprintf(
-            stderr,
+                stdout,
             "%s%-5s\x1b[0m \x1b[90m%s %s:%d:\x1b[0m ",
             level_colors[type],
             manapi__level_strings[type],
@@ -464,11 +464,11 @@ static void manapi__log (manapi::debug::log_level type, int level, const char *f
     }
 
     // Print user message
-    vfprintf(stderr, fmt, args);
+    vfprintf(stdout, fmt, args);
 
     // Newline and flush
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    fprintf(stdout, "\n");
+    fflush(stdout);
 }
 
 void manapi::debug::logit(log_level type, const char *file, int line, const char *name, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
