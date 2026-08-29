@@ -1095,7 +1095,7 @@ void *manapi::net::fetch::custom() MANAPIHTTP_NOEXCEPT {
 }
 
 uint16_t manapi::net::fetch::status_code() const MANAPIHTTP_NOEXCEPT {
-    int code;
+    long code;
 
     CURLcode status;
     if ((status=curl_easy_getinfo(this->m_data->curl.get(), CURLINFO_HTTP_CODE, &code))!=CURLE_OK) {
