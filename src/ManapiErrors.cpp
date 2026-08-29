@@ -158,6 +158,9 @@ manapi::messages::~messages() {
     if (this->m_errnum & (1U<<31)) {
         this->m_data.m_str.~basic_string();
     }
+    else {
+        this->m_data.m_view.~basic_string_view();
+    }
 }
 
 manapi::messages::messages(messages &&n) MANAPIHTTP_NOEXCEPT {

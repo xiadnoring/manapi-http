@@ -37,10 +37,13 @@ UTEST (http_and_fetch, keep_alive_1) {
 
             auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/keep_alive", std::move(jparams));
 
+            manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish#3");
             auto fetch = fetch_res.unwrap();
+            manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish#4");
 #define return co_return
             ASSERT_TRUE_MSG((fetch->ok()), "check response status");
 #undef return
+            manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish#5");
 
             auto text_res = co_await fetch->text();
             auto text = text_res.unwrap();

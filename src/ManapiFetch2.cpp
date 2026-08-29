@@ -181,6 +181,8 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
     if (!( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
         co_return std::move(res);
 
+    manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish");
+
     co_return std::move(response);
 }
 
@@ -193,16 +195,27 @@ manapi::net::fetch2::fetch2(std::string url) {
 }
 
 manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::net::fetch2::fetch(std::string url, manapi::json params, ctoken cancellation) {
+
     auto response = std::shared_ptr<manapi::net::fetch2>(new manapi::net::fetch2(std::move(url)));
 
-    manapi::status res;
-    if (! ( res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params)) ))
-        co_return std::move(res);
+    {
+        manapi::status res;
+        if (!(res = manapi__fetch2_setup_fetch(response->m_data.get(), std::move(params))))
+            co_return std::move(res);
 
-    if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
-        co_return std::move(res);
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish #0");
+
+        if (!(res = co_await manapi::net::fetch2_response(response, std::move(cancellation))))
+            co_return std::move(res);
+
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish #1");
+
+    }
+
+    manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish #2");
 
     co_return std::move(response);
+
 }
 
 manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::net::fetch2::fetch(std::string url, manapi::json params, fetch_formdata body, ctoken cancellation) {
@@ -234,6 +247,8 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
     if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
         co_return std::move(res);
 
+    manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish");
+
     co_return std::move(response);
 }
 
@@ -251,6 +266,8 @@ manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> manapi::
 
     if (! ( res = co_await manapi::net::fetch2_response(response, std::move(cancellation)) ))
         co_return std::move(res);
+
+    manapi_log_trace2 ("manapihttp::fetch", "fetch2:response finish");
 
     co_return std::move(response);
 }
