@@ -213,8 +213,9 @@ struct manapi::net::fetch::data_t {
 static manapi::future<> manapi__curl_header_handler__async (std::shared_ptr<manapi::net::fetch> parent, manapi::net::fetch::data_t *m_data, bool finish) {
     try {
 
-
+        manapi_log_trace2 ("manapihttp::fetch", "fetch:calling async_cb");
         auto rhs = co_await m_data->cbs.headers.async_cb ( parent );
+        manapi_log_trace2 ("manapihttp::fetch", "fetch:finish calling async_cb result = %d", (int)rhs);
 
 
         if (rhs) {
@@ -243,6 +244,9 @@ static manapi::future<> manapi__curl_header_handler__async (std::shared_ptr<mana
     if (! (m_data->flags & MANAPI__CURL_FLAG_HEADER_RECVING) ) {
 
         assert(m_data->builder.deps);
+
+        manapi_log_trace2 ("manapihttp::fetch", "fetch:deps=%u", m_data->builder.deps);
+
         if (!--m_data->builder.deps) {
             m_data->builder.resolve();
         }
@@ -294,6 +298,7 @@ static manapi::future<> manapi__curl_write_handler__async (std::shared_ptr<manap
 
     if (! (m_data->flags & MANAPI__CURL_FLAG_SENDING) ) {
         assert(m_data->builder.deps);
+        manapi_log_trace2 ("manapihttp::fetch", "fetch:deps=%u", m_data->builder.deps);
         if (!--m_data->builder.deps) {
             m_data->builder.resolve();
         }
@@ -344,6 +349,7 @@ static manapi::future<> manapi__curl_recv_handler__async (std::shared_ptr<manapi
 
     if (! (m_data->flags & MANAPI__CURL_FLAG_RECVING) ) {
         assert(m_data->builder.deps);
+        manapi_log_trace2 ("manapihttp::fetch", "fetch:deps=%u", m_data->builder.deps);
         if (!--m_data->builder.deps) {
             m_data->builder.resolve();
         }
@@ -741,7 +747,7 @@ manapi::future<manapi::status> manapi::net::fetch::perform(manapi::ctoken token)
                         manapi::async::current()->eventloop()->watch_curl(&perform_data.p->m_data->curl,
                             [&perform_data](int status)
                                   -> void {
-                            manapi_log_trace2 ( "manapihttp::fetch", "watch_curl:Unbind perform_data=%p", &perform_data);
+                            manapi_log_trace2 ( "manapihttp::fetch", "watch_curl:Unbind perform_data=%p deps=%u", &perform_data, perform_data.p->m_data->builder.deps);
                             perform_data.status = static_cast<CURLcode> (status);
                             if (!--perform_data.p->m_data->builder.deps) {
                                 perform_data.p->m_data->builder.resolve();

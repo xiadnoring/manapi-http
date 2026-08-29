@@ -116,19 +116,21 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
     try {
         using promise = manapi::async::promise_sync<manapi::status>;
 
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:init");
         co_await promise ([ &fetch, &token ] ( promise::resolve_t resolve ) -> void {
-
             fetch->m_data->resolve = std::move(resolve);
 
             fetch->m_data->data->recv_async_headers ([ data = fetch->m_data.get()]
                     (const std::shared_ptr<manapi::net::fetch> &) mutable
                 -> manapi::future<bool> {
 
+                manapi_log_trace2 ("manapihttp::fetch", "fetch2:recv_async_headers wait");
                 auto st = co_await promise ([ data ] ( promise::resolve_t resolve )
                     -> void {
                     if (data->resolve) std::exchange(data->resolve, std::move(resolve)) ( manapi::status_ok() );
                     else resolve ( manapi::status_unavailable() );
                 });
+                manapi_log_trace2 ("manapihttp::fetch", "fetch2:recv_async_headers finish");
 
                 co_return st.ok() || st.code() == manapi::ERR_ABORTED;
             }).unwrap();
@@ -137,6 +139,8 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
                     [ z = fetch->weak_from_this(), _ = fetch->m_data->data ]
                         ( std::exception_ptr err, manapi::status *st ) -> void {
                 auto fetch2 = z.lock();
+
+                manapi_log_trace2 ("manapihttp::fetch", "fetch2:perform finish");
                 
                 if (!fetch2 || !fetch2->m_data->resolve) {
                     return;
@@ -147,6 +151,8 @@ manapi::future<manapi::status> manapi::net::fetch2_response(std::shared_ptr<mana
 
             });
         });
+
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:init finish");
 
         co_return manapi::status_ok();
     }
@@ -289,11 +295,13 @@ manapi::future<manapi::status> manapi::net::fetch2::callback_sync(std::move_only
 manapi::future<manapi::status_or<std::string>> manapi::net::fetch2::text() {
     try {
         std::string data;
-
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:text() init");
         auto res = co_await this->callback_sync ([&data] (char *buffer, std::size_t size) -> ssize_t {
             data.append(buffer, (size));
+            manapi_log_trace2 ("manapihttp::fetch", "fetch2:text() append");
             return static_cast<ssize_t>(size);
         });
+        manapi_log_trace2 ("manapihttp::fetch", "fetch2:text() finish");
 
         if (!res)
             co_return std::move(res);
