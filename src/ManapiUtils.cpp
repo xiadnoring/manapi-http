@@ -7,7 +7,7 @@
 #   include <cpptrace/cpptrace.hpp>
 #endif
 
-#if __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
+#if __cplusplus >= 202100L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
 #   include <stacktrace>
 #endif
 
@@ -28,7 +28,7 @@ void manapi::print_stacktrace() MANAPIHTTP_NOEXCEPT {
     try {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         cpptrace::generate_trace().print();
-#elif __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
+#elif __cplusplus >= 202100L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
         auto stack = std::stacktrace::current();
         for (std::basic_stacktrace<std::allocator<std::stacktrace_entry> >::size_type i = 0; i < stack.size(); i++) {
             auto &it = stack[i];
@@ -55,7 +55,7 @@ void manapi::print_stacktrace(std::size_t pos) MANAPIHTTP_NOEXCEPT {
             it->symbol.size(), it->symbol.data(),
             it->filename.size(), it->filename.data(),
             it->line.value_or(0));
-#elif __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
+#elif __cplusplus >= 202100L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
         auto stack = std::stacktrace::current();
         auto &it = stack[static_cast<std::basic_stacktrace<std::allocator<std::stacktrace_entry> >::size_type>(pos)];
         manapi_log_info("%p in %.*s at %.*s:%u", it.native_handle(),

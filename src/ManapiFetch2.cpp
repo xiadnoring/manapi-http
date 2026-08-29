@@ -312,8 +312,7 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::fetch2:
 
         auto res = co_await this->callback_sync([&builder] (char *buffer, std::size_t size) -> ssize_t {
             auto res = builder.parse(std::string_view(buffer, (size)));
-            if (!res)
-                return -1;
+            if (!res) return -1;
             return static_cast<ssize_t>(size);
         });
 
@@ -350,13 +349,8 @@ manapi::future<manapi::status_or<manapi::slice>> manapi::net::fetch2::slice() {
         manapi::slice data;
 
         auto res = co_await this->callback_sync ([&data] (char *buffer, std::size_t size) -> ssize_t {
-            try {
-                data.push_back (buffer, (size)).unwrap();
-                return static_cast<ssize_t>(size);
-            }
-            catch (std::exception const &) {
-                return -1;
-            }
+            data.push_back (buffer, (size)).unwrap();
+            return static_cast<ssize_t>(size);
         });
 
         if (!res)
