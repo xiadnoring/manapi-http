@@ -1375,6 +1375,11 @@ manapi::status manapi::event_loop::watch_curl(void * shared_curl, std::move_only
         return status_invalid_argument ("watch_curl:curl_easy_setopt failed");
 
     try {
+        this->m_etaskpool->append_task([this] () -> void {
+            this->handle_curl_exec_connections();
+            this->handle_curl_check_connections();
+        });
+
         ev::internal::curl_res_value_t curl_res_value{};
         curl_res_value.self = curl;
         curl_res_value.finish = std::move(cb);
@@ -1392,15 +1397,8 @@ manapi::status manapi::event_loop::watch_curl(void * shared_curl, std::move_only
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "watch_curl:Failed", e.what());
-        return manapi::status_internal("watch_curl:Failed");
+        return manapi::status_unknown("watch_curl:Failed");
     }
-
-    MANAPIHTTP_MUST_ALLOC_START
-    this->m_etaskpool->append_task([this] () -> void {
-        this->handle_curl_exec_connections();
-        this->handle_curl_check_connections();
-    });
-    MANAPIHTTP_MUST_ALLOC_END
 
     return manapi::status_ok();
 }
@@ -1434,53 +1432,61 @@ manapi::status manapi::event_loop::unwatch_curl(void * shared_curl) MANAPIHTTP_N
         manapi_log_error("%s: %s failed due to %s", "curl", "mapped.finish", e.what());
     }
 
-    MANAPIHTTP_MUST_ALLOC_START
-    this->m_etaskpool->append_task([this] () -> void {
-        this->handle_curl_exec_connections();
-        this->handle_curl_check_connections();
-    });
-    MANAPIHTTP_MUST_ALLOC_END
+    try {
+        this->m_etaskpool->append_task([this]() -> void {
+            this->handle_curl_exec_connections();
+            this->handle_curl_check_connections();
+        });
+    }
+    catch (std::exception const &e) {
+        manapi_log_error(e.what());
+    }
 
     return manapi::status_ok();
 }
 
 manapi::status manapi::event_loop::pause_watch_curl(void * shared_curl) MANAPIHTTP_NOEXCEPT {
-    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
-    /* pause */
-    const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_ALL);
-    if (CURLE_OK != rhs) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d",
-            curl.get(), static_cast<int>(rhs));
-        return status_invalid_argument("curl_easy_pause failed");
+    try {
+        auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
+        /* pause */
+        this->m_etaskpool->append_task([this]() -> void {
+            this->handle_curl_exec_connections();
+            this->handle_curl_check_connections();
+        });
+        const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_ALL);
+        if (CURLE_OK != rhs) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d",
+                             curl.get(), static_cast<int>(rhs));
+            return status_invalid_argument("curl_easy_pause failed");
+        }
+        return status_ok();
     }
-    MANAPIHTTP_MUST_ALLOC_START
-    this->m_etaskpool->append_task([this] () -> void {
-        this->handle_curl_exec_connections();
-        this->handle_curl_check_connections();
-    });
-    MANAPIHTTP_MUST_ALLOC_END
-    return status_ok();
+    catch (...) {
+        return manapi::status_resource_exhausted();
+    }
 }
 
 manapi::status manapi::event_loop::unpause_watch_curl(void *shared_curl) MANAPIHTTP_NOEXCEPT {
-    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
-    /* unpause */
-    const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_CONT);
+    try {
+        auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
+        this->m_etaskpool->append_task([this]() -> void {
+            this->handle_curl_exec_connections();
+            this->handle_curl_check_connections();
+        });
+        /* unpause */
+        const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_CONT);
 
-    if (CURLE_OK != rhs) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d", curl.get(),
-            static_cast<int>(rhs));
-        return status_invalid_argument(curl_easy_strerror(rhs));
+        if (CURLE_OK != rhs) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d", curl.get(),
+                             static_cast<int>(rhs));
+            return status_invalid_argument(curl_easy_strerror(rhs));
+        }
+
+        return manapi::status_ok();
     }
-
-    MANAPIHTTP_MUST_ALLOC_START
-    this->m_etaskpool->append_task([this] () -> void {
-        this->handle_curl_exec_connections();
-        this->handle_curl_check_connections();
-    });
-    MANAPIHTTP_MUST_ALLOC_END
-
-    return manapi::status_ok();
+    catch (...) {
+        return manapi::status_resource_exhausted();
+    }
 }
 #endif
 

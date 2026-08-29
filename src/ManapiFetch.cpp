@@ -735,14 +735,24 @@ manapi::future<manapi::status> manapi::net::fetch::perform(manapi::ctoken token)
 
                 co_await promisez ([&perform_data](promisez::resolve_t resolve) -> void {
                     perform_data.p->m_data->builder.resolve = std::move(resolve);
-                    manapi::async::current()->eventloop()->watch_curl(&perform_data.p->m_data->curl, [&perform_data](int status)
-                            -> void {
-                        perform_data.status = static_cast<CURLcode> (status);
-                        if (!--perform_data.p->m_data->builder.deps) {
-                            perform_data.p->m_data->builder.resolve();
-                        }
-                    }).unwrap();
                     perform_data.p->m_data->builder.deps++;
+
+                    try {
+                        manapi::async::current()->eventloop()->watch_curl(&perform_data.p->m_data->curl,
+                            [&perform_data](int status)
+                                  -> void {
+                            manapi_log_trace2 ( "manapihttp::fetch", "watch_curl:Unbind perform_data=%p", &perform_data);
+                            perform_data.status = static_cast<CURLcode> (status);
+                            if (!--perform_data.p->m_data->builder.deps) {
+                                perform_data.p->m_data->builder.resolve();
+                            }
+                            manapi_log_trace2 ( "manapihttp::fetch", "watch_curl:Finish unbind perform_data=%p", &perform_data);
+                        }).unwrap();
+                    }
+                    catch (...) {
+                        perform_data.p->m_data->builder.deps--;
+                        std::rethrow_exception(std::current_exception());
+                    }
                 });
 
                 status = perform_data.status;
