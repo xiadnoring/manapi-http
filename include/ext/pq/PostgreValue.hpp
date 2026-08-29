@@ -9,7 +9,7 @@
 #include "../../ManapiUtils.hpp"
 #include "../../ManapiDebug.hpp"
 
-#include "./AsyncPostgreError.hpp"
+#include "./PostgreError.hpp"
 
 namespace manapi::ext::pq {
     enum value_types {
@@ -261,7 +261,7 @@ namespace manapi::ext::pq {
     }
 }
 
-#include "./AsyncPostgreValueTypes.hpp"
+#include "./PostgreValueTypes.hpp"
 
 namespace manapi::ext::pq {
     template<typename T>

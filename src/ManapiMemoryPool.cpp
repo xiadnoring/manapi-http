@@ -29,8 +29,6 @@ enum buffer_level {
     BUFF_LEVEL_MAX
 };
 
-constexpr std::size_t area_size = 4096;
-
 struct manapi::object_pool_data_t {
     manapi::chain<std::pair<void*, std::size_t>> buffers[BUFF_LEVEL_MAX + 1];
     std::size_t used;
@@ -194,8 +192,8 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
 }
 
 manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggested) {
-    std::size_t cnt = suggested / ::area_size;
-    std::size_t const left = suggested - cnt * ::area_size;
+    std::size_t cnt = suggested / object_pool::area_size();
+    std::size_t const left = suggested - cnt * object_pool::area_size();
 
     std::unique_ptr<slice_part_t, slice::slice_part_deleter> buffs{};
 
@@ -220,12 +218,12 @@ manapi::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggeste
         void *buffptr{nullptr};
         std::size_t buffsize;
 
-        if (::object_pool_malloc(this->data.get(), &buffptr, &buffsize, ::area_size)) {
+        if (::object_pool_malloc(this->data.get(), &buffptr, &buffsize, object_pool::area_size())) {
             delete []static_cast<char*>(buffptr);
             return status_resource_exhausted();
         }
 
-        assert((buffsize >= ::area_size));
+        assert((buffsize >= object_pool::area_size()));
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = static_cast<decltype(cur->buff.len)>(buffsize);
     }
@@ -364,10 +362,6 @@ void manapi::object_pool::clear() {
 
 int manapi::object_pool::mem_type(std::size_t size) MANAPIHTTP_NOEXCEPT {
     return ::bufflen2level(size);
-}
-
-std::size_t manapi::object_pool::area_size() MANAPIHTTP_NOEXCEPT {
-    return ::area_size;
 }
 
 manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {

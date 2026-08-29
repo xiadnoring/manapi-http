@@ -11,12 +11,18 @@
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
 namespace manapi::net {
+    class fetch2;
+
+    manapi::future<manapi::status> fetch2_response(std::shared_ptr<manapi::net::fetch2> fetch, manapi::ctoken token);
+
     class fetch2 : public std::enable_shared_from_this<fetch2> {
+
+        friend manapi::future<manapi::status> fetch2_response(std::shared_ptr<manapi::net::fetch2> fetch, manapi::ctoken token);
 
         template<typename T>
         friend manapi::future<manapi::status_or<std::shared_ptr<manapi::net::fetch2>>> fetch2_init(std::string url, manapi::json params, T body, manapi::ctoken cancellation);
 
-        fetch2 (std::string url, ctoken cancellation = nullptr);
+        fetch2 (std::string url);
     public:
         struct fetch_data;
 
@@ -24,15 +30,17 @@ namespace manapi::net {
 
         static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params = manapi::json::object(), ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::optional<fetch_formdata> body, ctoken cancellation = nullptr);
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, fetch_formdata body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::optional<std::string> body, ctoken cancellation = nullptr);
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::string body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, ctoken cancellation = nullptr);
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, manapi::slice_view body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, ctoken cancellation = nullptr);
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::move_only_function<ssize_t(char *, ssize_t)> body, ctoken cancellation = nullptr);
 
-        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::optional<http::file_transfer_info> body, ctoken cancellation = nullptr);
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> body, ctoken cancellation = nullptr);
+
+        static manapi::future<manapi::status_or<std::shared_ptr<fetch2>>> fetch (std::string url, manapi::json params, http::file_transfer_info body, ctoken cancellation = nullptr);
 
         MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT;
 
@@ -46,9 +54,13 @@ namespace manapi::net {
 
         manapi::future<manapi::status_or<std::string>> text ();
 
+        manapi::future<manapi::status_or<manapi::slice>> slice ();
+
         manapi::future<manapi::json_error::status_or<manapi::json>> json ();
 
         manapi::future<manapi::status> form (formdata_recv::onparam_cb_t cb);
+
+        bool is_processing () const;
     private:
         std::unique_ptr <fetch_data> fetchdata;
     };

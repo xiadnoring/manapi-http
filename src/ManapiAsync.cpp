@@ -176,19 +176,6 @@ void manapi::async::coro_resume(std::coroutine_handle<> handle) {
             std::rethrow_exception(std::current_exception());
         }
     }
-
-    // ++current_finish_cnt;
-    // std::size_t const fin_cnt = current_finish_cnt;
-    // handle.resume();
-    // auto res = static_cast <internal::promise_base_future *> (handle.address());
-    // assert(res);
-    // if (fin_cnt!=current_finish_cnt) {
-    //     assert(current_finish_cnt > fin_cnt);
-    //     current_finish_cnt--;
-    //     auto z = handle.done();
-    //     res->run_finish_cb();
-    // }
-    // --current_finish_cnt;
 }
 
 void manapi::async::coro_finish(std::coroutine_handle<> handle) MANAPIHTTP_NOEXCEPT {

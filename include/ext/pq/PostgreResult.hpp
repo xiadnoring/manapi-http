@@ -1,7 +1,7 @@
 #pragma once
 
-#include "./AsyncPostgreRow.hpp"
-#include "./AsyncPostgreError.hpp"
+#include "./PostgreRow.hpp"
+#include "./PostgreError.hpp"
 #include "../../ManapiErrors.hpp"
 #include "../../ManapiUtils.hpp"
 
@@ -27,28 +27,28 @@ namespace manapi::ext::pq {
         result () {}
 
         result (PGresult *res) {
-            this->res_.reset(res);
+            this->m_res.reset(res);
         }
 
         result (result &&n) MANAPIHTTP_NOEXCEPT {
-            this->res_ = std::move(n.res_);
+            this->m_res = std::move(n.m_res);
         }
 
         ~result() = default;
 
         result &operator=(result &&n) MANAPIHTTP_NOEXCEPT {
             if (this != &n) {
-                this->res_ = std::move(n.res_);
+                this->m_res = std::move(n.m_res);
             }
             return *this;
         }
 
         operator bool() const MANAPIHTTP_NOEXCEPT {
-            return !!this->res_;
+            return !!this->m_res;
         }
 
         MANAPIHTTP_NODISCARD int size () const MANAPIHTTP_NOEXCEPT {
-            return PQntuples(this->res_.get());
+            return PQntuples(this->m_res.get());
         }
 
         MANAPIHTTP_NODISCARD bool empty () {
@@ -56,11 +56,11 @@ namespace manapi::ext::pq {
         }
 
         PGresult *native_handle () MANAPIHTTP_NOEXCEPT {
-            return this->res_.get();
+            return this->m_res.get();
         }
 
         result copy () const {
-            return {PQcopyResult(this->res_.get(), PG_COPYRES_ATTRS | PG_COPYRES_TUPLES)};
+            return {PQcopyResult(this->m_res.get(), PG_COPYRES_ATTRS | PG_COPYRES_TUPLES)};
         }
 
         MANAPIHTTP_NODISCARD pq::sql_states sqlstate() const MANAPIHTTP_NOEXCEPT {
@@ -69,7 +69,7 @@ namespace manapi::ext::pq {
             }
 
             int n = 0;
-            const char *ptr = PQresultErrorField(this->res_.get(), PG_DIAG_SQLSTATE);
+            const char *ptr = PQresultErrorField(this->m_res.get(), PG_DIAG_SQLSTATE);
 
             while (ptr && *ptr) {
                 n *= 43;
@@ -86,7 +86,7 @@ namespace manapi::ext::pq {
 
         row at (int index) {
             if (index < this->size()) {
-                return row{this->res_.get(), index};
+                return row{this->m_res.get(), index};
             }
 
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "out of range in result", index);
@@ -102,7 +102,7 @@ namespace manapi::ext::pq {
                 return this->affected_rows_.value();
             }
 
-            char *s = PQcmdTuples(this->res_.get());
+            char *s = PQcmdTuples(this->m_res.get());
             size_t cnt = 0;
             while (s && *s!='\0') {
                 cnt *= 10;
@@ -116,7 +116,7 @@ namespace manapi::ext::pq {
         MANAPIHTTP_NODISCARD const_iterator begin () const MANAPIHTTP_NOEXCEPT;
         MANAPIHTTP_NODISCARD const_iterator end () const MANAPIHTTP_NOEXCEPT;
     private:
-        std::unique_ptr<PGresult, pgresult_deleter> res_;
+        std::unique_ptr<PGresult, pgresult_deleter> m_res;
         std::optional<std::size_t> mutable sqlstate_;
         std::optional<size_t> mutable affected_rows_;
     };
@@ -189,10 +189,10 @@ namespace manapi::ext::pq {
     };
 
     inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::begin() const MANAPIHTTP_NOEXCEPT {
-        return const_iterator{this->res_.get(), 0};
+        return const_iterator{this->m_res.get(), 0};
     }
 
     inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::end() const MANAPIHTTP_NOEXCEPT {
-        return const_iterator{this->res_.get(), this->size()};
+        return const_iterator{this->m_res.get(), this->size()};
     }
 }

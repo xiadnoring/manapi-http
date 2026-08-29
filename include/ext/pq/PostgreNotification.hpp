@@ -13,42 +13,42 @@ namespace manapi::ext::pq {
             }
         };
 
-        std::unique_ptr<PGnotify, pgnotify_deter> pg_notify_;
+        std::unique_ptr<PGnotify, pgnotify_deter> m_pg_notify;
 
     public:
         notification () = default;
 
         notification (PGnotify *p) {
-            this->pg_notify_.reset(p);
+            this->m_pg_notify.reset(p);
         }
 
         notification (notification &&n) MANAPIHTTP_NOEXCEPT {
-            this->pg_notify_ = std::move(n.pg_notify_);
+            this->m_pg_notify = std::move(n.m_pg_notify);
         }
 
         operator bool () const {
-            return !!this->pg_notify_;
+            return !!this->m_pg_notify;
         }
 
         MANAPIHTTP_NODISCARD int pid () const MANAPIHTTP_NOEXCEPT {
-            if (this->pg_notify_) {
-                return this->pg_notify_->be_pid;
+            if (this->m_pg_notify) {
+                return this->m_pg_notify->be_pid;
             }
 
             return -1;
         }
 
         MANAPIHTTP_NODISCARD std::string_view channel () const MANAPIHTTP_NOEXCEPT {
-            if (this->pg_notify_) {
-                return this->pg_notify_->relname;
+            if (this->m_pg_notify) {
+                return this->m_pg_notify->relname;
             }
 
             return {};
         }
 
         MANAPIHTTP_NODISCARD std::string_view payload () const MANAPIHTTP_NOEXCEPT {
-            if (this->pg_notify_) {
-                return this->pg_notify_->extra;
+            if (this->m_pg_notify) {
+                return this->m_pg_notify->extra;
             }
 
             return {};

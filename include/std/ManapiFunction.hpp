@@ -136,7 +136,7 @@ namespace manapi {
     };
 
     template<typename Result, typename ...Arguments>
-    auto static_function (auto cb) {
-        return manapi::move_only_function_base<sizeof (impl::FunctorHolder<decltype (cb), Result, Arguments...>), Result, Arguments...> (std::move(cb));
+    auto static_function (auto &&cb) {
+        return manapi::move_only_function_base<sizeof (impl::FunctorHolder<decltype (cb), Result, Arguments...>), Result, Arguments...> (std::forward<decltype(cb)>(cb));
     }
 }

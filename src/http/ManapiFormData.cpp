@@ -105,7 +105,7 @@ manapi::future<manapi::status> manapi::net::formdata_recv::get(std::string_view 
         switch (type) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
                 status = co_await this->onrecv_cb_ ([this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-                        co_return co_await this->onrecv_multipart_(buffs);
+                        return this->onrecv_multipart_(buffs);
                 });
 
                 if (!status)

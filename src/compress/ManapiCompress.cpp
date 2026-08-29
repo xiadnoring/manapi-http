@@ -50,13 +50,13 @@ manapi::status_or<std::string> manapi::compress::brotli_decompress_string(std::s
     output.resize(src.size() * 2);
     std::size_t output_size = output.size();
     BROTLI_BOOL rhs = BrotliDecoderDecompress(src.size(), reinterpret_cast<const uint8_t *>(src.data()),
-        &output_size, reinterpret_cast<uint8_t *>(output.data()));
+                                              &output_size, reinterpret_cast<uint8_t *>(output.data()));
     if (!rhs) {
         goto err;
     }
     output.resize(output_size);
     return std::move(output);
-err:
+    err:
     return status_internal("brotli: decompress failed");
 }
 
@@ -71,7 +71,7 @@ manapi::status_or<std::string> manapi::compress::brotli_compress_string(std::str
     do {
         std::size_t output_size = output.size();
         BROTLI_BOOL rhs = BrotliEncoderCompress(
-            static_cast<int>(quality), static_cast<int>(window), static_cast<BrotliEncoderMode>(mode), src.size(), reinterpret_cast<const uint8_t *>(src.data()), &output_size, reinterpret_cast<uint8_t *>(output.data()));
+                static_cast<int>(quality), static_cast<int>(window), static_cast<BrotliEncoderMode>(mode), src.size(), reinterpret_cast<const uint8_t *>(src.data()), &output_size, reinterpret_cast<uint8_t *>(output.data()));
 
         if (!rhs) {
             goto err;
@@ -81,7 +81,7 @@ manapi::status_or<std::string> manapi::compress::brotli_compress_string(std::str
 
         return std::move(output);
     } while (false);
-err:
+    err:
     return status_internal("brotli: compress failed");
 }
 
@@ -171,7 +171,7 @@ manapi::future<manapi::status> manapi::compress::brotli_compress_file(manapi::ev
     catch (...) {
 
     }
-err:
+    err:
     BrotliEncoderDestroyInstance(cctx);
     if (!res.ok())
         co_return status_internal("brotli: compress failed");
@@ -320,7 +320,7 @@ manapi::future<manapi::status> manapi::compress::zstd_compress_file(manapi::ev::
     catch (...) {
 
     }
-err:
+    err:
     ZSTD_freeCCtx(cctx);
     if (!res.ok())
         co_return status_internal("zstd: compress failed");
@@ -417,7 +417,7 @@ manapi::future<manapi::status> manapi::compress::zstd_decompress_file(manapi::ev
     catch (...) {
 
     }
-err:
+    err:
     ZSTD_freeDCtx(dctx);
     if (!res.ok())
         co_return status_internal("zstd: decompress failed");
@@ -496,9 +496,9 @@ manapi::future<manapi::status> manapi::compress::deflate_compress_file(manapi::e
     catch (...) {
 
     }
-err:
+    err:
     deflateEnd(&stream);
-excep:
+    excep:
     co_return status_internal("deflate:failed");
 }
 
@@ -567,9 +567,9 @@ manapi::future<manapi::status> manapi::compress::deflate_decompress_file(manapi:
     catch (...) {
 
     }
-err:
+    err:
     inflateEnd(&stream);
-excep:
+    excep:
     co_return status_internal("deflate:failed");
 }
 
@@ -792,9 +792,9 @@ manapi::future<manapi::status> manapi::compress::gzip_compress_file(manapi::ev::
     catch (...) {
 
     }
-err:
+    err:
     deflateEnd(&stream);
-excep:
+    excep:
     co_return status_internal("gzip compress failed");
 }
 
@@ -857,9 +857,9 @@ manapi::future<manapi::status> manapi::compress::gzip_decompress_file(manapi::ev
     catch (...) {
 
     }
-err:
+    err:
     inflateEnd(&stream);
-excep:
+    excep:
     co_return status_internal("gzip decompress failed");
 }
 
@@ -906,13 +906,13 @@ manapi::status_or<manapi::slice> manapi::compress::deflate_compress::compress(ma
 
     for (; it != input.end(); ) {
         it++;
-start:
+        start:
         if (it == input.end())
             break;
 
         z = std::string_view ( static_cast<char *>(it.buffer()), it.size() );
         indx++;
-skip:
+        skip:
 
         this->m_data->stream.avail_in = static_cast<uint32_t>(z.size());
         this->m_data->stream.next_in = (Byte *)(z.data());
@@ -997,12 +997,12 @@ manapi::status_or<manapi::slice> manapi::compress::deflate_decompress::decompres
 
     for (; it != input.end(); ) {
         it++;
-start:
+        start:
         if (it == input.end())
             break;
         z = std::string_view ( static_cast<char *>(it.buffer()), it.size() );
         indx++;
-skip:
+        skip:
 
         this->m_data->stream.avail_in = static_cast<uint32_t>(z.size());
         this->m_data->stream.next_in = (Byte *)(z.data());

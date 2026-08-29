@@ -27,7 +27,7 @@ namespace manapi::net {
          * @param id ID
          * @param events event loop
          */
-        explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::site> site, size_t id);
+        explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::base_http> site, size_t id);
 
         /* deconstructor */
         ~http_pool();
@@ -48,11 +48,11 @@ namespace manapi::net {
          * get the site instance
          * @return the site instance
          */
-        MANAPIHTTP_NODISCARD const std::shared_ptr<worker::site> &site () const;
+        MANAPIHTTP_NODISCARD const std::shared_ptr<worker::base_http> &site () const;
 
         MANAPIHTTP_NODISCARD std::shared_ptr <http::config> config () const;
     private:
-        manapi::future<manapi::status> pool_ ();
+        manapi::future<manapi::status> pool ();
 
         std::size_t m_id;
 
@@ -66,10 +66,6 @@ namespace manapi::net {
 
         std::shared_ptr<manapi::async::mutex> m_mx;
 
-        std::unique_ptr<std::promise <int> > m_pool_promise;
-
-        std::shared_ptr<worker::site> m_site;
-        // watchers
-        std::shared_ptr <ev::io> m_watcher;
+        std::shared_ptr<worker::base_http> m_site;
     };
 }

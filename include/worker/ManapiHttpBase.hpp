@@ -19,13 +19,13 @@
 #include "../json/ManapiJsonMask.hpp"
 
 namespace manapi::net::worker {
-    class site {
+    class base_http {
     public:
-        site ();
+        base_http ();
         /**
          * deconstructor
          */
-        virtual ~site();
+        virtual ~base_http();
 
         /**
          * set a config file path

@@ -212,3 +212,22 @@ std::size_t manapi::string::replace(std::string &s, std::string_view from, std::
     }
     return res;
 }
+
+long long int manapi::string::strtoll(std::string_view s) {
+    long long result;
+    auto [ ptr, ec ] = std::from_chars (s.data(), s.data() + s.size(), result);
+
+    if (ec == std::errc::invalid_argument) {
+        throw std::invalid_argument("strtoll:no conversion");
+    }
+
+    if (ec == std::errc::result_out_of_range) {
+        throw std::out_of_range("strtoll:value out of range");
+    }
+
+    if (ptr != s.data() + s.size()) {
+        throw std::invalid_argument("strtoll:trailing characters");
+    }
+
+    return result;
+}

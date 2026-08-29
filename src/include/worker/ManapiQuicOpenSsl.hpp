@@ -19,11 +19,11 @@ namespace manapi::net::worker {
 
         struct quic_stream_t;
     public:
-        openssl_quic (std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        openssl_quic (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         ~openssl_quic() override;
 
-        static std::shared_ptr<worker::openssl_quic> create (std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::openssl_quic> create (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
         manapi::future<status> init(std::size_t deep) override;
 

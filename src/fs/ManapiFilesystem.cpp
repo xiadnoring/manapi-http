@@ -45,7 +45,7 @@ bool async_fs_operation_result_error (std::shared_ptr<manapi::ev::fs> &w, typena
     cancellation.disable();
     ssize_t rhs;
     if ((rhs = w->result()) < 0) {
-        resolve(manapi::ev::status_internal("filesystem error", static_cast<int>(rhs)));
+        resolve(manapi::ev::status_unknown("filesystem error", static_cast<int>(rhs)));
         return true;
     }
 
@@ -65,7 +65,7 @@ bool async_fs_operation_event_handler (std::shared_ptr<manapi::ev::fs> &&w, type
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "fs callback failed", e.what());
-        resolve(manapi::ev::status_internal("fs callback failed", manapi::ev::ERR_UNKNOWN));
+        resolve(manapi::ev::status_unknown("fs callback failed", manapi::ev::ERR_UNKNOWN));
     }
     return true;
 }
@@ -108,7 +108,7 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
                 watcher = watcher_res.unwrap();
 
             if (!watcher_res || !((*t.start_cb)(watcher))) {
-                resolve(manapi::ev::status_internal("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
+                resolve(manapi::ev::status_unknown("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
                 return;
             }
 
@@ -126,7 +126,7 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "fs operation failed", e.what());
-        co_return manapi::ev::status_internal("fs operation failed", manapi::ev::ERR_UNKNOWN);
+        co_return manapi::ev::status_unknown("fs operation failed", manapi::ev::ERR_UNKNOWN);
     }
 }
 
@@ -196,7 +196,7 @@ manapi::future<manapi::ev::status_or<std::chrono::system_clock::time_point>> man
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "failed", e.what());
-        res = ev::status_internal("failed", ev::ERR_UNKNOWN);
+        res = ev::status_unknown("failed", ev::ERR_UNKNOWN);
     }
 err:
     co_return std::move(res);
@@ -364,7 +364,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_write(std::string path, std
         co_return std::move(res.err());
     auto rhs = res.unwrap();
     if (rhs < 0)
-        co_return ev::status_internal("fs:write failed", ev::ERR_UNKNOWN);
+        co_return ev::status_unknown("fs:write failed", ev::ERR_UNKNOWN);
     co_return ev::status_ok();
 }
 
@@ -395,7 +395,7 @@ manapi::future<manapi::ev::status_or<std::string>> manapi::fs::async_read(std::s
         co_return rhs.err();
 
     if (rhs.unwrap() < 0)
-        co_return ev::status_internal("fs:read failed", ev::ERR_UNKNOWN);
+        co_return ev::status_unknown("fs:read failed", ev::ERR_UNKNOWN);
 
     co_return std::move(data);
 }
@@ -502,7 +502,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
                 dd.buff->len -= static_cast<decltype(dd.buff->len)>(rhs);
 
                 if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
-                    resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+                    resolve(ev::status_unknown("fs i/o init watcher failed", ev::ERR_UNKNOWN));
                     return true;
                 }
 
@@ -518,7 +518,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_write(ev::file 
         }
         catch (std::exception const &e) {
             manapi_log_error("%s due to %s", "async_write:Failed", e.what());
-            resolve(ev::status_internal("async_write:Failed", ev::ERR_UNKNOWN));
+            resolve(ev::status_unknown("async_write:Failed", ev::ERR_UNKNOWN));
         }
 
         return true;
@@ -641,7 +641,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
                 dd.buff->len -= static_cast<decltype(dd.buff->len)>(rhs);
 
                 if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
-                    resolve(ev::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+                    resolve(ev::status_unknown("fs i/o init watcher failed", ev::ERR_UNKNOWN));
                     return true;
                 }
 
@@ -658,7 +658,7 @@ manapi::future<manapi::ev::status_or<ssize_t>> manapi::fs::async_read(ev::file f
         catch (std::exception const &e) {
             manapi_log_error("%s due to %s", "async_read:Failed", e.what());
             cancel.disable();
-            resolve(ev::status_internal("async_read:Failed", ev::ERR_UNKNOWN));
+            resolve(ev::status_unknown("async_read:Failed", ev::ERR_UNKNOWN));
         }
 
         return true;
@@ -788,7 +788,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_stat(std::string path, std:
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_stat failed", static_cast<int>(w->result())));
+                resolve(ev::status_unknown("async_stat failed", static_cast<int>(w->result())));
                 return true;
             }
 
@@ -811,7 +811,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_fstat(ev::file file, std::m
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_fstat failed", static_cast<int>(w->result())));
+                resolve(ev::status_unknown("async_fstat failed", static_cast<int>(w->result())));
                 return true;
             }
 
@@ -1057,7 +1057,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_statfs (std::string path, s
             cancel.disable();
 
             if (w->result()) {
-                resolve(ev::status_internal("async_statfs failed", static_cast<int>(w->result())));
+                resolve(ev::status_unknown("async_statfs failed", static_cast<int>(w->result())));
                 return true;
             }
 
@@ -1099,7 +1099,7 @@ manapi::future<manapi::ev::status> manapi::fs::async_access (std::string path, i
         -> bool {
             cancel.disable();
             if (w->result())
-                resolve(ev::status_internal("access failed", static_cast<int>(w->result())));
+                resolve(ev::status_unknown("access failed", static_cast<int>(w->result())));
             else
                 resolve(ev::status_ok());
             return true;

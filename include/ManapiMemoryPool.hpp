@@ -83,7 +83,7 @@ namespace manapi {
 
         static int mem_type (std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        static std::size_t area_size () MANAPIHTTP_NOEXCEPT;
+        static constexpr std::size_t area_size () { return 4096; }
 
         template<typename T, typename ...Args>
         manapi::status_or<object_item_pool<T>> get (Args&&...args) {

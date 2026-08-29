@@ -618,7 +618,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiTimerPool.hpp
         include/http/ManapiHttpPool.hpp
         include/json/ManapiJsonMask.hpp
-        include/worker/ManapiSite.hpp
+        include/worker/ManapiHttpBase.hpp
         include/http/ManapiHttpConfig.hpp
         include/ext/ManapiJsonWebTokenTraits.hpp
         include/ext/ManapiJsonWebTokenDefaults.hpp
@@ -653,7 +653,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/ManapiHttpPool.cpp
         include/cache/ManapiLRU.hpp
         src/ManapiTimerPool.cpp
-        src/worker/ManapiSite.cpp
+        src/worker/ManapiBaseHttp.cpp
         src/http/ManapiHttpConfig.cpp
         src/ManapiUnicode.cpp
         src/json/ManapiJsonBuilder.cpp
@@ -705,16 +705,16 @@ set(MANAPIHTTP_HTTP_FILES
         src/std/ManapiConditionVariable.cpp
         include/fs/ManapiFileStream.hpp
         src/fs/ManapiFileStream.cpp
-        include/ext/pq/AsyncPostgreClient.hpp
+        include/ext/pq/PostgreClient.hpp
         include/std/ManapiSocket.hpp
-        include/ext/pq/AsyncPostgreResult.hpp
-        include/ext/pq/AsyncPostgreRow.hpp
-        include/ext/pq/AsyncPostgreField.hpp
-        include/ext/pq/AsyncPostgreValue.hpp
-        include/ext/pq/AsyncPostgreValueTypes.hpp
-        include/ext/pq/AsyncPostgreNotification.hpp
-        include/ext/pq/AsyncPostgrePool.hpp
-        include/ext/pq/AsyncPostgreImpl.ipp
+        include/ext/pq/PostgreResult.hpp
+        include/ext/pq/PostgreRow.hpp
+        include/ext/pq/PostgreField.hpp
+        include/ext/pq/PostgreValue.hpp
+        include/ext/pq/PostgreValueTypes.hpp
+        include/ext/pq/PostgreNotification.hpp
+        include/ext/pq/PostgrePool.hpp
+        include/ext/pq/PostgreImpl.ipp
         include/std/ManapiParallelRun.hpp
         include/ManapiFetch2.hpp
         include/ManapiTimerObject.hpp
@@ -794,7 +794,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiHttp3Worker.cpp
         src/worker/ManapiBaseUtils.cpp
         include/std/ManapiFunction.hpp
-        include/ext/pq/AsyncPostgreError.hpp
+        include/ext/pq/PostgreError.hpp
         src/include/ManapiEventLoopCurl.hpp
         include/std/ManapiRef.hpp
         include/std/ManapiScopePtr.hpp

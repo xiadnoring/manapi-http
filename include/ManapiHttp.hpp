@@ -6,7 +6,7 @@
 #include <future>
 
 #include "./ManapiUtils.hpp"
-#include "./worker/ManapiSite.hpp"
+#include "./worker/ManapiHttpBase.hpp"
 #include "./ManapiThreadPool.hpp"
 #include "./json/ManapiJsonMask.hpp"
 #include "./std/ManapiRef.hpp"
@@ -15,8 +15,6 @@
 #include "./http/ManapiHttpRequest.hpp"
 
 namespace manapi::net::http {
-    using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;
-
     typedef std::move_only_function <future<>(manapi::net::http::request &req, manapi::net::http::response &res)> async_handler_t;
 
     typedef std::move_only_function <void (manapi::net::http::request &req, manapi::net::http::uresponse res)> sync_handler_t;
@@ -68,7 +66,7 @@ namespace manapi::net::http {
         void *m_data;
     };
 
-    class server : public net::worker::site, public std::enable_shared_from_this<server> {
+    class server : public net::worker::base_http, public std::enable_shared_from_this<server> {
         /**
          * initialize the server with the server ctx
          * @param sctx the HTTP server context
@@ -88,7 +86,7 @@ namespace manapi::net::http {
         typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb_t;
 
         // Worker init callbacks
-        typedef std::function<std::shared_ptr<worker::base>(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
+        typedef std::function<std::shared_ptr<worker::base>(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
 
         // Http init callback
         typedef std::function<manapi::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
@@ -100,11 +98,11 @@ namespace manapi::net::http {
         static manapi::status_or<std::shared_ptr<server>> create (std::shared_ptr<server_ctx> sctx) MANAPIHTTP_NOEXCEPT;
 
         /**
-         * Casts |worker::site| to |http::server|
+         * Casts |worker::base_http| to |http::server|
          * @param serv
          * @return
          */
-        static server *cast (worker::site *serv);
+        static server *cast (worker::base_http *serv);
 
         /**
          * deconstructor
@@ -316,7 +314,7 @@ namespace manapi::net::http {
          * Get config cache directory path
          * @return Path in filesytem
          */
-        const std::string & config_cache_dir() const;
+        std::string config_cache_dir() const;
     private:
         std::unique_ptr <data_t> m_data;
     };

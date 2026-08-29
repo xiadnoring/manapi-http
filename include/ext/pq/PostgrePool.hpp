@@ -2,7 +2,7 @@
 
 #include <memory>
 #include "./../../ManapiEventStructures.hpp"
-#include "./AsyncPostgreClient.hpp"
+#include "./PostgreClient.hpp"
 
 namespace manapi::ext::pq {
     class pool;
@@ -54,13 +54,11 @@ namespace manapi::ext::pq {
 
         future<manapi::status> stop ();
 
-        future<manapi::status_or<item>> peer ();
+        future<manapi::status_or<item>> peer (manapi::ctoken token = nullptr);
 
         MANAPIHTTP_NODISCARD std::size_t size () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool connected () const MANAPIHTTP_NOEXCEPT;
-
-        MANAPIHTTP_NODISCARD std::size_t waiting () const MANAPIHTTP_NOEXCEPT;
 
         manapi::status connected (bool active) MANAPIHTTP_NOEXCEPT;
 
@@ -103,9 +101,9 @@ namespace manapi::ext::pq {
 
         void remove_slaves ();
 
-        future<manapi::status_or<item>> slave ();
+        future<manapi::status_or<item>> slave (manapi::ctoken token = nullptr);
 
-        future<manapi::status_or<item>> master ();
+        future<manapi::status_or<item>> master (manapi::ctoken token = nullptr);
 
         bool has_master () const;
 
@@ -152,6 +150,6 @@ namespace manapi::ext::pq {
     private:
         std::shared_ptr<pq::pool> m_master;
 
-        std::set<std::pair<std::size_t, std::shared_ptr<pq::pool>>> m_slaves;
+        std::set<std::pair<std::size_t, std::shared_ptr<pq::pool>>, std::greater<>> m_slaves;
     };
 }

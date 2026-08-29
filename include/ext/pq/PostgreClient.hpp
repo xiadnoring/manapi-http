@@ -8,9 +8,9 @@
 #include "../../std/ManapiMutex.hpp"
 #include "../../json/ManapiJson.hpp"
 
-#include "./AsyncPostgreResult.hpp"
-#include "./AsyncPostgreError.hpp"
-#include "./AsyncPostgreNotification.hpp"
+#include "./PostgreResult.hpp"
+#include "./PostgreError.hpp"
+#include "./PostgreNotification.hpp"
 
 #include "libpq-events.h"
 #include "libpq-fe.h"
@@ -124,7 +124,7 @@ namespace manapi::ext::pq {
 
         static error_code result_status_to_error_code (result &result) MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD PGconn * native_handle () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD ::PGconn * native_handle () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool connected () const MANAPIHTTP_NOEXCEPT;
 

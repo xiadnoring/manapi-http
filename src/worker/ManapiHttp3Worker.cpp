@@ -30,7 +30,7 @@ manapi::net::http::config * manapi::net::worker::http_v3::config() MANAPIHTTP_NO
     return this->w->config();
 }
 
-const std::shared_ptr<manapi::net::worker::site> & manapi::net::worker::http_v3::site() MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::net::worker::base_http> & manapi::net::worker::http_v3::site() MANAPIHTTP_NOEXCEPT {
     return this->w->site();
 }
 

@@ -6,8 +6,8 @@
 
 #include "../../ManapiUtils.hpp"
 #include "../../ManapiDebug.hpp"
-#include "./AsyncPostgreValue.hpp"
-#include "./AsyncPostgreValueTypes.hpp"
+#include "./PostgreValue.hpp"
+#include "./PostgreValueTypes.hpp"
 
 #include "libpq-events.h"
 #include "libpq-fe.h"
@@ -21,35 +21,35 @@ namespace manapi::ext::pq {
     class field {
     public:
         field (const PGresult *res, int row, int col) {
-            this->res_ = res;
-            this->row_ = row;
-            this->col_ = col;
+            this->m_res = res;
+            this->m_row = row;
+            this->m_col = col;
         }
 
         ~field () = default;
 
         MANAPIHTTP_NODISCARD Oid oid () const MANAPIHTTP_NOEXCEPT {
-            return PQftype(this->res_, this->col_);
+            return PQftype(this->m_res, this->m_col);
         }
 
         MANAPIHTTP_NODISCARD Oid type () const MANAPIHTTP_NOEXCEPT {
-            return PQftype(this->res_, this->col_);
+            return PQftype(this->m_res, this->m_col);
         }
 
         MANAPIHTTP_NODISCARD std::string_view name () const MANAPIHTTP_NOEXCEPT {
-            return std::string_view{PQfname(this->res_, this->col_)};
+            return std::string_view{PQfname(this->m_res, this->m_col)};
         }
 
         MANAPIHTTP_NODISCARD bool is_null () const MANAPIHTTP_NOEXCEPT {
-            return PQgetisnull(this->res_, this->row_, this->col_);
+            return PQgetisnull(this->m_res, this->m_row, this->m_col);
         }
 
         MANAPIHTTP_NODISCARD size_t size () const MANAPIHTTP_NOEXCEPT {
-            return static_cast<std::size_t>(PQgetlength(this->res_, this->row_, this->col_));
+            return static_cast<std::size_t>(PQgetlength(this->m_res, this->m_row, this->m_col));
         }
 
         MANAPIHTTP_NODISCARD char *c_str () const MANAPIHTTP_NOEXCEPT {
-            return PQgetvalue(this->res_, this->row_, this->col_);
+            return PQgetvalue(this->m_res, this->m_row, this->m_col);
         }
 
         template<typename T>
@@ -68,8 +68,8 @@ namespace manapi::ext::pq {
         }
 
     private:
-        const PGresult *res_;
-        int row_;
-        int col_;
+        const PGresult *m_res;
+        int m_row;
+        int m_col;
     };
 }

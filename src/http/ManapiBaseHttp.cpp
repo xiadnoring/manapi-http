@@ -692,7 +692,6 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
         // replacers
         if (features.replacers) {
             if (resfile.fsize <= 65536) {
-//                    manapi::slice sv = manapi::async::memory_fabric()->slice(resfile.fsize).unwrap();
                 std::string b;
                 b.resize(resfile.fsize);
                 auto const recv_result = co_await f->fread(b.data(), b.size());
@@ -884,7 +883,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         if (!proxy_data)
             goto send_error;
 
-        auto proxy_res = manapi::net::fetch::create(std::move(*proxy_err.unwrap()), res->req()->cancellation().sub());
+        auto proxy_res = manapi::net::fetch::create(std::move(*proxy_err.unwrap()));
         if (!proxy_res)
             goto send_error;
 
@@ -902,7 +901,6 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
 
         auto &client_headers = proxy_data->resp->req()->ref_headers();
 
-        std::map<std::string, std::string, std::less<>> req_headers;
         for (const auto &hd : client_headers) {
             if (hd.first.starts_with(":"))
                 continue;
@@ -912,12 +910,12 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 continue;
             if (hd.first == manapi::net::http::H_KEEP_ALIVE)
                 continue;
-            req_headers.insert({hd.first, hd.second});
+
+            proxy_data->fetch->send_header( std::string_view (hd.first), std::string_view (hd.second) ).unwrap();
         }
 
-        proxy_data->fetch->headers(std::move(req_headers)).unwrap();
 
-        proxy_data->fetch->handle_async_headers (
+        proxy_data->fetch->recv_async_headers (
             [p = proxy_data.get()](const std::shared_ptr<manapi::net::fetch> &f) mutable
             -> manapi::future<bool> {
                 try {
@@ -957,7 +955,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 co_return static_cast<ssize_t>(buffs.size());
             }), [proxy_data] (std::exception_ptr err, manapi::status *status) mutable -> void {});
 
-            proxy_data->fetch->async_body([rchannel] (slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+            proxy_data->fetch->send_async_body([rchannel] (slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
                 auto res = manapi::unwrap(co_await rchannel->recv(static_cast<ssize_t>(buffs.size())));
                 fin = rchannel->is_finished();
                 buffs.copy_from(res, 0, 0, res.size()).unwrap();
@@ -966,7 +964,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         }
 
 
-        proxy_data->fetch->handle_async_body(
+        proxy_data->fetch->recv_async_body(
             [p = proxy_data.get()](slice_view buffs, bool fin) mutable
                 -> manapi::future<ssize_t> {
             if (p->content_length > 0 && static_cast<std::size_t>(p->content_length) <= buffs.size())
@@ -983,7 +981,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             co_return rhs;
         }).unwrap();
 
-        auto task = proxy_data->fetch->async_doit();
+        auto task = proxy_data->fetch->perform(proxy_data->resp->req()->cancellation().sub());
         manapi::async::run<manapi::status> (std::move(task), [proxy_data = std::move(proxy_data)]
                 (std::exception_ptr err, manapi::status *status) mutable -> void {
                 if (status && !status->ok()) {

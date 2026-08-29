@@ -10,7 +10,7 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
-    class site;
+    class base_http;
 }
 
 namespace manapi::net::worker {
@@ -249,7 +249,7 @@ namespace manapi::net::worker {
 
         virtual wrk_interface_global_t *wrk_global () = 0;
 
-        virtual const std::shared_ptr<worker::site> &site() = 0;
+        virtual const std::shared_ptr<worker::base_http> &site() = 0;
 
         virtual http::config *config() = 0;
 

@@ -87,6 +87,17 @@ namespace manapi::ev {
         RUN_NOWAIT = UV_RUN_NOWAIT
     };
 
+    enum dirents {
+        DIRENT_UNKNOWN = UV_DIRENT_UNKNOWN,
+        DIRENT_FILE = UV_DIRENT_FILE,
+        DIRENT_DIR = UV_DIRENT_DIR,
+        DIRENT_LINK = UV_DIRENT_LINK,
+        DIRENT_FIFO = UV_DIRENT_FIFO,
+        DIRENT_SOCKET = UV_DIRENT_SOCKET,
+        DIRENT_CHAR = UV_DIRENT_CHAR,
+        DIRENT_BLOCK = UV_DIRENT_BLOCK
+    };
+
     enum types {
         EV_TIMER = 0,
         EV_WRITE,
@@ -98,12 +109,14 @@ namespace manapi::ev {
         EV_IDLE,
         EV_ASYNC
     };
+
     enum flags {
         READ = 1<<0,
         WRITE = 1<<1,
         DISCONNECT = 1<<2,
         PRIORITIZED = 1<<3
     };
+
     static_assert((int)flags::READ == (int)UV_READABLE && (int)flags::WRITE == (int)UV_WRITABLE
         && (int)flags::DISCONNECT == (int)UV_DISCONNECT && (int)flags::PRIORITIZED == (int)UV_PRIORITIZED);
     enum fs_o_flags {
@@ -448,6 +461,10 @@ namespace manapi::ev {
     /* Stores the result of fs::stat() and other stat requests. */
     typedef uv_stat_t stat_t;
 
+    struct dirent_deleter_t {
+        void operator ()(manapi::ev::dirent_t *ptr) MANAPIHTTP_NOEXCEPT;
+    };
+
     class unique_file {
     public:
         unique_file ();
@@ -526,7 +543,7 @@ namespace manapi::ev {
         int set (uv_async_cb cb) MANAPIHTTP_NOEXCEPT;
     private:
 
-        uv_async_t s_;
+        uv_async_t m_s;
     };
 
     class idle {
@@ -565,7 +582,7 @@ namespace manapi::ev {
          */
         int stop () MANAPIHTTP_NOEXCEPT;
     private:
-        uv_idle_t s_;
+        uv_idle_t m_s;
     };
 
     class check {
@@ -604,7 +621,7 @@ namespace manapi::ev {
          */
         int stop () MANAPIHTTP_NOEXCEPT;
     private:
-        uv_check_t s_;
+        uv_check_t m_s;
     };
 
     class io {
@@ -615,13 +632,13 @@ namespace manapi::ev {
         io ();
 
         int bind (loop_ref loop, manapi::socket_t fd) {
-            return (uv_poll_init_socket(loop, &this->s_, fd));
+            return (uv_poll_init_socket(loop, &this->m_s, fd));
         }
 
         template<typename T1 = manapi::fd_t>
         requires(std::is_same_v<int, manapi::socket_t>)
         int bind (loop_ref loop, int fd) {
-            return uv_poll_init(loop, &this->s_, fd);
+            return uv_poll_init(loop, &this->m_s, fd);
         }
 
         int start (int revents, uv_poll_cb cb) MANAPIHTTP_NOEXCEPT;
@@ -636,7 +653,7 @@ namespace manapi::ev {
 
         int events () MANAPIHTTP_NOEXCEPT;
     private:
-        uv_poll_t s_;
+        uv_poll_t m_s;
     };
 
     class write {
@@ -650,7 +667,7 @@ namespace manapi::ev {
 
         int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_write_t s_{};
+        uv_write_t m_s{};
     };
 
     class connect {
@@ -664,7 +681,7 @@ namespace manapi::ev {
 
         int cancel () MANAPIHTTP_NOEXCEPT;
     private:
-        uv_connect_t s_{};
+        uv_connect_t m_s{};
     };
 
     class tcp {
@@ -709,7 +726,7 @@ namespace manapi::ev {
 
         int simultaneous_accepts (int enable) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_tcp_t s_;
+        uv_tcp_t m_s;
     };
 
     class udp {
@@ -733,7 +750,7 @@ namespace manapi::ev {
 
         int try_send (const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_udp_t s_;
+        uv_udp_t m_s;
     };
 
     class udp_send {
@@ -746,7 +763,7 @@ namespace manapi::ev {
         int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
         int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_udp_send_t s_;
+        uv_udp_send_t m_s;
     };
 
     class prepare {
@@ -763,7 +780,7 @@ namespace manapi::ev {
 
         int stop () MANAPIHTTP_NOEXCEPT;
     private:
-        uv_prepare_t s_;
+        uv_prepare_t m_s;
     };
 
     class timer {
@@ -789,7 +806,7 @@ namespace manapi::ev {
 
         MANAPIHTTP_NODISCARD uint64_t due_in () const MANAPIHTTP_NOEXCEPT;
     private:
-        uv_timer_t s_;
+        uv_timer_t m_s;
     };
 
     class fs {
@@ -953,8 +970,8 @@ namespace manapi::ev {
         
         MANAPIHTTP_NODISCARD ssize_t result () const MANAPIHTTP_NOEXCEPT;
     private:
-        loop_ref loop_;
-        uv_fs_t s_;
+        loop_ref m_loop;
+        uv_fs_t m_s;
     };
 
     class random {
@@ -970,7 +987,7 @@ namespace manapi::ev {
 
         int bind (loop_ref loop, char *buff, std::size_t size) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_random_t s_;
+        uv_random_t m_s;
     };
 
     class getaddrinfo {
@@ -988,7 +1005,7 @@ namespace manapi::ev {
 
         static void free (::addrinfo *n) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_getaddrinfo_t s_;
+        uv_getaddrinfo_t m_s;
     };
 
     class getnameinfo {
@@ -1004,7 +1021,7 @@ namespace manapi::ev {
 
         int bind (loop_ref loop, const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_getnameinfo_t s_;
+        uv_getnameinfo_t m_s;
     };
 
     class work {
@@ -1020,7 +1037,7 @@ namespace manapi::ev {
 
         int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
     private:
-        uv_work_t s_;
+        uv_work_t m_s;
     };
 
     using shared_async = std::shared_ptr<async>;

@@ -1,47 +1,29 @@
-#include "./AsyncPostgrePool.hpp"
-#include "./AsyncPostgreClient.hpp"
+#include "./PostgrePool.hpp"
+#include "./PostgreClient.hpp"
 #include "./../../ManapiTimerPool.hpp"
 
-#define PSQL_POOL_FLAG_ACTIVE 1<<0
-#define PSQL_POOL_FLAG_STOP 1<<1
-#define PSQL_POOL_FLAG_CONN_LOST 1<<2
-#define PSQL_DATA_FLAG_INIT 1<<0
+#include <string>
+#include <set>
 
-struct pgconn_deleter {
-    void operator()(manapi::ext::pq::PGconn *p) {
+#define MANAPI__PSQL_POOL_FLAG_ACTIVE (1<<0)
+#define MANAPI__PSQL_POOL_FLAG_STOP (1<<1)
+#define MANAPI__PSQL_POOL_FLAG_CONN_LOST (1<<2)
+#define MANAPI__PSQL_POOL_FLAG_IS_MASTER (1<<3)
+#define MANAPI__PSQL_DATA_FLAG_INIT (1<<0)
+
+struct manapi__pgconn_deleter {
+    void operator()(PGconn *p) {
         PQfinish(p);
     }
 };
 
 struct manapi::ext::pq::connection::data_t {
     int flags;
-    std::move_only_function<manapi::future<>(notification notify)> notify_cb_{nullptr};
-    manapi::socket_t fd_{-1};
-    std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};
+    std::move_only_function<manapi::future<>(notification notify)> notify_cb;
+    manapi::socket_t fd;
+    std::unique_ptr<PGconn, manapi__pgconn_deleter> conn;
     async::mutex mx;
 };
-
-void ext_pq_item_waiting_update (std::size_t weight, std::size_t&waiting, std::size_t next_value, std::set<std::pair<std::size_t, std::shared_ptr<manapi::ext::pq::pool>>> &m_slaves, const std::shared_ptr<manapi::ext::pq::pool> &m_pool) {
-    auto f = m_slaves.erase(std::make_pair(weight, m_pool));
-    waiting = next_value;
-    if (f) {
-        MANAPIHTTP_MUST_ALLOC_START
-        m_slaves.insert(std::make_pair(m_pool->waiting(), m_pool));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-}
-
-void ext_pq_item_waiting_update (std::size_t old_weight, std::size_t new_weight, std::set<std::pair<std::size_t, std::shared_ptr<manapi::ext::pq::pool>>> &m_slaves, const std::shared_ptr<manapi::ext::pq::pool> &m_pool) {
-    if (new_weight == old_weight) {
-        return;
-    }
-    auto f = m_slaves.erase(std::make_pair(old_weight, m_pool));
-    if (f) {
-        MANAPIHTTP_MUST_ALLOC_START
-        m_slaves.insert(std::make_pair(new_weight, m_pool));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-}
 
 manapi::ext::pq::item::item(std::shared_ptr<pool> p, manapi::ext::pq::connection *conn) {
     this->m_pool = std::move(p);
@@ -75,13 +57,15 @@ void manapi::ext::pq::item::release() MANAPIHTTP_NOEXCEPT {
             // at least one free space
             this->m_pool->m_available.push(this->m_conn);
             if (this->m_pool->m_db) {
-                ext_pq_item_waiting_update (this->m_pool->size(), this->m_pool->m_waiting, this->m_pool->m_waiting+1,
-                    this->m_pool->m_db->m_slaves, this->m_pool);
-            }
-            else {
+                auto node = this->m_pool->m_db->m_slaves.extract(std::make_pair(this->m_pool->m_waiting, this->m_pool));
 
-                this->m_pool->m_waiting++;
+                if (!node.empty()) {
+                    node.value().first = this->m_pool->m_waiting + 1;
+                    this->m_pool->m_db->m_slaves.insert(std::move(node));
+                }
             }
+
+            this->m_pool->m_waiting ++;
             this->m_pool->m_mx.unlock();
         }
 
@@ -130,11 +114,11 @@ manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t si
 }
 
 manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t size, manapi::json params, manapi::ctoken token) {
-    if (this->m_flags & PSQL_POOL_FLAG_ACTIVE)
+    if (this->m_flags & MANAPI__PSQL_POOL_FLAG_ACTIVE)
         co_return manapi::ev::status_already_exists("psql:pool is active");
 
     manapi::ev::status status = manapi::ev::status_ok();
-    bool failed2connect = false;
+    bool is_connected = true;
     try {
         if (!this->m_clients.empty()) {
             manapi_log_warn("psql:clients aren't cleaned up");
@@ -146,20 +130,23 @@ manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t si
             if (!status) {
                 if (status.code() == ERR_INVALID_ARGUMENT || status.code() == ERR_ALREADY_EXISTS)
                     goto err;
-                failed2connect = true;
+                is_connected = false;
                 status = manapi::ev::status_ok();
             }
             this->m_clients.push_back(std::move(conn));
         }
+
         for (auto &c : this->m_clients)
             this->m_available.push(c.get());
-        this->m_flags |= PSQL_POOL_FLAG_ACTIVE;
+
+        this->m_waiting = this->m_clients.size();
+        this->m_flags |= MANAPI__PSQL_POOL_FLAG_ACTIVE;
+        this->m_flags |= MANAPI__PSQL_POOL_FLAG_CONN_LOST;
+
         for (auto &_ : this->m_clients)
             this->m_mx.unlock();
 
-        if (failed2connect) {
-            manapi::unwrap(this->connected(false));
-        }
+        manapi::unwrap(this->connected(is_connected));
 
         co_return std::move(status);
     }
@@ -178,16 +165,16 @@ manapi::future<manapi::ev::status> manapi::ext::pq::pool::connect(std::size_t si
 manapi::future<manapi::status> manapi::ext::pq::pool::stop() {
     struct psql_stop_unflag {
         uint8_t* flags;
-        ~psql_stop_unflag() { (*this->flags) ^= PSQL_POOL_FLAG_STOP; }
+        ~psql_stop_unflag() { (*this->flags) ^= MANAPI__PSQL_POOL_FLAG_STOP; }
     };
 
     auto s = this->shared_from_this();
     auto lk = co_await this->m_mx.lock_guard();
-    if (!(this->m_flags & PSQL_POOL_FLAG_ACTIVE))
+    if (!(this->m_flags & MANAPI__PSQL_POOL_FLAG_ACTIVE))
         co_return manapi::status_not_found("psql:pool isn't active");
 
     psql_stop_unflag unflag{&this->m_flags};
-    this->m_flags |= PSQL_POOL_FLAG_STOP;
+    this->m_flags |= MANAPI__PSQL_POOL_FLAG_STOP;
 
     while (!this->m_available.empty())
         this->m_available.pop();
@@ -198,38 +185,44 @@ manapi::future<manapi::status> manapi::ext::pq::pool::stop() {
         co_await this->m_mx.lock();
     }
 
-    this->m_flags ^= PSQL_POOL_FLAG_ACTIVE;
+    this->m_flags ^= MANAPI__PSQL_POOL_FLAG_ACTIVE;
 
     co_return manapi::status_ok();
 }
 
-manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::pool::peer() {
+manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::pool::peer(manapi::ctoken token) {
     auto s = this->shared_from_this();
     while (true) {
-        auto lk = co_await this->m_mx.lock_guard();
+        manapi::async::mutex_locker lk;
 
-        while (this->m_available.empty()) {
-            co_await this->m_mx.lock();
+        {
+            auto lk_rs = co_await this->m_mx.lock_guard(token.sub());
+            if (lk_rs.ok()) lk = lk_rs.unwrap();
+            else co_return std::move(lk_rs.err());
         }
 
-        if (this->m_flags & PSQL_POOL_FLAG_STOP) {
+        while (this->m_available.empty()) {
+            auto lk_rs = co_await this->m_mx.lock(token.sub());
+            if (!lk_rs) co_return manapi::status_cancelled();
+        }
+
+        if (this->m_flags & MANAPI__PSQL_POOL_FLAG_STOP) {
             this->m_mx.unlock();
-            continue;
+            co_return manapi::status_aborted();
         }
 
         auto item = this->m_available.top();
         this->m_available.pop();
         if (this->m_db) {
-            auto f = this->m_db->m_slaves.erase(std::make_pair(this->waiting(), s));
-            ext_pq_item_waiting_update (this->size(), this->m_waiting, this->m_waiting-1,
-                this->m_db->m_slaves, this->shared_from_this());
-            if (f) {
-                this->m_db->m_slaves.insert(std::make_pair(this->waiting(), s));
+            auto node = this->m_db->m_slaves.extract(std::make_pair(this->m_waiting, this->shared_from_this()));
+
+            if (!node.empty()) {
+                node.value().first = this->m_waiting - 1;
+                this->m_db->m_slaves.insert(std::move(node));
             }
         }
-        else {
-            this->m_waiting--;
-        }
+
+        this->m_waiting--;
 
         co_return pq::item (std::move(s), item);
     }
@@ -240,25 +233,29 @@ std::size_t manapi::ext::pq::pool::size() const MANAPIHTTP_NOEXCEPT {
 }
 
 bool manapi::ext::pq::pool::connected() const MANAPIHTTP_NOEXCEPT {
-    return !(this->m_flags & PSQL_POOL_FLAG_CONN_LOST);
-}
-
-std::size_t manapi::ext::pq::pool::waiting() const MANAPIHTTP_NOEXCEPT {
-    return this->size() - this->m_waiting + this->m_mx.waiting() + (this->m_flags & PSQL_POOL_FLAG_CONN_LOST ? 1000 : 0);
+    return !(this->m_flags & MANAPI__PSQL_POOL_FLAG_CONN_LOST);
 }
 
 manapi::status manapi::ext::pq::pool::connected(bool active) MANAPIHTTP_NOEXCEPT {
     try {
-        auto old_weight = this->size();
-
         if (this->m_ping) {
             this->m_ping.stop();
             this->m_ping=nullptr;
         }
 
         if (active) {
-            if (this->m_flags & PSQL_POOL_FLAG_CONN_LOST)
-                this->m_flags ^= PSQL_POOL_FLAG_CONN_LOST;
+            if (this->m_flags & MANAPI__PSQL_POOL_FLAG_CONN_LOST) {
+                this->m_flags ^= MANAPI__PSQL_POOL_FLAG_CONN_LOST;
+
+                if (this->m_db) {
+                    if (this->m_flags & MANAPI__PSQL_POOL_FLAG_IS_MASTER) {
+
+                    }
+                    else {
+                        this->m_db->m_slaves.insert(std::make_pair(this->m_waiting, this->shared_from_this()));
+                    }
+                }
+            }
         }
         else {
             this->m_ping = manapi::async::current()->timerpool()->append_timer_async(500,
@@ -277,12 +274,18 @@ manapi::status manapi::ext::pq::pool::connected(bool active) MANAPIHTTP_NOEXCEPT
                 }
             }).unwrap();
 
-            this->m_flags |= PSQL_POOL_FLAG_CONN_LOST;
+            this->m_flags |= MANAPI__PSQL_POOL_FLAG_CONN_LOST;
+
+            if (this->m_db) {
+                if (this->m_flags & MANAPI__PSQL_POOL_FLAG_IS_MASTER) {
+
+                }
+                else {
+                    this->m_db->m_slaves.erase(std::make_pair(this->m_waiting, this->shared_from_this()));
+                }
+            }
         }
 
-        auto new_weight = this->size();
-
-        ext_pq_item_waiting_update (old_weight, new_weight, this->m_db->m_slaves, this->shared_from_this());
         return manapi::status_ok();
     }
     catch (std::exception const &e) {
@@ -294,7 +297,7 @@ manapi::status manapi::ext::pq::pool::connected(bool active) MANAPIHTTP_NOEXCEPT
 manapi::future<> manapi::ext::pq::pool::ping(std::size_t timeoutms) {
     try {
         if (!this->m_clients.empty()) {
-            auto it = manapi::unwrap(co_await this->peer());
+            auto it = manapi::unwrap(co_await this->peer(manapi::ctokens::timeout(5000)));
             auto res = co_await it->ping(timeoutms);
             if (!res) {
                 // failed to connect
@@ -324,11 +327,14 @@ manapi::status manapi::ext::pq::db::set_master(std::shared_ptr<pq::pool> master)
         return manapi::status_already_exists("already has db");
     }
     this->m_master = std::move(master);
+    this->m_master->m_flags |= MANAPI__PSQL_POOL_FLAG_IS_MASTER;
     return manapi::status_ok();
 }
 
 void manapi::ext::pq::db::remove_master() {
     if (this->m_master) {
+        assert(this->m_master->m_flags & MANAPI__PSQL_POOL_FLAG_IS_MASTER);
+        this->m_master->m_flags ^= MANAPI__PSQL_POOL_FLAG_IS_MASTER;
         this->m_master->m_db = nullptr;
         this->m_master = nullptr;
     }
@@ -340,7 +346,8 @@ manapi::status manapi::ext::pq::db::add_slave(std::shared_ptr<pq::pool> slave) M
             if (slave->m_db) {
                 return manapi::status_already_exists("already has db");
             }
-            this->m_slaves.insert(std::make_pair(slave->size(), slave));
+
+            this->m_slaves.insert(std::make_pair(slave->m_waiting, slave));
         }
         return manapi::status_ok();
     }
@@ -351,7 +358,7 @@ manapi::status manapi::ext::pq::db::add_slave(std::shared_ptr<pq::pool> slave) M
 }
 
 void manapi::ext::pq::db::remove_slave(std::shared_ptr<pq::pool> slave) {
-    if (this->m_slaves.erase(std::make_pair(slave->size(), slave))) {
+    if (this->m_slaves.erase(std::make_pair(slave->m_waiting, slave))) {
         slave->m_db = nullptr;
     }
 }
@@ -363,17 +370,17 @@ void manapi::ext::pq::db::remove_slaves() {
     this->m_slaves.clear();
 }
 
-manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::slave() {
-    if (this->m_slaves.empty() || (this->m_master && this->m_slaves.begin()->second->waiting() > this->m_master->waiting())) {
-        return this->master();
+manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::slave(manapi::ctoken token) {
+    if (this->m_slaves.empty() || (this->m_master && this->m_slaves.begin()->first < this->m_master->m_waiting)) {
+        return this->master(std::move(token));
     }
     auto s = this->m_slaves.begin()->second;
-    return s->peer();
+    return s->peer(std::move(token));
 }
 
-manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::master() {
+manapi::future<manapi::status_or<manapi::ext::pq::item>> manapi::ext::pq::db::master(manapi::ctoken token) {
     if (this->m_master) {
-        co_return co_await this->m_master->peer();
+        co_return co_await this->m_master->peer(std::move(token));
     }
     co_return manapi::status_not_found("db:not found");
 }
@@ -388,7 +395,7 @@ bool manapi::ext::pq::db::has_slaves() const {
 
 manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext::pq::db::pexec(ktypes type, const char *command, size_t nParams, const Oid *paramTypes, const char * const *paramValues, const int *paramLengths,const int *paramFormats, ctoken token) {
     while (true) {
-        auto wrk_res = type == kMaster ? (co_await this->master()) :(co_await this->slave());
+        auto wrk_res = type == kMaster ? (co_await this->master(token.sub())) : (co_await this->slave(token.sub()));
         if (!wrk_res) {
             co_return ext::pq::status (wrk_res.err());
         }
@@ -443,7 +450,7 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect(std::str
         if (!this->m_data)
             co_return manapi::ev::status_invalid_argument("pq:connection doesn't exist");
 
-        if (this->m_data->flags & PSQL_DATA_FLAG_INIT)
+        if (this->m_data->flags & MANAPI__PSQL_DATA_FLAG_INIT)
             co_return manapi::ev::status_already_exists();
 
         this->m_data->conn.reset(PQconnectStart(uri.data()));
@@ -515,7 +522,7 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect(const ch
         if (!this->m_data)
             co_return manapi::status_invalid_argument("pq:connection doesn't exist");
 
-        if (this->m_data->flags & PSQL_DATA_FLAG_INIT)
+        if (this->m_data->flags & MANAPI__PSQL_DATA_FLAG_INIT)
             co_return manapi::status_already_exists();
 
         this->m_data->conn.reset(PQconnectdbParams(keywords, values, 1));
@@ -565,7 +572,7 @@ manapi::future<manapi::ext::pq::status_or<manapi::ext::pq::result>> manapi::ext:
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "pq:exec", e.what());
-        status = pq::status (ERR_UNKNOWN, "unknown")
+        status = pq::status (ERR_UNKNOWN, "unknown");
     }
 fin:
     token.disable();
@@ -610,7 +617,7 @@ manapi::status_or<std::string> manapi::ext::pq::connection::esc(std::string_view
         std::string escaped;
         auto const size = copied.unwrap();
         escaped.resize(size);
-        memcpy (escaped.data(), buff, size);
+        std::memcpy (escaped.data(), buff, size);
         return std::move(escaped);
     }
     catch (std::bad_alloc const &) {
@@ -627,16 +634,16 @@ void manapi::ext::pq::connection::close() MANAPIHTTP_NOEXCEPT {
         return;
 
     this->m_data->conn.reset();
-    this->m_data->fd_ = 0;
+    this->m_data->fd = 0;
 
-    if (this->m_data->flags & PSQL_DATA_FLAG_INIT)
-        this->m_data->flags ^= PSQL_DATA_FLAG_INIT;
+    if (this->m_data->flags & MANAPI__PSQL_DATA_FLAG_INIT)
+        this->m_data->flags ^= MANAPI__PSQL_DATA_FLAG_INIT;
 }
 
 void manapi::ext::pq::connection::notify_cb(
 std::move_only_function<manapi::future<>(notification notify)> cb) MANAPIHTTP_NOEXCEPT {
     if (this->m_data)
-        this->m_data->notify_cb_ = std::move(cb);
+        this->m_data->notify_cb = std::move(cb);
 }
 
 manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(manapi::ctoken token) MANAPIHTTP_NOEXCEPT {
@@ -664,21 +671,21 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(ma
         PQsetNoticeProcessor(
             this->m_data->conn.get(), +[](void *, const char *) -> void{}, nullptr);
 
-        this->m_data->fd_ = PQsocket(this->m_data->conn.get());
+        this->m_data->fd = PQsocket(this->m_data->conn.get());
 
         while (true) {
             auto ret = PQconnectPoll(this->m_data->conn.get());
 
             switch (ret) {
                 case PGRES_POLLING_READING:
-                    this->m_data->fd_ = PQsocket(this->m_data->conn.get());
-                status = co_await async::read_ready(this->m_data->fd_, token.sub());
+                    this->m_data->fd = PQsocket(this->m_data->conn.get());
+                status = co_await async::read_ready(this->m_data->fd, token.sub());
                 if (!status)
                     goto err;
                 continue;
                 case PGRES_POLLING_WRITING:
-                    this->m_data->fd_ = PQsocket(this->m_data->conn.get());
-                status = co_await async::write_ready(this->m_data->fd_, token.sub());
+                    this->m_data->fd = PQsocket(this->m_data->conn.get());
+                status = co_await async::write_ready(this->m_data->fd, token.sub());
                 if (!status)
                     goto err;
 
@@ -693,7 +700,7 @@ manapi::future<manapi::ev::status> manapi::ext::pq::connection::connect_psql_(ma
             break;
         }
 
-        this->m_data->flags |= PSQL_DATA_FLAG_INIT;
+        this->m_data->flags |= MANAPI__PSQL_DATA_FLAG_INIT;
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "psql:check_conn failed", e.what());
@@ -810,8 +817,8 @@ manapi::future<manapi::status_or<manapi::ext::pq::result>> manapi::ext::pq::conn
         if (!PQisBusy(this->m_data->conn.get())) {
             break;
         }
-        this->m_data->fd_ = PQsocket(this->m_data->conn.get());
-        auto res = co_await async::read_ready(this->m_data->fd_, token.sub());
+        this->m_data->fd = PQsocket(this->m_data->conn.get());
+        auto res = co_await async::read_ready(this->m_data->fd, token.sub());
         if (!res) {
             if (res.code() == ERR_CANCELLED) {
                 co_return manapi::status_unknown ("pq:timeout was reached");
@@ -855,7 +862,7 @@ manapi::ext::pq::error_code manapi::ext::pq::connection::result_status_to_error_
     }
 }
 
-manapi::ext::pq::PGconn * manapi::ext::pq::connection::native_handle() const MANAPIHTTP_NOEXCEPT {
+::PGconn * manapi::ext::pq::connection::native_handle() const MANAPIHTTP_NOEXCEPT {
     auto const res = this->check_conn_();
     if (res)
         return this->m_data->conn.get();
@@ -876,8 +883,8 @@ manapi::future<> manapi::ext::pq::connection::receive_notifications() {
             break;
         }
 
-        if (this->m_data->notify_cb_) {
-            try { co_await this->m_data->notify_cb_(std::move(notify)); }
+        if (this->m_data->notify_cb) {
+            try { co_await this->m_data->notify_cb(std::move(notify)); }
             catch (std::exception const &e) { manapi_log_trace("%s failed due to %s", "pq:receive_notifications", e.what()); }
         }
     }
@@ -960,6 +967,8 @@ manapi::ext::pq::sql_states manapi::ext::pq::status::sqlcode() const MANAPIHTTP_
 }
 
 
-#undef PSQL_POOL_FLAG_ACTIVE
-#undef PSQL_DATA_FLAG_INIT
-#undef PSQL_POOL_FLAG_STOP
+#undef MANAPI__PSQL_POOL_FLAG_ACTIVE
+#undef MANAPI__PSQL_DATA_FLAG_INIT
+#undef MANAPI__PSQL_POOL_FLAG_STOP
+#undef MANAPI__PSQL_POOL_FLAG_CONN_LOST
+#undef MANAPI__PSQL_POOL_FLAG_IS_MASTER

@@ -7,7 +7,7 @@
 #include "./ManapiFormData.hpp"
 #include "./ManapiHttpUtils.hpp"
 #include "./ManapiHttpConfig.hpp"
-#include "../worker/ManapiSite.hpp"
+#include "../worker/ManapiHttpBase.hpp"
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiUtils.hpp"

@@ -6,7 +6,7 @@
 #include "./ManapiHttpTypes.hpp"
 #include "./ManapiHttpUtils.hpp"
 #include "./ManapiHttpConfig.hpp"
-#include "../worker/ManapiSite.hpp"
+#include "../worker/ManapiHttpBase.hpp"
 #include "../fs/ManapiFileStream.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
 #include "../std/ManapiBuffer.hpp"

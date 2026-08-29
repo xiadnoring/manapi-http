@@ -29,7 +29,7 @@
 // TLS: 454978.10 in sec | 348111.84 in sec (STUPID METHOD)
 // TCP: 661876.15 in sec | 560063.69 in sec (STUPID METHOD)
 
-manapi::net::worker::TCP::TCP(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
+manapi::net::worker::TCP::TCP(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
     this->local = nullptr;
     this->finish = nullptr;
     this->flags_ = 0;
@@ -202,7 +202,7 @@ void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
     }
 }
 
-std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) {
+std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) {
     auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }

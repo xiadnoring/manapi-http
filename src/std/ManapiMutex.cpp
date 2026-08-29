@@ -81,6 +81,8 @@ void manapi::async::mutex_locker::disable() MANAPIHTTP_NOEXCEPT {
     this->mx = nullptr;
 }
 
+manapi::async::mutex_locker::mutex_locker() : mx(nullptr) {}
+
 manapi::async::mutex::mutex() {
     this->m_own = false;
 }

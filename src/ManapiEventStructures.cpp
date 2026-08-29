@@ -15,18 +15,18 @@
 #define MANAPIHTTP_EV_CAST_STREAM(x) (reinterpret_cast<uv_stream_t *> (x))
 #define MANAPIHTTP_EV_CAST_HANDLE(x) (reinterpret_cast <uv_handle_t *> (x))
 #define MANAPIHTTP_EV_DEFAULT(name_class, name_struct) \
-name_struct *manapi::ev::name_class::custom () MANAPIHTTP_NOEXCEPT { return &this->s_; } \
-void manapi::ev::name_class::unbind (uv_close_cb cb) MANAPIHTTP_NOEXCEPT {  uv_close(MANAPIHTTP_EV_CAST_HANDLE(&this->s_), cb); }\
-void manapi::ev::name_class::unbind () MANAPIHTTP_NOEXCEPT { uv_close(MANAPIHTTP_EV_CAST_HANDLE (&this->s_), callback_close_cb); }\
-void manapi::ev::name_class::data (void *data) MANAPIHTTP_NOEXCEPT { uv_handle_set_data(MANAPIHTTP_EV_CAST_HANDLE (&this->s_), data);}\
-void *manapi::ev::name_class::data () MANAPIHTTP_NOEXCEPT {return uv_handle_get_data(MANAPIHTTP_EV_CAST_HANDLE (&this->s_)); } \
-manapi::ev::loop_ref manapi::ev::name_class::loop () MANAPIHTTP_NOEXCEPT { return uv_handle_get_loop(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
-bool manapi::ev::name_class::is_active() MANAPIHTTP_NOEXCEPT { return uv_is_active(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
-void manapi::ev::name_class::unref () MANAPIHTTP_NOEXCEPT { return uv_unref(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
-void manapi::ev::name_class::ref () MANAPIHTTP_NOEXCEPT { return uv_ref(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
+name_struct *manapi::ev::name_class::custom () MANAPIHTTP_NOEXCEPT { return &this->m_s; } \
+void manapi::ev::name_class::unbind (uv_close_cb cb) MANAPIHTTP_NOEXCEPT {  uv_close(MANAPIHTTP_EV_CAST_HANDLE(&this->m_s), cb); }\
+void manapi::ev::name_class::unbind () MANAPIHTTP_NOEXCEPT { uv_close(MANAPIHTTP_EV_CAST_HANDLE (&this->m_s), callback_close_cb); }\
+void manapi::ev::name_class::data (void *data) MANAPIHTTP_NOEXCEPT { uv_handle_set_data(MANAPIHTTP_EV_CAST_HANDLE (&this->m_s), data);}\
+void *manapi::ev::name_class::data () MANAPIHTTP_NOEXCEPT {return uv_handle_get_data(MANAPIHTTP_EV_CAST_HANDLE (&this->m_s)); } \
+manapi::ev::loop_ref manapi::ev::name_class::loop () MANAPIHTTP_NOEXCEPT { return uv_handle_get_loop(MANAPIHTTP_EV_CAST_HANDLE(&this->m_s)); } \
+bool manapi::ev::name_class::is_active() MANAPIHTTP_NOEXCEPT { return uv_is_active(MANAPIHTTP_EV_CAST_HANDLE(&this->m_s)); } \
+void manapi::ev::name_class::unref () MANAPIHTTP_NOEXCEPT { return uv_unref(MANAPIHTTP_EV_CAST_HANDLE(&this->m_s)); } \
+void manapi::ev::name_class::ref () MANAPIHTTP_NOEXCEPT { return uv_ref(MANAPIHTTP_EV_CAST_HANDLE(&this->m_s)); } \
 manapi::ev::name_class::~name_class () = default;
 #define MANAPIHTTP_EV_STREAM(name_class, name_struct) \
-int manapi::ev::name_class::listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT {  return uv_listen(MANAPIHTTP_EV_CAST_STREAM(&this->s_), tcp_backlog, cb); } \
+int manapi::ev::name_class::listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT {  return uv_listen(MANAPIHTTP_EV_CAST_STREAM(&this->m_s), tcp_backlog, cb); } \
 int manapi::ev::name_class::ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPIHTTP_NOEXCEPT { return uv_ip4_addr(ip, port, addr); } \
 int manapi::ev::name_class::ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPIHTTP_NOEXCEPT {  return uv_ip6_addr(ip, port, addr); }
 #define MANAPIHTTP_EV_CHECK(expr) { auto rhs = expr; if (rhs) { std::cout << rhs << "\n"; throw manapi::exception(manapi::ERR_INTERNAL, #expr); } }
@@ -52,16 +52,16 @@ MANAPIHTTP_EV_DEFAULT(fs, uv_fs_t)
 MANAPIHTTP_EV_STREAM(udp, uv_udp_t)
 MANAPIHTTP_EV_STREAM(tcp, uv_tcp_t)
 
-manapi::ev::connect::connect() : s_() {
+manapi::ev::connect::connect() : m_s() {
 }
 
 
 int manapi::ev::connect::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel((reinterpret_cast<uv_req_t *>(&this->s_)));
+    return uv_cancel((reinterpret_cast<uv_req_t *>(&this->m_s)));
 }
 
 int manapi::ev::connect::bind(uv_tcp_t *p, const sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_connect(&this->s_, p, addr, cb);
+    return uv_tcp_connect(&this->m_s, p, addr, cb);
 }
 
 
@@ -73,18 +73,18 @@ void manapi::ev::chars_deleter::operator()(const char *data) {
     delete[] data;
 }
 
-manapi::ev::async::async() : s_() {}
+manapi::ev::async::async() : m_s() {}
 
 int manapi::ev::async::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
     return this->bind(loop, callback_watcher_async);
 }
 
 int manapi::ev::async::bind(loop_ref loop, uv_async_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_async_init(loop, &this->s_, cb);
+    return uv_async_init(loop, &this->m_s, cb);
 }
 
 int manapi::ev::async::send() MANAPIHTTP_NOEXCEPT {
-    return uv_async_send(&this->s_);
+    return uv_async_send(&this->m_s);
 }
 
 int manapi::ev::async::set() MANAPIHTTP_NOEXCEPT {
@@ -97,7 +97,7 @@ int manapi::ev::async::set(uv_async_cb cb) MANAPIHTTP_NOEXCEPT {
 
     this->unbind();
 
-    if (auto rhs = uv_async_init(loop, &this->s_, cb)) {
+    if (auto rhs = uv_async_init(loop, &this->m_s, cb)) {
         return rhs;
     }
 
@@ -106,7 +106,7 @@ int manapi::ev::async::set(uv_async_cb cb) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::idle::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_idle_init(loop, &this->s_);
+    return uv_idle_init(loop, &this->m_s);
 }
 
 int manapi::ev::idle::start() MANAPIHTTP_NOEXCEPT {
@@ -114,22 +114,22 @@ int manapi::ev::idle::start() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::idle::start(uv_idle_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_idle_start(&this->s_, cb);
+    return uv_idle_start(&this->m_s, cb);
 }
 
 int manapi::ev::idle::stop() MANAPIHTTP_NOEXCEPT {
-    return uv_idle_stop(&this->s_);
+    return uv_idle_stop(&this->m_s);
 }
 
-manapi::ev::idle::idle() : s_() {
+manapi::ev::idle::idle() : m_s() {
 
 }
 
-manapi::ev::check::check() : s_() {
+manapi::ev::check::check() : m_s() {
 }
 
 int manapi::ev::check::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_check_init(loop, &this->s_);
+    return uv_check_init(loop, &this->m_s);
 }
 
 int manapi::ev::check::start() MANAPIHTTP_NOEXCEPT {
@@ -137,19 +137,19 @@ int manapi::ev::check::start() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::check::start(uv_check_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_check_start(&this->s_, cb);
+    return uv_check_start(&this->m_s, cb);
 }
 
 int manapi::ev::check::stop() MANAPIHTTP_NOEXCEPT {
-    return uv_check_stop(&this->s_);
+    return uv_check_stop(&this->m_s);
 }
 
-manapi::ev::io::io () : s_ () {
+manapi::ev::io::io () : m_s () {
     
 }
 
 int manapi::ev::io::start(int revents, uv_poll_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_poll_start(&this->s_, revents, cb);
+    return uv_poll_start(&this->m_s, revents, cb);
 }
 
 int manapi::ev::io::start(int revents) MANAPIHTTP_NOEXCEPT {
@@ -166,7 +166,7 @@ int manapi::ev::io::restart(int revents) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::io::stop() MANAPIHTTP_NOEXCEPT {
-    return uv_poll_stop(&this->s_);
+    return uv_poll_stop(&this->m_s);
 }
 
 int manapi::ev::io::events() MANAPIHTTP_NOEXCEPT {
@@ -177,19 +177,19 @@ int manapi::ev::io::events() MANAPIHTTP_NOEXCEPT {
 #endif
 }
 
-manapi::ev::write::write() : s_() {
+manapi::ev::write::write() : m_s() {
 
 }
 
 int manapi::ev::write::bind(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_write(&this->s_, stream, buf, nbufs, cb);
+    return uv_write(&this->m_s, stream, buf, nbufs, cb);
 }
 
 int manapi::ev::write::bind(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPIHTTP_NOEXCEPT {
     return this->bind(stream, buf, nbufs, callback_watcher_write);
 }
 
-manapi::ev::tcp::tcp() : s_() {
+manapi::ev::tcp::tcp() : m_s() {
 
 }
 
@@ -198,15 +198,15 @@ int manapi::ev::tcp::listen(int tcp_backlog) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::tcp::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_init(loop, &this->s_);
+    return uv_tcp_init(loop, &this->m_s);
 }
 
 int manapi::ev::tcp::connect(uv_connect_t *connect, const sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_connect(connect, &this->s_, addr, cb);
+    return uv_tcp_connect(connect, &this->m_s, addr, cb);
 }
 
 int manapi::ev::tcp::accept(tcp *parent) MANAPIHTTP_NOEXCEPT {
-    return uv_accept(MANAPIHTTP_EV_CAST_STREAM(&parent->s_), MANAPIHTTP_EV_CAST_STREAM(&this->s_));
+    return uv_accept(MANAPIHTTP_EV_CAST_STREAM(&parent->m_s), MANAPIHTTP_EV_CAST_STREAM(&this->m_s));
 }
 
 int manapi::ev::tcp::read_start() MANAPIHTTP_NOEXCEPT {
@@ -214,38 +214,38 @@ int manapi::ev::tcp::read_start() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::tcp::read_start(uv_alloc_cb alloc, uv_read_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_read_start(MANAPIHTTP_EV_CAST_STREAM(&this->s_), alloc, cb);
+    return uv_read_start(MANAPIHTTP_EV_CAST_STREAM(&this->m_s), alloc, cb);
 }
 
 int manapi::ev::tcp::read_stop() MANAPIHTTP_NOEXCEPT {
-    return uv_read_stop(MANAPIHTTP_EV_CAST_STREAM(&this->s_));
+    return uv_read_stop(MANAPIHTTP_EV_CAST_STREAM(&this->m_s));
 }
 
 ssize_t manapi::ev::tcp::try_write(const void *buff, std::size_t len) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)buff;
     buffs.len = static_cast<decltype(buffs.len)>(len);
-    return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), &buffs, 1);
+    return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->m_s), &buffs, 1);
 }
 
 ssize_t manapi::ev::tcp::try_write(const ev::buff_t *buff, uint32_t nbuff) MANAPIHTTP_NOEXCEPT {
-    return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), buff, nbuff);
+    return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->m_s), buff, nbuff);
 }
 
 int manapi::ev::tcp::s_bind(const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_bind(&this->s_, addr, flags);
+    return uv_tcp_bind(&this->m_s, addr, flags);
 }
 
 int manapi::ev::tcp::getpeername(sockaddr *name, int *namelen) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_getpeername(&this->s_, name, namelen);
+    return uv_tcp_getpeername(&this->m_s, name, namelen);
 }
 
 int manapi::ev::tcp::getsockname(sockaddr *name, int *namelen) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_getsockname(&this->s_, name, namelen);
+    return uv_tcp_getsockname(&this->m_s, name, namelen);
 }
 
 int manapi::ev::tcp::close_reset(uv_close_cb close_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_close_reset(&this->s_, close_cb);
+    return uv_tcp_close_reset(&this->m_s, close_cb);
 }
 
 int manapi::ev::tcp::close_reset() MANAPIHTTP_NOEXCEPT {
@@ -253,27 +253,27 @@ int manapi::ev::tcp::close_reset() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::tcp::keepalive(int enable, unsigned int delay) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_keepalive(&this->s_, enable, delay);
+    return uv_tcp_keepalive(&this->m_s, enable, delay);
 }
 
 int manapi::ev::tcp::nodelay(int enable) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_nodelay(&this->s_, enable);
+    return uv_tcp_nodelay(&this->m_s, enable);
 }
 
 int manapi::ev::tcp::simultaneous_accepts(int enable) MANAPIHTTP_NOEXCEPT {
-    return uv_tcp_simultaneous_accepts(&this->s_, enable);
+    return uv_tcp_simultaneous_accepts(&this->m_s, enable);
 }
 
-manapi::ev::udp::udp() : s_() {
+manapi::ev::udp::udp() : m_s() {
 
 }
 
 int manapi::ev::udp::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_udp_init(loop, &this->s_);
+    return uv_udp_init(loop, &this->m_s);
 }
 
 int manapi::ev::udp::s_bind(const sockaddr *addr, uint32_t flags) MANAPIHTTP_NOEXCEPT{
-    return uv_udp_bind(&this->s_, addr, flags);
+    return uv_udp_bind(&this->m_s, addr, flags);
 }
 
 int manapi::ev::udp::recv_start() MANAPIHTTP_NOEXCEPT {
@@ -281,40 +281,40 @@ int manapi::ev::udp::recv_start() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::udp::recv_start(uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_udp_recv_start(&this->s_, alloc, cb);
+    return uv_udp_recv_start(&this->m_s, alloc, cb);
 }
 
 int manapi::ev::udp::recv_stop() MANAPIHTTP_NOEXCEPT{
-    return uv_udp_recv_stop(&this->s_);
+    return uv_udp_recv_stop(&this->m_s);
 }
 
 int manapi::ev::udp::connect(const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
-    return uv_udp_connect(&this->s_, addr);
+    return uv_udp_connect(&this->m_s, addr);
 }
 
 int manapi::ev::udp::try_send(const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPIHTTP_NOEXCEPT {
-    return uv_udp_try_send(&this->s_, buf, nbuf, addr);
+    return uv_udp_try_send(&this->m_s, buf, nbuf, addr);
 }
 
-manapi::ev::udp_send::udp_send() : s_() {
+manapi::ev::udp_send::udp_send() : m_s() {
 
 }
 
 int manapi::ev::udp_send::bind(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb,
     const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
-    return uv_udp_send(&this->s_, stream, buf, nbufs, addr, cb);
+    return uv_udp_send(&this->m_s, stream, buf, nbufs, addr, cb);
 }
 
 int manapi::ev::udp_send::bind(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
     return this->bind(stream, buf, nbufs, callback_watcher_udp_send, addr);
 }
 
-manapi::ev::prepare::prepare() : s_() {
+manapi::ev::prepare::prepare() : m_s() {
 
 }
 
 int manapi::ev::prepare::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_prepare_init(loop, &this->s_);
+    return uv_prepare_init(loop, &this->m_s);
 }
 
 int manapi::ev::prepare::start() MANAPIHTTP_NOEXCEPT {
@@ -322,19 +322,19 @@ int manapi::ev::prepare::start() MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::prepare::start(uv_prepare_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_prepare_start(&this->s_, cb);
+    return uv_prepare_start(&this->m_s, cb);
 }
 
 int manapi::ev::prepare::stop() MANAPIHTTP_NOEXCEPT {
-    return uv_prepare_stop(&this->s_);
+    return uv_prepare_stop(&this->m_s);
 }
 
-manapi::ev::timer::timer() : s_() {
+manapi::ev::timer::timer() : m_s() {
 
 }
 
 int manapi::ev::timer::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
-    return uv_timer_init(loop, &this->s_);
+    return uv_timer_init(loop, &this->m_s);
 }
 
 int manapi::ev::timer::start(uint64_t timeout, uint64_t repeat) MANAPIHTTP_NOEXCEPT {
@@ -342,37 +342,37 @@ int manapi::ev::timer::start(uint64_t timeout, uint64_t repeat) MANAPIHTTP_NOEXC
 }
 
 int manapi::ev::timer::start(uint64_t timeout, uint64_t repeat, uv_timer_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_timer_start(&this->s_, cb, timeout, repeat);
+    return uv_timer_start(&this->m_s, cb, timeout, repeat);
 }
 
 int manapi::ev::timer::stop() MANAPIHTTP_NOEXCEPT {
-    return uv_timer_stop(&this->s_);
+    return uv_timer_stop(&this->m_s);
 }
 
 int manapi::ev::timer::again() MANAPIHTTP_NOEXCEPT {
-    return uv_timer_again(&this->s_);
+    return uv_timer_again(&this->m_s);
 }
 
 void manapi::ev::timer::repeat(uint64_t repeat) MANAPIHTTP_NOEXCEPT {
-    uv_timer_set_repeat(&this->s_, repeat);
+    uv_timer_set_repeat(&this->m_s, repeat);
 }
 
 uint64_t manapi::ev::timer::repeat() const MANAPIHTTP_NOEXCEPT {
-    return uv_timer_get_repeat(&this->s_);
+    return uv_timer_get_repeat(&this->m_s);
 }
 
 uint64_t manapi::ev::timer::due_in() const MANAPIHTTP_NOEXCEPT {
-    return uv_timer_get_due_in(&this->s_);
+    return uv_timer_get_due_in(&this->m_s);
 }
 
-manapi::ev::fs::fs(loop_ref loop) : s_(), loop_(loop) {}
+manapi::ev::fs::fs(loop_ref loop) : m_s(), m_loop(loop) {}
 
 int manapi::ev::fs::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->m_s));
 }
 
 int manapi::ev::fs::open(const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_open(this->loop_, &this->s_, path, flags, mode, open_cb);
+    return uv_fs_open(this->m_loop, &this->m_s, path, flags, mode, open_cb);
 }
 
 int manapi::ev::fs::open(const char *path, int flags, int mode) MANAPIHTTP_NOEXCEPT {
@@ -380,7 +380,7 @@ int manapi::ev::fs::open(const char *path, int flags, int mode) MANAPIHTTP_NOEXC
 }
 
 int manapi::ev::fs::read(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_read(this->loop_, &this->s_, fileno, buff, nbuff, offset, read_cb);
+    return uv_fs_read(this->m_loop, &this->m_s, fileno, buff, nbuff, offset, read_cb);
 }
 
 int manapi::ev::fs::read(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
@@ -388,7 +388,7 @@ int manapi::ev::fs::read(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, 
 }
 
 int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_write(this->loop_, &this->s_, fileno, buff, nbuff, offset, write_cb);
+    return uv_fs_write(this->m_loop, &this->m_s, fileno, buff, nbuff, offset, write_cb);
 }
 
 int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT {
@@ -563,7 +563,7 @@ ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, std::size_t nbuff,
 
 int manapi::ev::fs::close(ev::file fileno, uv_fs_cb close_cb) MANAPIHTTP_NOEXCEPT {
     manapi_log_trace2("manapihttp::fs", manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", fileno);
-    return uv_fs_close(this->loop_, &this->s_, fileno, close_cb);
+    return uv_fs_close(this->m_loop, &this->m_s, fileno, close_cb);
 }
 
 int manapi::ev::fs::close(ev::file fileno) MANAPIHTTP_NOEXCEPT {
@@ -571,7 +571,7 @@ int manapi::ev::fs::close(ev::file fileno) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::unlink(const char *path, uv_fs_cb unlink_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_unlink(this->loop_, &this->s_, path, unlink_cb);
+    return uv_fs_unlink(this->m_loop, &this->m_s, path, unlink_cb);
 }
 
 int manapi::ev::fs::unlink(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -579,7 +579,7 @@ int manapi::ev::fs::unlink(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::mkdir(const char *path, int mode, uv_fs_cb mkdir_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_mkdir(this->loop_, &this->s_, path, mode, mkdir_cb);
+    return uv_fs_mkdir(this->m_loop, &this->m_s, path, mode, mkdir_cb);
 }
 
 int manapi::ev::fs::mkdir(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
@@ -587,7 +587,7 @@ int manapi::ev::fs::mkdir(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::mkdtemp(const char *path, uv_fs_cb mkdtemp_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_mkdtemp(this->loop_, &this->s_, path, mkdtemp_cb);
+    return uv_fs_mkdtemp(this->m_loop, &this->m_s, path, mkdtemp_cb);
 }
 
 int manapi::ev::fs::mkdtemp(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -595,7 +595,7 @@ int manapi::ev::fs::mkdtemp(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::mkstemp(const char *path, uv_fs_cb mkstemp_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_mkstemp(this->loop_, &this->s_, path, mkstemp_cb);
+    return uv_fs_mkstemp(this->m_loop, &this->m_s, path, mkstemp_cb);
 }
 
 int manapi::ev::fs::mkstemp(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -603,7 +603,7 @@ int manapi::ev::fs::mkstemp(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::rmdir(const char *path, uv_fs_cb rmdir_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_rmdir(this->loop_, &this->s_, path, rmdir_cb);
+    return uv_fs_rmdir(this->m_loop, &this->m_s, path, rmdir_cb);
 }
 
 int manapi::ev::fs::rmdir(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -611,7 +611,7 @@ int manapi::ev::fs::rmdir(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::opendir(const char *path, uv_fs_cb opendir) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_opendir(this->loop_, &this->s_, path, opendir);
+    return uv_fs_opendir(this->m_loop, &this->m_s, path, opendir);
 }
 
 int manapi::ev::fs::opendir(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -619,7 +619,7 @@ int manapi::ev::fs::opendir(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::closedir(ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_closedir(this->loop_, &this->s_, dir, closedir_cb);
+    return uv_fs_closedir(this->m_loop, &this->m_s, dir, closedir_cb);
 }
 
 int manapi::ev::fs::closedir(ev::dir_t * dir) MANAPIHTTP_NOEXCEPT {
@@ -627,7 +627,7 @@ int manapi::ev::fs::closedir(ev::dir_t * dir) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::readdir(ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_readdir(this->loop_, &this->s_, dir, readdir_cb);
+    return uv_fs_readdir(this->m_loop, &this->m_s, dir, readdir_cb);
 }
 
 int manapi::ev::fs::readdir(ev::dir_t * dir) MANAPIHTTP_NOEXCEPT {
@@ -635,7 +635,7 @@ int manapi::ev::fs::readdir(ev::dir_t * dir) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::scandir(const char *path, int flags, uv_fs_cb scandir_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_scandir(this->loop_, &this->s_, path, flags, scandir_cb);
+    return uv_fs_scandir(this->m_loop, &this->m_s, path, flags, scandir_cb);
 }
 
 int manapi::ev::fs::scandir(const char *path, int flags) MANAPIHTTP_NOEXCEPT {
@@ -643,11 +643,11 @@ int manapi::ev::fs::scandir(const char *path, int flags) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::scandir_next(ev::dirent_t *dir) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_scandir_next(&this->s_, dir);
+    return uv_fs_scandir_next(&this->m_s, dir);
 }
 
 int manapi::ev::fs::stat(const char *path, uv_fs_cb stat_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_stat(this->loop_, &this->s_, path, stat_cb);
+    return uv_fs_stat(this->m_loop, &this->m_s, path, stat_cb);
 }
 
 int manapi::ev::fs::stat(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -655,7 +655,7 @@ int manapi::ev::fs::stat(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::fstat(ev::file file, uv_fs_cb fstat_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_fstat(this->loop_, &this->s_, file, fstat_cb);
+    return uv_fs_fstat(this->m_loop, &this->m_s, file, fstat_cb);
 }
 
 int manapi::ev::fs::fstat(ev::file file) MANAPIHTTP_NOEXCEPT {
@@ -663,7 +663,7 @@ int manapi::ev::fs::fstat(ev::file file) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::lstat(const char *path, uv_fs_cb lstat_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_lstat(this->loop_, &this->s_, path, lstat_cb);
+    return uv_fs_lstat(this->m_loop, &this->m_s, path, lstat_cb);
 }
 
 int manapi::ev::fs::lstat(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -671,7 +671,7 @@ int manapi::ev::fs::lstat(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::statfs(const char *path, uv_fs_cb statfs_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_statfs(this->loop_, &this->s_, path, statfs_cb);
+    return uv_fs_statfs(this->m_loop, &this->m_s, path, statfs_cb);
 }
 
 int manapi::ev::fs::statfs(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -679,7 +679,7 @@ int manapi::ev::fs::statfs(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::rename(const char *path, const char *new_path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_rename(this->loop_, &this->s_, path, new_path, cb);
+    return uv_fs_rename(this->m_loop, &this->m_s, path, new_path, cb);
 }
 
 int manapi::ev::fs::rename(const char *path, const char *new_path) MANAPIHTTP_NOEXCEPT {
@@ -687,7 +687,7 @@ int manapi::ev::fs::rename(const char *path, const char *new_path) MANAPIHTTP_NO
 }
 
 int manapi::ev::fs::fsync(ev::file file, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_fsync(this->loop_, &this->s_, file, cb);
+    return uv_fs_fsync(this->m_loop, &this->m_s, file, cb);
 }
 
 int manapi::ev::fs::fsync(ev::file file) MANAPIHTTP_NOEXCEPT {
@@ -695,7 +695,7 @@ int manapi::ev::fs::fsync(ev::file file) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::fdatasync(ev::file file, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_fdatasync(this->loop_, &this->s_, file, cb);
+    return uv_fs_fdatasync(this->m_loop, &this->m_s, file, cb);
 }
 
 int manapi::ev::fs::fdatasync(ev::file file) MANAPIHTTP_NOEXCEPT {
@@ -703,7 +703,7 @@ int manapi::ev::fs::fdatasync(ev::file file) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::ftruncate(ev::file file, int64_t off, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_ftruncate(this->loop_, &this->s_, file, off, cb);
+    return uv_fs_ftruncate(this->m_loop, &this->m_s, file, off, cb);
 }
 
 int manapi::ev::fs::ftruncate(ev::file file, int64_t off) MANAPIHTTP_NOEXCEPT {
@@ -711,7 +711,7 @@ int manapi::ev::fs::ftruncate(ev::file file, int64_t off) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::copyfile(const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_copyfile(this->loop_, &this->s_, path1, path2, flags, cb);
+    return uv_fs_copyfile(this->m_loop, &this->m_s, path1, path2, flags, cb);
 }
 
 int manapi::ev::fs::copyfile(const char *path1, const char *path2, int flags) MANAPIHTTP_NOEXCEPT {
@@ -719,7 +719,7 @@ int manapi::ev::fs::copyfile(const char *path1, const char *path2, int flags) MA
 }
 
 int manapi::ev::fs::sendfile(ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_sendfile(this->loop_, &this->s_, outfd, infd, off, length, cb);
+    return uv_fs_sendfile(this->m_loop, &this->m_s, outfd, infd, off, length, cb);
 }
 
 int manapi::ev::fs::sendfile(ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPIHTTP_NOEXCEPT {
@@ -727,7 +727,7 @@ int manapi::ev::fs::sendfile(ev::file outfd, ev::file infd, int64_t off, size_t 
 }
 
 int manapi::ev::fs::access(const char *path, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_access(this->loop_, &this->s_, path, mode, cb);
+    return uv_fs_access(this->m_loop, &this->m_s, path, mode, cb);
 }
 
 int manapi::ev::fs::access(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
@@ -735,7 +735,7 @@ int manapi::ev::fs::access(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::chmod(const char *path, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_chmod(this->loop_, &this->s_, path, mode, cb);
+    return uv_fs_chmod(this->m_loop, &this->m_s, path, mode, cb);
 }
 
 int manapi::ev::fs::chmod(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
@@ -743,7 +743,7 @@ int manapi::ev::fs::chmod(const char *path, int mode) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::fchmod(ev::file file, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_fchmod(this->loop_, &this->s_, file, mode, cb);
+    return uv_fs_fchmod(this->m_loop, &this->m_s, file, mode, cb);
 }
 
 int manapi::ev::fs::fchmod(ev::file file, int mode) MANAPIHTTP_NOEXCEPT {
@@ -751,7 +751,7 @@ int manapi::ev::fs::fchmod(ev::file file, int mode) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::utime(const char *path, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_utime(this->loop_, &this->s_, path, atime, mtime, cb);
+    return uv_fs_utime(this->m_loop, &this->m_s, path, atime, mtime, cb);
 }
 
 int manapi::ev::fs::utime(const char *path, double atime, double mtime) MANAPIHTTP_NOEXCEPT {
@@ -759,7 +759,7 @@ int manapi::ev::fs::utime(const char *path, double atime, double mtime) MANAPIHT
 }
 
 int manapi::ev::fs::futime(ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_futime(this->loop_, &this->s_, file, atime, mtime, cb);
+    return uv_fs_futime(this->m_loop, &this->m_s, file, atime, mtime, cb);
 }
 
 int manapi::ev::fs::futime(ev::file file, double atime, double mtime) MANAPIHTTP_NOEXCEPT {
@@ -767,7 +767,7 @@ int manapi::ev::fs::futime(ev::file file, double atime, double mtime) MANAPIHTTP
 }
 
 int manapi::ev::fs::lutime(const char *path, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_lutime(this->loop_, &this->s_, path, atime, mtime, cb);
+    return uv_fs_lutime(this->m_loop, &this->m_s, path, atime, mtime, cb);
 }
 
 int manapi::ev::fs::lutime(const char *path, double atime, double mtime) MANAPIHTTP_NOEXCEPT {
@@ -775,7 +775,7 @@ int manapi::ev::fs::lutime(const char *path, double atime, double mtime) MANAPIH
 }
 
 int manapi::ev::fs::link(const char *path, const char *new_path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_link(this->loop_, &this->s_, path, new_path, cb);
+    return uv_fs_link(this->m_loop, &this->m_s, path, new_path, cb);
 }
 
 int manapi::ev::fs::link(const char *path, const char *new_path) MANAPIHTTP_NOEXCEPT {
@@ -783,7 +783,7 @@ int manapi::ev::fs::link(const char *path, const char *new_path) MANAPIHTTP_NOEX
 }
 
 int manapi::ev::fs::symlink(const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_symlink(this->loop_, &this->s_, path, new_path, flags, cb);
+    return uv_fs_symlink(this->m_loop, &this->m_s, path, new_path, flags, cb);
 }
 
 int manapi::ev::fs::symlink(const char *path, const char *new_path, int flags) MANAPIHTTP_NOEXCEPT {
@@ -791,7 +791,7 @@ int manapi::ev::fs::symlink(const char *path, const char *new_path, int flags) M
 }
 
 int manapi::ev::fs::readlink(const char *path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_readlink(this->loop_, &this->s_, path, cb);
+    return uv_fs_readlink(this->m_loop, &this->m_s, path, cb);
 }
 
 int manapi::ev::fs::readlink(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -799,7 +799,7 @@ int manapi::ev::fs::readlink(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::realpath(const char *path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_realpath(this->loop_, &this->s_, path, cb);
+    return uv_fs_realpath(this->m_loop, &this->m_s, path, cb);
 }
 
 int manapi::ev::fs::realpath(const char *path) MANAPIHTTP_NOEXCEPT {
@@ -807,7 +807,7 @@ int manapi::ev::fs::realpath(const char *path) MANAPIHTTP_NOEXCEPT {
 }
 
 int manapi::ev::fs::chown(const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_chown(this->loop_, &this->s_, path, uid, gid, cb);
+    return uv_fs_chown(this->m_loop, &this->m_s, path, uid, gid, cb);
 }
 
 int manapi::ev::fs::chown(const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT {
@@ -815,7 +815,7 @@ int manapi::ev::fs::chown(const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOE
 }
 
 int manapi::ev::fs::fchown(ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_fchown(this->loop_, &this->s_, file, uid, gid, cb);
+    return uv_fs_fchown(this->m_loop, &this->m_s, file, uid, gid, cb);
 }
 
 int manapi::ev::fs::fchown(ev::file file, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT {
@@ -823,7 +823,7 @@ int manapi::ev::fs::fchown(ev::file file, uid_t uid, gid_t gid) MANAPIHTTP_NOEXC
 }
 
 int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_fs_lchown(this->loop_, &this->s_, path, uid, gid, cb);
+    return uv_fs_lchown(this->m_loop, &this->m_s, path, uid, gid, cb);
 }
 
 int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT {
@@ -831,34 +831,34 @@ int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NO
 }
 
 ssize_t manapi::ev::fs::result() const MANAPIHTTP_NOEXCEPT {
-    return this->s_.result;
+    return this->m_s.result;
 }
 
-manapi::ev::random::random() : s_() {}
+manapi::ev::random::random() : m_s() {}
 
 int manapi::ev::random::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->m_s));
 }
 
 int manapi::ev::random::bind(loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_random(loop, &this->s_, buff, size, /* flags */ 0, cb);
+    return uv_random(loop, &this->m_s, buff, size, /* flags */ 0, cb);
 }
 
 int manapi::ev::random::bind (loop_ref loop, char *buff, std::size_t size) MANAPIHTTP_NOEXCEPT {
     return this->bind(loop, buff, size, callback_watcher_random);
 }
 
-manapi::ev::getaddrinfo::getaddrinfo() : s_() {
+manapi::ev::getaddrinfo::getaddrinfo() : m_s() {
 
 }
 
 int manapi::ev::getaddrinfo::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->m_s));
 }
 
 int manapi::ev::getaddrinfo::bind(loop_ref loop, const char *node, const char *service, const addrinfo *hints,
     uv_getaddrinfo_cb getaddrinfo_cb) MANAPIHTTP_NOEXCEPT {
-        return uv_getaddrinfo(loop, &this->s_, getaddrinfo_cb, node, service, hints);
+        return uv_getaddrinfo(loop, &this->m_s, getaddrinfo_cb, node, service, hints);
 }
 
 int manapi::ev::getaddrinfo::bind(loop_ref loop, const char *node, const char *service,
@@ -870,29 +870,29 @@ void manapi::ev::getaddrinfo::free(addrinfo *n) MANAPIHTTP_NOEXCEPT {
     uv_freeaddrinfo(n);
 }
 
-manapi::ev::getnameinfo::getnameinfo() : s_() {
+manapi::ev::getnameinfo::getnameinfo() : m_s() {
 }
 
 int manapi::ev::getnameinfo::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->m_s));
 }
 
 int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPIHTTP_NOEXCEPT {
-    return uv_getnameinfo(loop, &this->s_, cb, addr, flags);
+    return uv_getnameinfo(loop, &this->m_s, cb, addr, flags);
 }
 
 int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT {
     return this->bind(loop, addr, flags, callback_watcher_getnameinfo);
 }
 
-manapi::ev::work::work() : s_() {}
+manapi::ev::work::work() : m_s() {}
 
 int manapi::ev::work::cancel() MANAPIHTTP_NOEXCEPT {
-    return uv_cancel(reinterpret_cast<uv_req_t *>(&this->s_));
+    return uv_cancel(reinterpret_cast<uv_req_t *>(&this->m_s));
 }
 
 int manapi::ev::work::bind(loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPIHTTP_NOEXCEPT {
-    return uv_queue_work(loop, &this->s_, cb, after_cb);
+    return uv_queue_work(loop, &this->m_s, cb, after_cb);
 }
 
 int manapi::ev::work::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
@@ -1045,4 +1045,8 @@ void manapi::ev::dir_deleter_t::operator()(ev::dir_t *ptr) MANAPIHTTP_NOEXCEPT {
     if (auto rhs = ::uv_fs_closedir(manapi::async::eventloop()->loop(), &req, ptr, nullptr))
         manapi_log_error("%s failed due to %s", "uv_fs_closedir", ev::strerror(rhs));
     ::uv_fs_req_cleanup(&req);
+}
+
+void manapi::ev::dirent_deleter_t::operator()(manapi::ev::dirent_t *ptr) MANAPIHTTP_NOEXCEPT {
+    delete[] ptr;
 }

@@ -13,6 +13,8 @@ namespace manapi::async {
 
     class mutex_locker {
     public:
+        mutex_locker ();
+
         mutex_locker (mutex *mx);
 
         mutex_locker (mutex_locker &&n) MANAPIHTTP_NOEXCEPT;

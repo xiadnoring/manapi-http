@@ -1470,7 +1470,7 @@ manapi::status manapi::event_loop::unpause_watch_curl(void *shared_curl) MANAPIH
     if (CURLE_OK != rhs) {
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d", curl.get(),
             static_cast<int>(rhs));
-        return status_invalid_argument("curl_easy_pause failed");
+        return status_invalid_argument(curl_easy_strerror(rhs));
     }
 
     MANAPIHTTP_MUST_ALLOC_START

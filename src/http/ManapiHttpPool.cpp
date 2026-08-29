@@ -10,13 +10,13 @@
 #include <fcntl.h>
 
 #include "http/ManapiHttpPool.hpp"
-#include "worker/ManapiSite.hpp"
+#include "worker/ManapiHttpBase.hpp"
 #include "ManapiHttp.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp1.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::site> site, size_t id) : m_site(std::move(site)) {
+manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::base_http> site, size_t id) : m_site(std::move(site)) {
     this->m_config = std::make_shared <http::config> (config);
     this->m_id = id;
     this->m_worker_config = std::move(worker_config);
@@ -25,7 +25,7 @@ manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithrea
     this->m_config->function_contains_compressor([this] (std::string_view name) -> bool {
         auto server = manapi::net::http::server::cast(this->m_site.get());
         return server->contains_compressor_for_file(name)
-            || server->contains_compressor_for_string(name);
+            && server->contains_compressor_for_string(name);
     });
 }
 
@@ -58,7 +58,7 @@ manapi::future<manapi::status> manapi::net::http_pool::stop() {
 }
 
 manapi::future<manapi::status> manapi::net::http_pool::run() {
-    co_return co_await this->pool_();
+    return this->pool();
 }
 
 template<typename T>
@@ -69,14 +69,14 @@ std::string concat_keys_in_map (const std::unordered_map<std::string, T, manapi:
         goto skip;
         for (; it != m.end(); ++it) {
             available += ',';
-            skip:
+skip:
             available += it->first;
         }
     }
     return std::move(available);
 }
 
-manapi::future<manapi::status> manapi::net::http_pool::pool_() {
+manapi::future<manapi::status> manapi::net::http_pool::pool() {
     try {
         manapi_log_trace("http: pool init №%zu", this->m_id);
 
@@ -88,8 +88,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
         auto transport = this->m_config->transport;
         auto implementations = manapi::net::http::server::cast(this->m_site.get())->transport_protocol_worker(transport);
 
-        if (implementations.contains(implementation))
-        {
+        if (implementations.contains(implementation)) {
             try {
                 auto &generate = implementations[implementation];
                 this->m_worker = generate (this->m_site, this->m_worker_config, this->m_config.get());
@@ -99,10 +98,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                 worker::wrk_interface_global_t wrk{};
                 auto res = worker::default_wrk_http_all_global_init(&wrk, workerptr);
 
-                if (!res.ok()) {
-                    res.log();
-                    res.unwrap();
-                }
+                res.unwrap();
 
                 workerptr->wrk_global(&wrk);
                 auto wrkptr = workerptr->wrk_global();
@@ -157,8 +153,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                                 httpwrk.unwrap();
 
                             res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.unwrap()));
-                            if (!res.ok())
-                                res.unwrap();
+                            res.unwrap();
                         }
                     }
                 }
@@ -166,10 +161,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
                 workerptr->worker_pool_id(this->m_id);
                 res = co_await workerptr->init(0);
 
-                if (!res.ok()) {
-                    res.log();
-                    res.unwrap();
-                }
+                res.unwrap();
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s failed due to %s", "http:worker init", e.what());
@@ -193,7 +185,7 @@ manapi::future<manapi::status> manapi::net::http_pool::pool_() {
     co_return status_internal("pool() failed");
 }
 
-const std::shared_ptr<manapi::net::worker::site> &manapi::net::http_pool::site() const {
+const std::shared_ptr<manapi::net::worker::base_http> &manapi::net::http_pool::site() const {
     return this->m_site;
 }
 

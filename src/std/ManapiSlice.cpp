@@ -7,7 +7,7 @@
 
 enum slice__flags {
     SLICE__FLAG_CAN_FREE = 1<<0,
-    SLICE__FLAG_CAN_FREE_IT = 1<<1
+    SLICE__FLAG_CAN_FREE_ONLY_DIV = 1<<1
 };
 
 static std::size_t summary_size_buffs (manapi::slice_part_t *first, manapi::slice_part_t *last) {
@@ -48,12 +48,11 @@ static manapi::status slice_shift_add (manapi::slice_data_t *data, std::size_t s
                 manapi::async::current()->memory_fabric().free(data->first->buff.base, data->first->buff.len);
                 delete data->first;
             }
-            else if (flags & SLICE__FLAG_CAN_FREE_IT) {
+            else if (flags & SLICE__FLAG_CAN_FREE_ONLY_DIV) {
                 delete data->first;
             }
             data->first = next;
             data->count -= 1;
-            if (flags & SLICE__FLAG_CAN_FREE_IT)
 
             if (!data->first || data->first == data->last->next) {
                 data->last = nullptr;
@@ -110,7 +109,7 @@ static manapi::status slice_rshift_add( manapi::slice_data_t *data, std::size_t 
             mem.free(data->last->buff.base, data->last->buff.len);
             delete data->last;
         }
-        else if (flags & SLICE__FLAG_CAN_FREE_IT) {
+        else if (flags & SLICE__FLAG_CAN_FREE_ONLY_DIV) {
             delete data->last;
         }
 
@@ -135,7 +134,7 @@ static manapi::status slice_rshift_add( manapi::slice_data_t *data, std::size_t 
             mem.free(data->last->buff.base, data->last->buff.len);
             delete data->last;
         }
-        else if (flags & SLICE__FLAG_CAN_FREE_IT) {
+        else if (flags & SLICE__FLAG_CAN_FREE_ONLY_DIV) {
             delete data->last;
         }
 
@@ -934,7 +933,7 @@ manapi::status manapi::slice_ref::push_back(const void *buffer, std::size_t size
 }
 
 manapi::status manapi::slice_ref::shift_add(std::size_t shift) MANAPIHTTP_NOEXCEPT {
-    return ::slice_shift_add(this, shift, SLICE__FLAG_CAN_FREE_IT);
+    return ::slice_shift_add(this, shift, SLICE__FLAG_CAN_FREE_ONLY_DIV);
 }
 
 void manapi::slice_ref::clear() MANAPIHTTP_NOEXCEPT {

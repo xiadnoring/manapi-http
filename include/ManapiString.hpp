@@ -133,4 +133,13 @@ namespace manapi::string {
      * @return number of substitutions
      */
     std::size_t replace (std::string &s, std::string_view from, std::string_view to, ssize_t cnt = -1);
+
+    /**
+     * Convert a string to a quadword integer.
+     * @param s the string
+     * @return integer
+     * @throws std::invalid_argument
+     * @throws std::out_of_range
+     */
+    long long int strtoll ( std::string_view s );
 }

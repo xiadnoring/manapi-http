@@ -5,7 +5,7 @@
 namespace manapi::net::worker {
     class interface_worker : public worker::base {
     public:
-        interface_worker (std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> worker_data, manapi::net::http::config *config);
+        interface_worker (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> worker_data, manapi::net::http::config *config);
 
         ~interface_worker () override;
 
@@ -13,7 +13,7 @@ namespace manapi::net::worker {
 
         wrk_interface_global_t *wrk_global () MANAPIHTTP_NOEXCEPT;
 
-        const std::shared_ptr<net::worker::site> &site () MANAPIHTTP_NOEXCEPT override;
+        const std::shared_ptr<net::worker::base_http> &site () MANAPIHTTP_NOEXCEPT override;
 
         net::http::config *config () MANAPIHTTP_NOEXCEPT override;
 
@@ -33,7 +33,7 @@ namespace manapi::net::worker {
 
         wrk_interface_global_t global_;
 
-        std::shared_ptr<net::worker::site> site_;
+        std::shared_ptr<net::worker::base_http> site_;
 
         manapi::net::http::config *config_;
 

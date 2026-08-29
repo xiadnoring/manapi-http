@@ -93,7 +93,7 @@ struct manapi::net::worker::openssl_quic::quic_stream_t : connection_prepared_t 
     std::size_t cur_speed_lim;
 };
 
-manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
+manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
     : udp(std::move(site), std::move(wdata), config) {
     this->listener = nullptr;
     this->ctx = nullptr;
@@ -126,7 +126,7 @@ manapi::net::worker::openssl_quic::~openssl_quic() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(std::shared_ptr<net::worker::site> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
     auto worker = std::make_shared<worker::openssl_quic>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
