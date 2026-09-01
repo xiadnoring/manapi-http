@@ -12,8 +12,6 @@
 
 // static(soon) | 32 64 128 | 256 512 1024 | 2048 4096 8192 | 16384 32768 | 65536
 
-// thread_local std::set<void *> pointers;
-
 #define MEM_USED 1048576
 
 enum buffer_level {
@@ -31,9 +29,7 @@ enum buffer_level {
 
 struct manapi::object_pool_data_t {
     manapi::chain<std::pair<void*, std::size_t>> buffers[BUFF_LEVEL_MAX + 1];
-    std::size_t used;
     std::size_t locked;
-    std::size_t cnt;
 };
 
 static int bufflen2level (std::size_t len) {
@@ -84,14 +80,11 @@ static std::size_t level2bufflen (int lvl) {
 }
 
 void object_item_pool_clear (const std::shared_ptr<manapi::object_pool_data_t> &data) {
-    auto &locked = data->locked;
-    auto &used = data->used;
-
     for (auto &n : data->buffers) {
         while (!n.empty()) {
             auto pn = std::move(n.back());
             n.pop_back();
-            locked -= pn.second;
+            data->locked -= pn.second;
             delete[] static_cast<char *>(pn.first);
         }
     }
@@ -150,7 +143,6 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
         return manapi::ERR_OK;
     }
     auto size = level2bufflen(lvl);
-    data->cnt ++;
 
     if (size < suggested) {
         size = suggested;
@@ -159,7 +151,6 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
             return manapi::ERR_RESOURCE_EXHAUSTED;
         *ptr = m;
         *ptr_size = size;
-        data->used += size;
         assert((*ptr_size >= suggested));
         return manapi::ERR_OK;
     }
@@ -168,10 +159,9 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
     if (!bufferpool.empty()) {
         auto it = bufferpool.back();
         bufferpool.pop_back();
-
+        data->locked -= size;
         *ptr = it.first;
         *ptr_size = it.second;
-        data->used += it.second;
         assert((*ptr_size >= suggested));
         return manapi::ERR_OK;
     }
@@ -184,8 +174,6 @@ static int object_pool_malloc (manapi::object_pool_data_t *data, void **ptr, std
 
     *ptr = m;
     *ptr_size = size;
-    data->used += size;
-    data->locked += size;
 
     assert((*ptr_size >= suggested));
     return manapi::ERR_OK;
@@ -338,21 +326,16 @@ void manapi::object_pool::free(void *pointer, std::size_t size) MANAPIHTTP_NOEXC
     }
 
     assert((pointer && size));
-    assert((this->data->used >= size));
-    this->data->cnt--;
     //assert(pointers.contains(buffer));
     auto const lvl = ::bufflen2level(size);
     if (lvl == BUFF_LEVEL_MAX) {
-        this->data->used -= size;
         delete static_cast<char *>(pointer);
     }
     else {
         auto &l = this->data->buffers[lvl];
         size = level2bufflen(lvl);
-        this->data->used -= size;
         l.push_back({pointer, size});
-        if (this->data->used < this->data->locked / 10 && this->data->used > MEM_USED)
-            ::object_item_pool_clear (this->data);
+        this->data->locked += size;
     }
 }
 

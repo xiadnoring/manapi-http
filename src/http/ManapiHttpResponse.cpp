@@ -266,6 +266,7 @@ void manapi::net::http::response::compress_enabled (bool state) MANAPIHTTP_NOEXC
 std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
     std::string compress;
     auto config = this->m_cdata->worker->config();
+    auto server = dynamic_cast<manapi::net::http::server*> (this->m_cdata->worker->site().get());
 
     if ((this->m_flags & internal::RESPONSE_FLAG_COMPRESS_ENABLED)) {
         auto it = this->m_cdata->req_data->headers.find(H_ACCEPT_ENCODING);
@@ -285,7 +286,8 @@ std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
                 if (rhs.ok()) {
                     data = rhs.unwrap();
                     for (auto &a: data) {
-                        if (config->contains_compressor(a.value)) {
+
+                        if ( server->contains_compressor(a.value)) {
                             last = &a.value;
                             if (compress.empty()) {
                                 break;

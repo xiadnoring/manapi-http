@@ -127,19 +127,6 @@ std::vector<std::string_view> manapi::net::http::config::alpns() {
     return std::move(tests);
 }
 
-bool manapi::net::http::config::contains_compressor(std::string_view name) {
-    if (!this->function_contains_compressor_) {
-        manapi_log_trace("http config: function_contains_compressor_ wasn't set");
-        return false;
-    }
-
-    return this->function_contains_compressor_ (name);
-}
-
-void manapi::net::http::config::function_contains_compressor(std::move_only_function<bool(std::string_view name)> func) {
-    this->function_contains_compressor_ = std::move(func);
-}
-
 std::string_view manapi::net::http::config::stringify_http_version(int version) {
     switch (version) {
         case versions::HTTP_v0_9: return "0.9";

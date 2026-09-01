@@ -386,7 +386,7 @@ namespace manapi {
         std::unique_ptr<ev::internal::curl_watcher_t> m_curl_watcher;
 #endif
 
-        std::unique_ptr<ev::internal::custom_callback_t> m_callback_watcher{};
+        std::unique_ptr<ev::internal::custom_callback_t> m_callback_watcher;
 
         std::shared_ptr<ev::idle> m_idle_tasks;
 

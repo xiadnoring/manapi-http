@@ -28,6 +28,7 @@
 #include "worker/ManapiHttp3Cloudflare.hpp"
 #include "worker/ManapiWolfSslOverTcp.hpp"
 #include "std/ManapiEasyCancellation.hpp"
+#include "compress/ManapiCompress.hpp"
 #include "./include/ManapiUtils.hpp"
 #include "./include/ManapiHttpInternal.hpp"
 #include "./include/http/ManapiNgHttp2Interface.hpp"
@@ -101,8 +102,7 @@ struct manapi::net::http::server::data_t {
     std::size_t event_id;
     std::size_t clean_up_id;
     http_uri_part handlers;
-    std::unique_ptr<std::unordered_map <std::string, compress_file_cb_t, manapi::text_hash, std::equal_to<>>> compressors_for_file;
-    std::unique_ptr<std::unordered_map <std::string, compress_str_cb_t, manapi::text_hash, std::equal_to<>>> compressors_for_string;
+    std::unique_ptr<std::unordered_map <std::string, compress_new_cb_t, manapi::text_hash, std::equal_to<>>> compressors;
     std::unique_ptr<std::unordered_map <std::string, std::unordered_map <std::string, implement_create_cb, manapi::text_hash, std::equal_to<>>, manapi::text_hash, std::equal_to<>>> transport_protocol_workers;
     std::unique_ptr<std::unordered_map <http::versions::http, std::unordered_map <std::string, implemenet_http_cb, manapi::text_hash, std::equal_to<>>>> http_protocol_workers;
     manapi::async::mutex mx;
@@ -428,36 +428,26 @@ manapi::net::http::server::server(std::shared_ptr<server_ctx> sctx) {
 
     this->m_data->config = std::make_shared<manapi::json>(manapi::json::object());
     this->m_data->sctx = std::move(sctx);
-    this->m_data->compressors_for_file = std::make_unique<decltype(this->m_data->compressors_for_file)::element_type>();
-    this->m_data->compressors_for_string = std::make_unique<decltype(this->m_data->compressors_for_string)::element_type>();
+    this->m_data->compressors = std::make_unique<decltype(this->m_data->compressors)::element_type>();
     this->m_data->transport_protocol_workers = std::make_unique<decltype(this->m_data->transport_protocol_workers)::element_type>();
     this->m_data->http_protocol_workers = std::make_unique<decltype(this->m_data->http_protocol_workers)::element_type>();
     
 
     #if MANAPIHTTP_ZLIB_DEPENDENCY
-    this->compressor_for_file("deflate", +[] (ev::file src, ev::file dest)
-        -> future<manapi::status> { return manapi::compress::deflate_compress_file( (src), (dest)); });
-    this->compressor_for_file("gzip", +[] (ev::file src, ev::file dest)
-        -> future<manapi::status> { return manapi::compress::gzip_compress_file((src), (dest)); });
-
-    this->compressor_for_string("deflate", +[] (std::string_view data)
-        -> status_or<std::string> { return compress::deflate_compress_string(data); });
-    this->compressor_for_string("gzip", +[] (std::string_view data)
-        -> status_or<std::string> { return compress::gzip_compress_string(data); });
+    this->compressor ("deflate", +[] ()
+         { return std::make_unique<manapi::compress::deflate_compress>( 9 ); });
+    this->compressor ("gzip", +[] ()
+         { return std::make_unique<manapi::compress::gzip_compress>( 9 ); });
 #endif
 
 #if MANAPIHTTP_BROTLI_DEPENDENCY
-    this->compressor_for_file("br", +[] (ev::file src, ev::file dest)
-        -> future<manapi::status> { return manapi::compress::brotli_compress_file((src), (dest), 11, 22, 0); });
-    this->compressor_for_string("br", +[] (std::string_view data)
-        -> status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
+    this->compressor ("br", +[] ()
+        { return std::make_unique<manapi::compress::brotli_compress>( 11, 22, 0 ); });
 #endif
 
 #if MANAPIHTTP_ZSTD_DEPENDENCY
-    this->compressor_for_file("zstd", +[] (ev::file src, ev::file dest)
-        -> future<manapi::status> { return manapi::compress::zstd_compress_file((src), (dest), 1); });
-    this->compressor_for_string("zstd", +[] (std::string_view data)
-        -> status_or<std::string> { return compress::zstd_compress_string(data, 1); });
+    this->compressor ("zstd", +[] ()
+        { return std::make_unique<manapi::compress::zstd_compress>( 1, 0 ); });
 #endif
 
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
@@ -880,36 +870,19 @@ manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXCEPT
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::http::server::compressor_for_file(const std::string &name, compress_file_cb_t handler) {
-    this->m_data->compressors_for_file->insert_or_assign(name, std::move(handler));
+void manapi::net::http::server::compressor (const std::string &name, compress_new_cb_t handler) {
+    this->m_data->compressors->insert_or_assign(name, std::move(handler));
 }
 
-void manapi::net::http::server::compressor_for_string(const std::string &name, compress_str_cb_t handler) {
-    this->m_data->compressors_for_string->insert_or_assign(name, std::move(handler));
+bool manapi::net::http::server::contains_compressor (std::string_view name) const {
+    return this->m_data->compressors->find(name) != this->m_data->compressors->end();
 }
 
-manapi::net::http::server::compress_file_cb_t * manapi::net::http::server::compressor_for_file(std::string_view name) {
-    auto it = this->m_data->compressors_for_file->find(name);
-    if (it == this->m_data->compressors_for_file->end())
+manapi::net::http::server::compress_new_cb_t  manapi::net::http::server::compressor(std::string_view name) {
+    auto it = this->m_data->compressors->find(name);
+    if (it == this->m_data->compressors->end())
         return nullptr;
-
-    return &it->second;
-}
-
-bool manapi::net::http::server::contains_compressor_for_file(std::string_view name) const {
-    return this->m_data->compressors_for_file->find(name) != this->m_data->compressors_for_file->end();
-}
-
-manapi::net::http::server::compress_str_cb_t * manapi::net::http::server::compressor_for_string(std::string_view name) {
-    auto it = this->m_data->compressors_for_string->find(name);
-    if (it == this->m_data->compressors_for_string->end())
-        return nullptr;
-
-    return &it->second;
-}
-
-bool manapi::net::http::server::contains_compressor_for_string(std::string_view name) const {
-    return this->m_data->compressors_for_string->find(name) != this->m_data->compressors_for_string->end();
+    return it->second;
 }
 
 void manapi::net::http::server::transport_protocol_worker(std::string_view type, std::string_view name, implement_create_cb worker) {

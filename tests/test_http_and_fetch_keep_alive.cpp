@@ -15,8 +15,8 @@
 UTEST (http_and_fetch, keep_alive_1) {
     using http = manapi::net::http::server;
 
-    manapi::init_tools::log_trace_init( manapi::debug::LOG_TRACE_HARD );
-    manapi::init_tools::log_name_enable( "all", true );
+//    manapi::init_tools::log_trace_init( manapi::debug::LOG_TRACE_HARD );
+//    manapi::init_tools::log_name_enable( "all", true );
 
     auto ctx = init_ctx(utest_result, 40000);
     auto router = init_router({

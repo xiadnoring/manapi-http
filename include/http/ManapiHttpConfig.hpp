@@ -83,17 +83,6 @@ namespace manapi::net::http {
         std::vector<std::string_view> alpns ();
 
         /**
-         * Is the compressor is availabled by the passed name
-         *
-         * @param name Compressor name (gzip, brotli, deflate and etc)
-         * @return true if the compressor exists
-         */
-
-        MANAPIHTTP_NODISCARD bool contains_compressor (std::string_view name);
-
-        void function_contains_compressor (std::move_only_function<bool(std::string_view name)> func);
-
-        /**
          * Returns Http version as a string
          * If http version doesn't exist it returns empty string
          *
@@ -330,7 +319,5 @@ namespace manapi::net::http {
         manapi::json quic;
 
         bool force_conn_shutdown;
-
-        std::move_only_function<bool(std::string_view name)> function_contains_compressor_ = nullptr;
     };
 }

@@ -19,12 +19,10 @@ namespace manapi::net::http {
     }
 
     struct response_features_t {
-        typedef std::move_only_function<future<manapi::status>(manapi::ev::file src, manapi::ev::file dest)> compress_file_cb;
-        typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb;
+        typedef std::function<std::unique_ptr< compress::compress_base >()> compress_new_cb_t;
 
         std::string compress;
-        compress_file_cb *compressor_for_file = nullptr;
-        compress_str_cb *compressor_for_string = nullptr;
+        compress_new_cb_t compressor = nullptr;
         std::unique_ptr<std::vector <std::pair<std::string, std::string>>> replacers;
     };
 

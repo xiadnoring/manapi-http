@@ -15,7 +15,8 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
 
     router->GET("/", folder, [] (http::req &req, http::resp &resp)
         -> manapi::future<> {
-        resp.compress("br");
+        auto z = manapi::math::random (0, 2);
+        resp.compress(z == 0 ? "zstd" : (z == 1 ? "br" : "gzip"));
         resp.compress_enabled(true);
         co_return;
     });

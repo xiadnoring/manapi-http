@@ -79,11 +79,8 @@ namespace manapi::net::http {
         using req = manapi::net::http::request &;
         using uresp = manapi::net::http::uresponse;
 
-        // Compress file callback
-        typedef std::move_only_function<future<manapi::status>(manapi::ev::file src, manapi::ev::file dest)> compress_file_cb_t;
-
-        // Compress string callback
-        typedef std::move_only_function<manapi::status_or<std::string>(std::string_view data)> compress_str_cb_t;
+        // Compress init callback
+        typedef std::function<std::unique_ptr<manapi::compress::compress_base>()> compress_new_cb_t;
 
         // Worker init callbacks
         typedef std::function<std::shared_ptr<worker::base>(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
@@ -136,47 +133,25 @@ namespace manapi::net::http {
         std::unique_ptr<http_handler_page> handler (http::request_data_t *request_data) const;
 
         /**
-         * Add a compressor for files
-         * @param name Algo Name
-         * @param handler Callback
-         *
-         */
-        void compressor_for_file (const std::string &name, compress_file_cb_t handler);
-
-        /**
-         * Add a compressor for plain texts
+         * Add a compressor
          * @param name Algo Name
          * @param handler Callback
          */
-        void compressor_for_string (const std::string &name, compress_str_cb_t handler);
+        void compressor (const std::string &name, compress_new_cb_t handler);
 
         /**
          * Get file compressor callack by name
          * @param name Name of compressor callback
          * @return compressor callback
          */
-        compress_file_cb_t *compressor_for_file (std::string_view name);
+        compress_new_cb_t compressor (std::string_view name);
 
         /**
-         * Get string compressor callack by name
-         * @param name Name of compressor callback
-         * @return compressor callback
-         */
-        compress_str_cb_t *compressor_for_string (std::string_view name);
-
-        /**
-         * Find file compressor callback by name
+         * Find compressor callback by name
          * @param name Compressor callback name
          * @return true if it exists, otherwise, returns false
          */
-        MANAPIHTTP_NODISCARD bool contains_compressor_for_file (std::string_view name) const;
-
-        /**
-         * Find string compressor callback by name
-         * @param name Compressor callback name
-         * @return true if it exists, otherwise, returns false
-         */
-        MANAPIHTTP_NODISCARD bool contains_compressor_for_string (std::string_view name) const;
+        MANAPIHTTP_NODISCARD bool contains_compressor (std::string_view name) const;
 
         /**
          * Add a transport protocol worker

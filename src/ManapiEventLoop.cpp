@@ -1239,7 +1239,6 @@ manapi::ev::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop::handl
         return data->create_watcher_socket(fd, [data, fd] (const std::shared_ptr<ev::io> &w, int status, int revents)
                 -> void {
             auto data2 = data;
-            //MANAPIHTTP_LOG("CURL EV: {} {}", revents, static_cast<int>(fd));
             int cnt; auto rhs = curl_multi_socket_action(data->m_curl_watcher->curl_multi.get(), fd, (revents & 0b11), &cnt);
             if (rhs != CURLM_OK) {
                 data->m_logger->debug("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));

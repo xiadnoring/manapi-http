@@ -8,26 +8,24 @@
 namespace manapi::compress {
 
     class compress_base {
+    public:
         virtual manapi::status_or<manapi::slice> compress (manapi::slice_view input, bool finish) = 0;
     };
 
     class decompress_base {
+    public:
         virtual manapi::status_or<manapi::slice> decompress (manapi::slice_view input, bool finish) = 0;
+
+        virtual void max_size ( uint64_t max_size ) = 0;
     };
 
+    future<manapi::status> compress_file(compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
+    future<manapi::status> decompress_file(compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
+
+    manapi::status_or<manapi::slice> compress_string (compress::compress_base *inst, manapi::slice_view original);
+    manapi::status_or<manapi::slice> decompress_string (compress::decompress_base *inst, manapi::slice_view compressed);
+
 #if MANAPIHTTP_ZLIB_DEPENDENCY
-
-    future<manapi::status> deflate_compress_file(manapi::ev::file src, manapi::ev::file dest, int level = 0, int strategy = 0, manapi::ctoken cancellation = nullptr);
-    future<manapi::status> deflate_decompress_file(manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
-
-    manapi::status_or<std::string> deflate_compress_string (std::string_view original, int level = 0, int strategy = 0);
-    manapi::status_or<std::string> deflate_decompress_string (std::string_view compressed);
-
-    manapi::status_or<std::string> gzip_compress_string (std::string_view original, int level = 0, int strategy = 0);
-    manapi::status_or<std::string> gzip_decompress_string (std::string_view compressed);
-
-    future<manapi::status> gzip_compress_file(manapi::ev::file src, manapi::ev::file dest, int level = 0, int strategy = 0, manapi::ctoken cancellation = nullptr);
-    future<manapi::status> gzip_decompress_file(manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
 
     class deflate_compress : public compress_base {
     protected:
@@ -56,6 +54,8 @@ namespace manapi::compress {
         ~deflate_decompress();
 
         manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
+
+        void max_size(uint64_t max_size) override;
     protected:
         std::unique_ptr <data_t> m_data;
     };
@@ -72,19 +72,60 @@ namespace manapi::compress {
 #endif
 
 #ifdef MANAPIHTTP_BROTLI_DEPENDENCY
-    manapi::status_or<std::string> brotli_decompress_string (std::string_view src);
-    manapi::status_or<std::string> brotli_compress_string (std::string_view src, uint32_t quality, uint32_t window, uint32_t mode);
+    class brotli_compress : public compress_base {
+        struct data_t;
+    public:
+        brotli_compress (uint32_t quality, uint32_t window, uint32_t mode);
 
-    future<manapi::status> brotli_compress_file (manapi::ev::file src, manapi::ev::file dest, uint32_t quality, uint32_t window, uint32_t mode, manapi::ctoken cancellation = nullptr);
-    future<manapi::status> brotli_decompress_file (manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
+        ~brotli_compress();
+
+        manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
+    private:
+        std::unique_ptr< data_t > m_data;
+    };
+
+    class brotli_decompress : public decompress_base {
+        struct data_t;
+    public:
+        brotli_decompress ();
+
+        ~brotli_decompress();
+
+        manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
+
+        void max_size(uint64_t max_size) override;
+    private:
+        std::unique_ptr< data_t > m_data;
+    };
 #endif
 
 #ifdef MANAPIHTTP_ZSTD_DEPENDENCY
-    manapi::status_or<std::string> zstd_decompress_string (std::string_view src);
-    manapi::status_or<std::string> zstd_compress_string (std::string_view src, int level);
+    class zstd_compress : public compress_base {
+        struct data_t;
+    public:
+        zstd_compress (int level, int thrds);
 
-    future<manapi::status> zstd_compress_file (manapi::ev::file src, manapi::ev::file dest, int level, int additional_threads = 0, manapi::ctoken cancellation = nullptr);
-    future<manapi::status> zstd_decompress_file (manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
+        ~zstd_compress();
+
+        manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
+
+    private:
+        std::unique_ptr <data_t> m_data;
+    };
+
+    class zstd_decompress : public decompress_base {
+        struct data_t;
+    public:
+        zstd_decompress();
+
+        ~zstd_decompress();
+
+        manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
+
+        void max_size(uint64_t max_size) override;
+    private:
+        std::unique_ptr <data_t> m_data;
+    };
 #endif
 }
 

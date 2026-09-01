@@ -21,12 +21,6 @@ manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithrea
     this->m_id = id;
     this->m_worker_config = std::move(worker_config);
     this->m_mx = std::make_shared<async::mutex>();
-
-    this->m_config->function_contains_compressor([this] (std::string_view name) -> bool {
-        auto server = manapi::net::http::server::cast(this->m_site.get());
-        return server->contains_compressor_for_file(name)
-            && server->contains_compressor_for_string(name);
-    });
 }
 
 manapi::net::http_pool::~http_pool() = default;
