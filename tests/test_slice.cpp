@@ -6,7 +6,7 @@
 #include "ManapiString.hpp"
 #include "ManapiHttp.hpp"
 #include "json/ManapiJson.hpp"
-#include "std/ManapiEasyCancellation.hpp"
+#include "std/ManapiEasyCancelToken.hpp"
 
 #include "ManapiMath.hpp"
 #include "crypto/ManapiAES.hpp"
@@ -43,7 +43,7 @@ UTEST(slice, slice_concat_small) {
 
         ASSERT_TRUE( sv.cmp(rz.data(), rz.size()) == 0 );
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -62,7 +62,7 @@ UTEST(slice, slice_buf_1) {
 
         ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -81,7 +81,7 @@ UTEST(slice, slice_buf_2) {
 
         ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -100,7 +100,7 @@ UTEST(slice, slice_buf_3) {
 
         ASSERT_TRUE(::memcmp( b.data(), rz.data(), rz.size() ) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -116,7 +116,7 @@ UTEST(slice, slice_push) {
         }
         ASSERT_TRUE(!b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -134,7 +134,7 @@ UTEST(slice, slice_pop) {
         b.resize(b.size() - c[2].size()).unwrap();
         ASSERT_TRUE(!b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -150,7 +150,7 @@ UTEST(slice, slice_cmp1) {
         }
         ASSERT_TRUE(0 < b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -165,7 +165,7 @@ UTEST(slice, slice_cmp2) {
         }
         ASSERT_TRUE(0 == b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -180,7 +180,7 @@ UTEST(slice, slice_cmp3) {
         }
         ASSERT_TRUE(0 < b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -196,7 +196,7 @@ UTEST(slice, slice_cmp4) {
         }
         ASSERT_TRUE(0 > b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -211,7 +211,7 @@ UTEST(slice, slice_cmp5) {
         }
         ASSERT_TRUE(0 > b.cmp(s.data(), s.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -237,7 +237,7 @@ UTEST(slice, slice_cmp8) {
         ASSERT_TRUE(!bb1.cmp(s1.data(), s1.size()));
         ASSERT_TRUE(!bb2.cmp(s2.data(), s2.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -265,7 +265,7 @@ UTEST(slice, slice_cmp9) {
         else
             ASSERT_TRUE(s1 == s2);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -287,7 +287,7 @@ UTEST(slice, slice_cmp6) {
         else
             ASSERT_TRUE(s1 == s2);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -311,7 +311,7 @@ UTEST(slice, slice_cmp7) {
         else
             ASSERT_TRUE(s1 == s2);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -324,7 +324,7 @@ UTEST(slice, slice_cmp10) {
         auto res = b.subslice(9999).unwrap();
         ASSERT_TRUE(res.size() == 1 && !res.cmp(s1.data() + 9999, 1));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -346,7 +346,7 @@ UTEST(slice, slice_subslice) {
         SLICE_CHECK(b);
         SLICE_CHECK(res);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -441,7 +441,7 @@ UTEST(slice, slice_split) {
         ASSERT_TRUE(!b.cmp(bz.data(), bz.size()));
 
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -454,7 +454,7 @@ UTEST(slice, slice_subslice_range_err1) {
         ASSERT_TRUE(!b.subslice(2, 499).ok());
         ASSERT_TRUE(b.subslice(1, 499).ok());
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -467,7 +467,7 @@ UTEST(slice, slice_subslice_range_err2) {
         ASSERT_TRUE(!b.subslice(2, 4999).ok());
         ASSERT_TRUE(b.subslice(1, 4999).ok());
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 UTEST(slice, slice_split_range_err1) {
@@ -479,7 +479,7 @@ UTEST(slice, slice_split_range_err1) {
         ASSERT_TRUE(!b.split(2, 499).ok());
         ASSERT_TRUE(b.split(1, 499).ok());
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -492,7 +492,7 @@ UTEST(slice, slice_split_range_err2) {
         ASSERT_TRUE(!b.split(2, 4999).ok());
         ASSERT_TRUE(b.split(1, 4999).ok());
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -504,7 +504,7 @@ UTEST(slice, slice_subslice_range1_err1) {
 
         SLICE_CHECK(z4);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -516,7 +516,7 @@ UTEST(slice, slice_subslice_range1_err2) {
 
         SLICE_CHECK(z4);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 UTEST(slice, slice_split_range1_err1) {
@@ -528,7 +528,7 @@ UTEST(slice, slice_split_range1_err1) {
         SLICE_CHECK(z4);
         SLICE_CHECK(b);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -541,7 +541,7 @@ UTEST(slice, slice_split_range1_err2) {
         SLICE_CHECK(z4);
         SLICE_CHECK(b);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 

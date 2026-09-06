@@ -3,7 +3,7 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiEventLoop.hpp"
 #include "../ManapiThreadPool.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiCancelToken.hpp"
 
 namespace manapi::fs {
     class fstream : public std::enable_shared_from_this<fstream> {

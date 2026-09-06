@@ -43,7 +43,7 @@ namespace manapi::net::worker {
 
         ~http_v2 () override;
 
-        const std::shared_ptr<multithread_storage::worker_t> &worker_data() MANAPIHTTP_NOEXCEPT override;
+        manapi::net::worker::worker_data_t *worker_data() MANAPIHTTP_NOEXCEPT override;
 
         wrk_interface_global_t *wrk_global() MANAPIHTTP_NOEXCEPT override;
 
@@ -71,7 +71,7 @@ namespace manapi::net::worker {
 
         bool is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
 
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
 
         ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT override;
 

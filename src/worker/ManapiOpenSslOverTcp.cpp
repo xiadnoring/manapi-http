@@ -158,7 +158,7 @@ BIO_METHOD *BIO_manapi_mem () MANAPIHTTP_NOEXCEPT {
     return c;
 }
 
-manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
+manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config) : TLS (std::move(site), (wdata), config) {
     this->ssl_error_none_ = SSL_ERROR_NONE;
     this->ssl_error_syscall_ = SSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = SSL_ERROR_WANT_READ;
@@ -193,13 +193,13 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
-    auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata), config);
+std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config) {
+    auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), (wdata), config);
     return std::move(worker);
 }
 
-void manapi::net::worker::OpenSSL_TLS::stop(std::function<void()> cb) {
-    TLS::stop(std::move(cb));
+void manapi::net::worker::OpenSSL_TLS::stop(manapi::stoken token) {
+    TLS::stop (std::move(token));
 }
 
 void ssl_flush_sessions (std::mutex *mx, openssl_tls_worker_ctx_t *ctx_data) {
@@ -234,7 +234,7 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
     this->deep_worker_id_ = deep;
 
     try {
-        this->pool_data_ = &this->worker_data_->as<http::server_ctx::worker_data_t>()->pools[this->worker_pool_id_];
+        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
         std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
@@ -277,7 +277,7 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
     co_return status_internal("openssl_tls:Failed");
 }
 
-manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXCEPT {
     return this->pool_data_;
 }
 
@@ -433,7 +433,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //
 // void ssl_remove_session (SSL_CTX *ctx, SSL_SESSION *sess) MANAPIHTTP_NOEXCEPT {
 //     std::size_t deep;
-//     manapi::net::http::server_ctx::pool_t *pool_data;
+//     manapi::net::worker::pool_t *pool_data;
 //     std::string_view id;
 //     openssl_tls_worker_ctx_t *ctx_data;
 //     const unsigned char*id_src;

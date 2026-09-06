@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./std/ManapiContext.hpp"
-#include "./std/ManapiCancellation.hpp"
+#include "./std/ManapiCancelToken.hpp"
 
 namespace manapi::dns {
 

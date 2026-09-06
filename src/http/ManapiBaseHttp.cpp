@@ -13,7 +13,7 @@
 #include "fs/ManapiFilesystem.hpp"
 #include "fs/ManapiFileStream.hpp"
 #include "std/ManapiParallelRun.hpp"
-#include "std/ManapiEasyCancellation.hpp"
+#include "std/ManapiEasyCancelToken.hpp"
 #include "ext/ManapiMustache.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiUtils.hpp"
@@ -1490,14 +1490,13 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<response> res, std::shared_ptr<fs::fstream> f, std::size_t size) {
+    auto const cdata = res->connection_data();
+    std::size_t constexpr block_size = manapi::object_pool::area_size() * 16;
+
+    auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
+    auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
+
     co_await manapi::async::parallel_wait ([&] (manapi::reference<manapi::async::parallel_t> parallel_st) -> manapi::future<> {
-        std::size_t constexpr block_size = manapi::object_pool::area_size() * 16;
-        auto const cdata = res->connection_data();
-
-
-        auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
-        auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
-
         std::size_t current = static_cast<std::size_t>(f->tellg());
 
         size += current;

@@ -5,7 +5,7 @@
 namespace manapi::net::worker {
     class interface_worker : public worker::base {
     public:
-        interface_worker (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> worker_data, manapi::net::http::config *config);
+        interface_worker (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* worker_data, manapi::net::http::config *config);
 
         ~interface_worker () override;
 
@@ -25,11 +25,15 @@ namespace manapi::net::worker {
 
         MANAPIHTTP_NODISCARD std::size_t deep_worker_id () const MANAPIHTTP_NOEXCEPT;
 
-        const std::shared_ptr<multithread_storage::worker_t> &worker_data () MANAPIHTTP_NOEXCEPT override;
+        manapi::net::worker::worker_data_t *worker_data () MANAPIHTTP_NOEXCEPT override;
+
+        manapi::future<status> init(std::size_t deep) override;
+
+        void stop(manapi::stoken token) override;
     protected:
         int flags_;
 
-        std::shared_ptr<multithread_storage::worker_t> worker_data_;
+        manapi::net::worker::worker_data_t *worker_data_;
 
         wrk_interface_global_t global_;
 
@@ -40,5 +44,7 @@ namespace manapi::net::worker {
         std::size_t worker_pool_id_;
 
         std::size_t deep_worker_id_;
+
+        manapi::stoken m_token;
     };
 }

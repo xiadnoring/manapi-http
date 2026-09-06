@@ -11,6 +11,7 @@
 #include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
+#include "../std/ManapiStopToken.hpp"
 
 namespace manapi::net {
     namespace worker {
@@ -27,45 +28,27 @@ namespace manapi::net {
          * @param id ID
          * @param events event loop
          */
-        explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, std::shared_ptr<worker::base_http> site, size_t id);
+        http_pool(const json &config, size_t id);
 
-        /* deconstructor */
         ~http_pool();
 
         /**
          * stop the server
-         * @return InternalError, ResourceExhausted on error
          */
-        manapi::future<manapi::status> stop ();
+        void send_stop (manapi::stoken token);
 
         /**
          * start the server
          * @return InternalError, ResourceExausted, FailedPrecondition on error
          */
-        manapi::future<manapi::status> run ();
+        manapi::future<manapi::status> run (std::shared_ptr<worker::base_http> site, manapi::net::worker::worker_data_t *wdata);
 
-        /**
-         * get the site instance
-         * @return the site instance
-         */
-        MANAPIHTTP_NODISCARD const std::shared_ptr<worker::base_http> &site () const;
-
-        MANAPIHTTP_NODISCARD std::shared_ptr <http::config> config () const;
+        MANAPIHTTP_NODISCARD const std::shared_ptr <manapi::net::http::config> &config() const;
     private:
-        manapi::future<manapi::status> pool ();
-
         std::size_t m_id;
-
-        std::shared_ptr<multithread_storage::worker_t> m_worker_config;
-
-        std::shared_ptr <http::config> m_config;
 
         std::shared_ptr <worker::base> m_worker;
 
-        // pool
-
-        std::shared_ptr<manapi::async::mutex> m_mx;
-
-        std::shared_ptr<worker::base_http> m_site;
+        std::shared_ptr <http::config> m_config;
     };
 }

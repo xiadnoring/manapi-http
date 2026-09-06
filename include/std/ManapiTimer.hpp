@@ -3,23 +3,16 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiTimerPool.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiCancelToken.hpp"
 
 namespace manapi::async {
     class delay {
     public:
-        delay (size_t ms, manapi::ctoken cancellation = nullptr)  {
-            if (cancellation)
-                this->cancellation = std::move(cancellation);
-            else
-                this->cancellation = manapi::ctoken();
+        delay (std::size_t ms, manapi::ctoken cancellation = nullptr)  {
+            if (cancellation) this->m_token = std::move(cancellation);
+            else this->m_token = manapi::ctoken();
 
-            auto const tm = this->cancellation.timeout();
-
-            if (!tm)
-                this->cancellation.timeout(ms);
-            else
-                this->cancellation.timeout(std::min(tm, ms));
+            this->m_token.timeout(ms);
         }
         ~delay() = default;
 
@@ -28,15 +21,12 @@ namespace manapi::async {
         }
 
         void await_suspend (std::coroutine_handle<> handle) {
-            this->cancellation.cancel_callback(
-                [handle, tmp_ = this->cancellation] () mutable -> void {
-                    async::coro_resume(handle);
-                    tmp_.reset();
-            });
+            this->m_token.cancel_callback(
+                [handle] () mutable -> void { async::coro_resume(handle); });
         }
 
         void await_resume () const {}
     private:
-        manapi::ctoken cancellation;
+        manapi::ctoken m_token;
     };
 }

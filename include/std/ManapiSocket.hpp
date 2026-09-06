@@ -2,7 +2,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "./ManapiContext.hpp"
-#include "./ManapiCancellation.hpp"
+#include "./ManapiCancelToken.hpp"
 
 namespace manapi::async {
     manapi::status_or<socket_t> create_socket (int family, int protocol, int socktype) MANAPIHTTP_NOEXCEPT;

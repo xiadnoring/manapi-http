@@ -6,7 +6,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "./ManapiCancellation.hpp"
+#include "./ManapiCancelToken.hpp"
 
 namespace manapi::async {
     class mutex;

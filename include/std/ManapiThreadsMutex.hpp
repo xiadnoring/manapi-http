@@ -8,7 +8,7 @@
 #include "../ManapiAsync.hpp"
 #include "../std/ManapiBeforeDelete.hpp"
 #include "./ManapiContext.hpp"
-#include "./ManapiCancellation.hpp"
+#include "./ManapiCancelToken.hpp"
 
 namespace manapi::async {
     class tmutex {

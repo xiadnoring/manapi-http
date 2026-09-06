@@ -37,6 +37,41 @@ UTEST(std_string, str_split_4) {
     ASSERT_TRUE( z[0] == "h" && z[1] == "e" && z[4] == "o");
 }
 
+UTEST(std_string, str_split_5) {
+    std::string c = "hello";
+    auto z = manapi::string::split (c, "", 1);
+    ASSERT_TRUE( z.size() == 2 );
+    ASSERT_TRUE( z[0] == "h" && z[1] == "ello");
+}
+
+UTEST(std_string, str_find_all_1) {
+    std::string c = "hello";
+    auto z = manapi::string::find_all(c, "l", 2);
+    ASSERT_TRUE( z.size() == 2 );
+    ASSERT_TRUE( z[0] == 2 && z[1] == 3);
+}
+
+UTEST(std_string, str_find_all_2) {
+    std::string c = "hello";
+    auto z = manapi::string::find_all(c, "l", 1);
+    ASSERT_TRUE( z.size() == 1 );
+    ASSERT_TRUE( z[0] == 2);
+}
+
+UTEST(std_string, str_find_all_3) {
+    std::string c = "hello";
+    auto z = manapi::string::find_all(c, "");
+    ASSERT_TRUE( z.size() == 5 );
+    ASSERT_TRUE( z[0] == 0 && z[4] == 4);
+}
+
+UTEST(std_string, str_find_all_4) {
+    std::string c = "hello";
+    auto z = manapi::string::find_all(c, "", 2);
+    ASSERT_TRUE( z.size() == 2 );
+    ASSERT_TRUE( z[0] == 0 && z[1] == 1);
+}
+
 UTEST(std_string, str_replace_1) {
     std::string a = "Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world");
@@ -211,7 +246,7 @@ UTEST(std_mutex, mutex_cancel) {
 
     manapi::async::current()->timerpool()->append_timer_sync(500,
         manapi::TIMER_DEFAULT, [&ctx] (const manapi::timer &t) -> void {
-        manapi::async::run(ctx->stop());
+        send_stop();
     });
 
 
@@ -234,7 +269,7 @@ UTEST(std_mutex, mutex_cancel2) {
 
     manapi::async::current()->timerpool()->append_timer_sync(500,
         manapi::TIMER_DEFAULT, [&ctx] (const manapi::timer &t) -> void {
-        manapi::async::run(ctx->stop());
+        send_stop();
     });
 
 

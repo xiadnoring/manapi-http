@@ -6,7 +6,7 @@
 #include "ManapiString.hpp"
 #include "ManapiHttp.hpp"
 #include "json/ManapiJson.hpp"
-#include "std/ManapiEasyCancellation.hpp"
+#include "std/ManapiEasyCancelToken.hpp"
 
 #include "ManapiMath.hpp"
 #include "crypto/ManapiAES.hpp"
@@ -48,7 +48,7 @@ UTEST(compress, compress_deflate) {
 
         ASSERT_TRUE(z.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -78,7 +78,7 @@ UTEST(compress, compress_gzip) {
 
         ASSERT_TRUE(z.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -113,7 +113,7 @@ UTEST(compress, compress_gzip_small_data) {
 
         ASSERT_TRUE(gg.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -149,7 +149,7 @@ UTEST(compress, compress_zstd) {
 
         ASSERT_TRUE(z.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -184,7 +184,7 @@ UTEST(compress, compress_zstd_small_data) {
 
         ASSERT_TRUE(gg.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -220,7 +220,7 @@ UTEST(compress, compress_brotli) {
 
         ASSERT_TRUE(z.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -255,7 +255,7 @@ UTEST(compress, compress_brotli_small_data) {
 
         ASSERT_TRUE(gg.cmp(ro) == 0);
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 

@@ -652,9 +652,10 @@ manapi::compress::compress_file(manapi::compress::compress_base *inst, manapi::e
     if (! ( res = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
         co_return std::move(res);
 
+    auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
+
     co_return co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st) -> manapi::future<manapi::status> {
 
-        auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
         bool finish = false;
 
         auto prun = manapi::async::parallel_run <ssize_t>::create(parallel_st).unwrap();
@@ -705,9 +706,10 @@ manapi::compress::decompress_file(manapi::compress::decompress_base *inst, manap
     if (! ( res = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
         co_return std::move(res);
 
+    auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
+
     co_return co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st) -> manapi::future<manapi::status> {
 
-        auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
         bool finish = false;
 
         auto prun = manapi::async::parallel_run<ssize_t>::create(parallel_st).unwrap();

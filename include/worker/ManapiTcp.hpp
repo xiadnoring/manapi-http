@@ -17,7 +17,7 @@ namespace manapi::net::worker {
             CONN_LIMIT_RATE     = 512,
         };
 
-        TCP (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        TCP (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config);
 
         ~TCP () override;
 
@@ -29,7 +29,7 @@ namespace manapi::net::worker {
 
         virtual void onrecv (const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) MANAPIHTTP_NOEXCEPT;
 
-        static std::shared_ptr<worker::TCP> create (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        static std::shared_ptr<worker::TCP> create (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config);
 
         virtual shared_conn accept (const ev::shared_tcp &w, shared_conn (*init_cb) (void *user_data), void *user_data) MANAPIHTTP_NOEXCEPT;
 
@@ -37,7 +37,7 @@ namespace manapi::net::worker {
 
         void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
 
         void feed_event (const shared_conn &conn, int flags, const char *buff, std::size_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT override;
 
@@ -83,11 +83,7 @@ namespace manapi::net::worker {
 
         ev::shared_tcp watcher_accept_;
     protected:
-        std::size_t count;
-
         conns_by_ip ips;
-
-        std::function<void()> finish;
     private:
         static shared_conn connection_init_cb (void *user_data) MANAPIHTTP_NOEXCEPT;
 

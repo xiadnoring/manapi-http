@@ -7,10 +7,10 @@
 namespace manapi::net::worker {
     class udp : public worker::interface_worker {
     public:
-        explicit udp(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        explicit udp(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t *wdata, manapi::net::http::config *config);
         ~udp() override;
         manapi::future<status> init(std::size_t deep) override;
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
         virtual void onrecv (const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) = 0;
     protected:
         virtual void recv_buffer_dealloc_ (const ev::buff_t *buf);

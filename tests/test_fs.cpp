@@ -190,8 +190,7 @@ UTEST(fs, mkdir_1) {
     auto ctx = init_ctx(utest_result);
 
     manapi::async::run ([&] () -> manapi::future<> {
-        co_await manapi::fs::async_mkdir(manapi::fs::path::join(".", "mkdir-1", "mkdir-1-1", "mkdir-1-1-1"), 0755, true);
-
+        manapi::unwrap(co_await manapi::fs::async_mkdir(manapi::fs::path::join(".", "mkdir-1", "mkdir-1-1", "mkdir-1-1-1"), 0755, true));
 #define return co_return
         ASSERT_TRUE_MSG (manapi::unwrap(co_await manapi::fs::async_exists(
             manapi::fs::path::join("mkdir-1", "mkdir-1-1", "mkdir-1-1-1"))), "check mkdir-1-1-1 existence");

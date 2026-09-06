@@ -14,7 +14,7 @@ manapi::net::worker::http_v3::~http_v3() = default;
 //     return !this->callbacks->http_v3_is_writable(conn);
 // }
 
-const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::http_v3::worker_data() MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_data_t* manapi::net::worker::http_v3::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->w->worker_data();
 }
 
@@ -127,8 +127,7 @@ bool manapi::net::worker::http_v3::is_writable(const shared_conn &conn) MANAPIHT
     return this->callbacks->http_v3_is_writable(conn) && prepared::is_writable(this->config(), conn, s);
 }
 
-void manapi::net::worker::http_v3::stop(std::function<void()> cb) {
-    cb();
+void manapi::net::worker::http_v3::stop(manapi::stoken token) {
 }
 
 ssize_t manapi::net::worker::http_v3::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {

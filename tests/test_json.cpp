@@ -399,7 +399,7 @@ UTEST(json, dump_int) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -420,7 +420,7 @@ UTEST(json, dump_null) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -452,7 +452,7 @@ UTEST(json, dump_bool) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -472,7 +472,7 @@ UTEST(json, dump_decimal) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -491,7 +491,7 @@ UTEST(json, dump_str) {
 
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -511,7 +511,7 @@ UTEST(json, dump_arr) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -536,7 +536,7 @@ UTEST(json, dump_obj) {
         ASSERT_TRUE((!sv.cmp(z1.data(), z1.size())) || (!sv.cmp(z2.data(), z2.size())));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -628,7 +628,7 @@ UTEST(json, dump_spaces) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -739,7 +739,7 @@ UTEST(json, dump_shift) {
         ASSERT_TRUE(!sv.cmp(z.data(), z.size()));
     }
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 }
 
@@ -1135,7 +1135,7 @@ UTEST(json, json_dump_check) {
     auto ctx = init_ctx(utest_result);
 
     manapi::async::run ([&] () -> manapi::future<> {
-        manapi::async::run(ctx->stop());
+        send_stop();
         
         manapi::json test = {
             {"name", "Lenar"},

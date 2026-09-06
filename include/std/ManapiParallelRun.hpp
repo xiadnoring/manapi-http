@@ -149,7 +149,7 @@ namespace manapi::async {
                 z->run(std::move(task));
                 return std::move(z);
             }
-            catch (std::exception const &e) {
+            catch (std::exception const &) {
                 return manapi::status_resource_exhausted();
             }
         }

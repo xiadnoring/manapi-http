@@ -47,8 +47,6 @@ struct manapi::ethreadpool::data_t {
 
     std::move_only_function<void()> m_ontask;
 
-    std::shared_ptr<manapi::logger> m_logger;
-
     std::size_t m_reserved_tasks;
 
     std::size_t m_reserved_handlers;
@@ -61,40 +59,30 @@ union threadpool__source {
     std::coroutine_handle<> handle;
 };
 
-static void task_doit(std::move_only_function<void()>&task, manapi::logger *logger) MANAPIHTTP_NOEXCEPT {
+static void task_doit(std::move_only_function<void()>&task) MANAPIHTTP_NOEXCEPT {
+    assert((task));
     try {
-        assert((task));
-        try {
-            task();
-        }
-        catch (const manapi::exception &e) {
-            if (logger) logger->fwarning( "unexpected exception in the task with error code %d: %s", static_cast<int>(e.err_num()), e.what());
-        }
-        catch (const std::exception &e) {
-            if (logger) logger->fwarning( "unexpected exception in the task: %s", e.what());
-        }
+        task();
     }
-    catch (std::exception const &e) {
-        manapi_log_error("%s failed due to %s", "threadpool", e.what());
+    catch (const manapi::exception &e) {
+        manapi_log_warn("unexpected exception in the task with error code %d: %s", static_cast<int>(e.err_num()), e.what());
+    }
+    catch (const std::exception &e) {
+        manapi_log_warn( "unexpected exception in the task: %s", e.what());
     }
 }
 
-static void task_doit(std::coroutine_handle<> &task, manapi::logger *logger) MANAPIHTTP_NOEXCEPT {
-    try {
-        assert((task));
+static void task_doit(std::coroutine_handle<> &task) MANAPIHTTP_NOEXCEPT {
+    assert((task));
 
-        try {
-            manapi::async::coro_resume(task);
-        }
-        catch (const manapi::exception &e) {
-            if (logger) logger->warning(std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
-        }
-        catch (const std::exception &e) {
-            if (logger) logger->warning(std::format("unexpected exception in the task: {}", e.what()));
-        }
+    try {
+        manapi::async::coro_resume(task);
     }
-    catch (std::exception const &e) {
-        manapi_log_error("%s failed due to %s", "threadpool", e.what());
+    catch (const manapi::exception &e) {
+        manapi_log_warn("unexpected exception in the task with error code %d: %s", static_cast<int>(e.err_num()), e.what());
+    }
+    catch (const std::exception &e) {
+        manapi_log_warn( "unexpected exception in the task: %s", e.what());
     }
 }
 
@@ -102,16 +90,15 @@ static void task_doit(std::coroutine_handle<> &task, manapi::logger *logger) MAN
 static int mthreadpool_get_task(manapi::mthreadpool::data_t *data, std::size_t index, threadpool__source *source) MANAPIHTTP_NOEXCEPT {
     std::lock_guard<std::mutex> lk (data->m_queue_mutex);
 
-    if (data->m_tasks_by_thread[index].empty()) {
-        if (!data->m_tasks.empty()) {
-            new (&source->cb) decltype(source->cb) (std::move(data->m_tasks.back()));
-            data->m_tasks.pop_back ();
-            return 1;
-        }
-    }
-    else {
+    if (!data->m_tasks_by_thread[index].empty()) {
         new (&source->cb) decltype(source->cb) (std::move(data->m_tasks_by_thread[index].back()));
         data->m_tasks_by_thread[index].pop_back();
+        return 1;
+    }
+
+    if (!data->m_tasks.empty()) {
+        new (&source->cb) decltype(source->cb) (std::move(data->m_tasks.back()));
+        data->m_tasks.pop_back ();
         return 1;
     }
 
@@ -136,12 +123,12 @@ static void mthreadpool_run(manapi::mthreadpool::data_t *data, std::size_t index
             }
             case 1:
                 manapi::async::internal::current_stack_cnt_set(0);
-                task_doit(source.cb, nullptr);
+                task_doit(source.cb);
                 source.cb.~move_only_function();
             break;
             case 2:
                 manapi::async::internal::current_stack_cnt_set(0);
-                task_doit(source.handle, nullptr);
+                task_doit(source.handle);
                 source.handle.~coroutine_handle();
             break;
         }
@@ -295,25 +282,33 @@ namespace manapi {
         }
     }
 
-    void mthreadpool::release_tasks(manapi::task_types type, std::size_t sz) MANAPIHTTP_NOEXCEPT {
-        std::lock_guard<std::mutex> lk (this->m_data->m_queue_mutex);
-        switch (type) {
-            case TASK_TYPE_FUNC:
-                assert(this->m_data->m_reserved_tasks >= sz);
-                this->m_data->m_reserved_tasks -= sz;
-                break;
-            case TASK_TYPE_HANDLE:
-                assert(this->m_data->m_reserved_handlers >= sz);
-                this->m_data->m_reserved_handlers -= sz;
-                break;
+    void mthreadpool::release_task(std::move_only_function<void()> &&cb) MANAPIHTTP_NOEXCEPT {
+        {
+            std::lock_guard<std::mutex> lk(this->m_data->m_queue_mutex);
+            assert(this->m_data->m_reserved_tasks >= 1);
+            this->m_data->m_reserved_tasks -= 1;
+
+            this->m_data->m_tasks.push_back(std::forward<decltype(cb)>(cb));
         }
+
+        this->m_data->m_cv.notify_one();
     }
 
-    ethreadpool::ethreadpool(std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask) {
+    void mthreadpool::release_task(const std::coroutine_handle<> &handle) MANAPIHTTP_NOEXCEPT {
+        {
+            std::lock_guard<std::mutex> lk(this->m_data->m_queue_mutex);
+            assert(this->m_data->m_reserved_handlers >= 1);
+            this->m_data->m_reserved_handlers -= 1;
+
+            this->m_data->m_handlers.push_back(handle);
+        }
+
+        this->m_data->m_cv.notify_one();
+    }
+
+    ethreadpool::ethreadpool() {
         this->m_data = std::make_unique<data_t>();
-        this->m_data->m_logger = std::move(logger);
         this->m_data->m_flags = 0;
-        this->m_data->m_ontask = std::move(ontask);
         this->m_data->m_handlers.reserve(4096);
         this->m_data->m_tasks.reserve(1024);
     }
@@ -332,7 +327,7 @@ namespace manapi {
             this->m_data->m_tasks.pop_back();
 
             manapi::async::internal::current_stack_cnt_set(0);
-            task_doit(task, this->m_data->m_logger.get());
+            task_doit(task);
 
             return true;
         }
@@ -342,7 +337,7 @@ namespace manapi {
             this->m_data->m_handlers.pop_back();
 
             manapi::async::internal::current_stack_cnt_set(0);
-            task_doit(task, this->m_data->m_logger.get());
+            task_doit(task);
 
             return true;
         }
@@ -423,10 +418,6 @@ namespace manapi {
 
     void ethreadpool::join() MANAPIHTTP_NOEXCEPT {
 
-    }
-
-    const std::shared_ptr<manapi::logger> & ethreadpool::logger() MANAPIHTTP_NOEXCEPT {
-        return this->m_data->m_logger;
     }
 
     void ethreadpool::reserve_tasks(manapi::task_types type, std::size_t sz) {

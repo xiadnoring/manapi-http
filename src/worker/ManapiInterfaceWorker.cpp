@@ -1,8 +1,8 @@
 #include "worker/ManapiInterfaceWorker.hpp"
 #include "../include/ManapiUtils.hpp"
 
-manapi::net::worker::interface_worker::interface_worker(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config)
-    : site_(std::move(site)), config_(config), worker_data_(std::move(data)), worker_pool_id_(0), global_() {
+manapi::net::worker::interface_worker::interface_worker(std::shared_ptr<net::worker::base_http> site,manapi::net::worker::worker_data_t* data, manapi::net::http::config *config)
+    : site_(std::move(site)), config_(config), worker_data_(data), worker_pool_id_(0), global_() {
     this->deep_worker_id_ = 0;
     this->flags_ = 0;
 }
@@ -47,7 +47,17 @@ std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPI
     return this->deep_worker_id_;
 }
 
-const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_data_t* manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->worker_data_;
+}
+
+manapi::future<manapi::status> manapi::net::worker::interface_worker::init(std::size_t deep) {
+    this->m_token = manapi::stoken (nullptr);
+    co_return manapi::status_ok();
+}
+
+void manapi::net::worker::interface_worker::stop(manapi::stoken token) {
+    this->m_token.next( std::move( token ) );
+    this->m_token.unref();
 }
 

@@ -8,11 +8,6 @@
 #include "ManapiMath.hpp"
 #include "./include/ManapiUtils.hpp"
 
-bool insensitive_char_equals(char a, char b) {
-    return std::tolower(static_cast<unsigned char>(a)) ==
-           std::tolower(static_cast<unsigned char>(b));
-}
-
 [[maybe_unused]] void manapi::string::rjust (std::string &str, size_t size, char c) {
     while (str.size() < size)
         str += c;
@@ -75,10 +70,13 @@ std::vector<std::string_view> manapi::string::split(std::string_view s, std::str
     std::vector<std::string_view> n;
 
     if (c.empty()) {
-        n.resize(s.size());
-        for (std::size_t i = 0; i < s.size(); i++) {
+        if (cnt >= 0) n.resize(std::min( s.size(), static_cast<std::size_t>(cnt + 1)));
+        else n.resize(s.size());
+        for (std::size_t i = 0; i < s.size() && !!cnt; i++) {
             n[i] = std::string_view (&s[i], 1);
+            cnt--;
         }
+        n.back() = s.substr(n.size() - 1);
     }
     else {
 
@@ -96,6 +94,35 @@ std::vector<std::string_view> manapi::string::split(std::string_view s, std::str
         }
 
         n.emplace_back(s);
+    }
+
+    return std::move(n);
+}
+
+std::vector<std::size_t> manapi::string::find_all(std::string_view s, std::string_view c, ssize_t cnt) {
+    std::vector<std::size_t> n;
+
+    if (c.empty()) {
+        if (cnt >= 0) n.resize(std::min( s.size(), static_cast<std::size_t>(cnt)));
+        else n.resize(s.size());
+        for (std::size_t i = 0; i < s.size() && !!cnt; i++) {
+            n[i] = i;
+            cnt--;
+        }
+    }
+    else {
+        std::size_t last_pos = 0;
+        while (!s.empty() && !!cnt) {
+            std::size_t j = s.find(c, last_pos);
+
+            if (j == std::string::npos) {
+                break;
+            }
+
+            n.push_back( j );
+            last_pos = j + 1;
+            cnt--;
+        }
     }
 
     return std::move(n);

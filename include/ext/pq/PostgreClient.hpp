@@ -4,7 +4,7 @@
 #include "../../ManapiUtils.hpp"
 #include "../../std/ManapiContext.hpp"
 #include "../../std/ManapiSocket.hpp"
-#include "../../std/ManapiEasyCancellation.hpp"
+#include "../../std/ManapiEasyCancelToken.hpp"
 #include "../../std/ManapiMutex.hpp"
 #include "../../json/ManapiJson.hpp"
 

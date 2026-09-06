@@ -9,7 +9,9 @@
 #include "./std/ManapiPromise.hpp"
 #include "./ManapiTimerObject.hpp"
 #include "./ManapiEventStructures.hpp"
-#include "./std/ManapiCancellation.hpp"
+#include "./std/ManapiCancelToken.hpp"
+#include "./std/ManapiStopToken.hpp"
+#include "./std/ManapiRef.hpp"
 
 #ifdef _WIN32
 #   pragma comment(lib, "crypt32")
@@ -65,37 +67,12 @@ namespace manapi::ev {
 namespace manapi::ev::internal {
 #if MANAPIHTTP_CURL_DEPENDENCY
 
-    struct curl_watcher_data_cached_t;
-#endif
-
-    struct async_watcher_t;
-#if MANAPIHTTP_CURL_DEPENDENCY
-
     struct curl_res_value_t;
 
     struct curl_watcher_t;
-
-    struct adding_curl_data_t;
 #endif
 
-    struct timer_watcher_t;
-
-    struct fs_watcher_t;
-
-    struct io_watcher_t;
-
     struct custom_callback_t;
-
-    struct timerloop_t;
-
-    struct adding_timerloop_data_t {
-        int flag{0};
-        size_t data{0};
-        std::move_only_function<void(manapi::timer t)> sync_cb{nullptr};
-        std::move_only_function<manapi::future<>(manapi::timer t)> async_cb{nullptr};
-        manapi::async::promise_sync<std::optional<manapi::timer>>::resolve_t resolve{nullptr};
-        manapi::async::promise_sync<std::optional<manapi::timer>>::reject_t reject{nullptr};
-    };
 }
 
 namespace manapi {
@@ -108,15 +85,27 @@ namespace manapi {
         event_loop();
     public:
 
-        static manapi::ev::status_or<std::shared_ptr<event_loop>> create (std::shared_ptr<threadpool> taskpool, std::shared_ptr<timerpool> tmpool, std::shared_ptr<manapi::logger> logger);
+        struct finish_cb_data_t {
+            std::move_only_function<void(manapi::stoken)> cb;
+            manapi::stoken token;
+            uint32_t refcnt;
+        };
+
+        enum flags {
+            FLAG_WORKER_THREAD = 1<<0
+        };
+
+        static manapi::ev::status_or<std::shared_ptr<event_loop>> create (int flags, std::shared_ptr<mthreadpool> taskpool, std::shared_ptr<timerpool> tmpool, std::shared_ptr<manapi::logger> logger);
 
         ~event_loop();
 
         void setup_handle_interrupt () MANAPIHTTP_NOEXCEPT;
 
+        void send_stop ( manapi::stoken token ) MANAPIHTTP_NOEXCEPT;
+
         manapi::future<> stop ();
 
-        size_t subscribe_finish (int priority, std::move_only_function<manapi::future<void>()> cb);
+        size_t subscribe_finish (int priority, std::move_only_function<void(manapi::stoken token)> cb);
 
         void unsubscribe_finish (std::size_t id);
 
@@ -292,13 +281,17 @@ namespace manapi {
         
         void stop_callback (const std::shared_ptr<ev::udp> &s, ev::close_cb_t<ev::udp> cb);
 
+        bool has_stop_callback (const std::shared_ptr<ev::tcp> &s);
+
+        bool has_stop_callback (const std::shared_ptr<ev::udp> &s);
+
         void read_callback (const std::shared_ptr<ev::tcp> &s, ev::tcp_connection_cb cb);
 
         void alloc_callback (const std::shared_ptr<ev::tcp> &s, ev::tcp_alloc_cb cb);
 
         void stop_watcher (std::shared_ptr<ev::tcp> s) MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const std::shared_ptr<ethreadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
 #if MANAPIHTTP_CURL_DEPENDENCY
         manapi::status watch_curl (void *shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT;
 
@@ -320,8 +313,6 @@ namespace manapi {
 
         manapi::ev::status run () MANAPIHTTP_NOEXCEPT;
 
-        manapi::ev::status start () MANAPIHTTP_NOEXCEPT;
-
         void breakit () MANAPIHTTP_NOEXCEPT;
 
         /**
@@ -337,18 +328,10 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD bool is_active () const MANAPIHTTP_NOEXCEPT;
 
-        void custom_event_loop (std::move_only_function<void()> block_cb) MANAPIHTTP_NOEXCEPT;
-
         void increase_deps () MANAPIHTTP_NOEXCEPT;
 
         void decrease_deps () MANAPIHTTP_NOEXCEPT;
     protected:
-#if MANAPIHTTP_CURL_DEPENDENCY
-        void handle_curl_exec_connections ();
-
-        void handle_curl_check_connections ();
-#endif
-
         void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
 
         void wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT;
@@ -370,15 +353,19 @@ namespace manapi {
 
         int m_flags;
 
-        std::shared_ptr<threadpool> m_etaskpool;
+        std::shared_ptr<ethreadpool> m_etaskpool;
 
         std::unique_ptr<uv_loop_t> m_loop;
 
-        std::shared_ptr<threadpool> m_taskpool;
+        std::shared_ptr<mthreadpool> m_taskpool;
 
-        std::map <size_t, std::pair<int, std::move_only_function<manapi::future<void>()>>> m_map_finish_cb;
+        std::unordered_map <size_t, int> m_finish_ids_cbs;
 
-        std::map <size_t, std::move_only_function<void()>> m_map_clean_up_cb;
+        std::map <std::pair <int, std::size_t>, manapi::reference<finish_cb_data_t>> m_finish_cbs;
+
+        std::map <size_t, std::move_only_function<void()>> m_clean_up_cbs;
+
+        std::size_t m_callback_last_id;
 
         std::shared_ptr<ev::async> m_interrupted_watcher;
 
@@ -394,8 +381,10 @@ namespace manapi {
 
         std::shared_ptr<manapi::logger> m_logger;
 
-        std::move_only_function<void()> m_custom_event_loop;
-
         std::size_t m_deps;
+
+        manapi::stoken m_stopping;
+
+        manapi::stoken *m_stopping_last;
     };
 }

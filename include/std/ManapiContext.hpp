@@ -19,12 +19,12 @@ namespace manapi::async {
 
     class mutex;
 
-    class condition_variable;
-
     /* provides an async context */
     typedef std::shared_ptr<context> shared_ctx;
     /* provides a task pool */
-    typedef std::shared_ptr<threadpool> shared_taskpool;
+    typedef std::shared_ptr<ethreadpool> shared_etaskpool;
+    /* provides a task pool */
+    typedef std::shared_ptr<mthreadpool> shared_mtaskpool;
     /* provides a logger */
     typedef std::shared_ptr<logger> shared_logger;
     /* provides a context by thread */
@@ -111,6 +111,8 @@ namespace manapi {
     class timerpool;
 
     class mthreadpool;
+
+    class ethreadpool;
 }
 
 namespace manapi::async {
@@ -170,7 +172,7 @@ namespace manapi::async {
          * get the event task pool
          * @return the event task pool
          */
-        MANAPIHTTP_NODISCARD const shared_taskpool &etaskpool () MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const shared_etaskpool &etaskpool () MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the logger
@@ -343,16 +345,14 @@ namespace manapi::async::internal {
      */
     inline void run_prepare_(std::unique_ptr<manapi::async::async_task_t<void>> &&task_data, run_cb &&onfinish) {
 
-        auto st = std::make_unique<run_cb>();
-        *st = [task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err) mutable -> void {
+        task_data->task.onfinish([task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err) mutable -> void {
             try { onfinish(std::move(err)); }
             catch (manapi::exception &e) { run_prepare_manapi_exception_(e); }
             catch (std::exception const &e) { run_prepare_std_exception_(e); }
 
             if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
             else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-        };
-        task_data->task.onfinish(std::move(st));
+        });
 
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
@@ -369,15 +369,13 @@ namespace manapi::async::internal {
     template<typename T>
     void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> &&task_data, run_cb_with_value<T> &&onfinish) {
 
-        auto st = std::make_unique<run_cb_with_value<T>>();
-        *st = [task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
+        task_data->task.onfinish([task = task_data.get(), onfinish = std::forward<decltype(onfinish)>(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
             try { onfinish(std::move(err), value); }
             catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
             catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
             if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
             else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-        };
-        task_data->task.onfinish(std::move(st));
+        });
 
 
         task_data->task();
@@ -392,15 +390,13 @@ namespace manapi::async::internal {
      */
     inline void run_prepare_(std::unique_ptr<manapi::async::async_task_t<void>> &&task_data) {
 
-        auto st = std::make_unique<run_cb>();
-        *st = ([task = task_data.get()] (std::exception_ptr err) mutable -> void {
+        task_data->task.onfinish([task = task_data.get()] (std::exception_ptr err) mutable -> void {
             if (err)
                 run_prepare_error_(std::move(err));
 
             if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
             else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
         });
-        task_data->task.onfinish(std::move(st));
 
         task_data->task();
         auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
@@ -416,13 +412,11 @@ namespace manapi::async::internal {
     template<typename T>
     void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> &&task_data) {
 
-        auto st = std::make_unique<run_cb_with_value<T>>();
-        *st = [task = task_data.get()] (std::exception_ptr err, T *) mutable -> void {
+        task_data->task.onfinish([task = task_data.get()] (std::exception_ptr err, T *) mutable -> void {
             if (err) internal::run_prepare_error_(std::move(err));
             if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { async::coro_finish(task->task.release()); delete task; }
             else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
-        };
-        task_data->task.onfinish(std::move(st));
+        });
 
 
         task_data->task();

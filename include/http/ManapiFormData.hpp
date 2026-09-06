@@ -6,7 +6,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiCancelToken.hpp"
 #include "../std/ManapiContext.hpp"
 
 namespace manapi::net {

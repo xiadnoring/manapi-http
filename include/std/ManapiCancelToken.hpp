@@ -102,14 +102,6 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool contains_cancel_callback () const;
 
         /**
-         * Return current timeout in milliseconds
-         *
-         * @return timeout in milliseconds
-         */
-        MANAPIHTTP_NODISCARD size_t timeout () const;
-
-
-        /**
          * Disable cancellation without calling the callback to cancel
          */
         void disable ();

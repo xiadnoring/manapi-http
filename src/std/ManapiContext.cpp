@@ -40,7 +40,7 @@ manapi::ev::status manapi::async::cthread::start() {
     auto res = timerpool()->start();
     if (!res)
         return std::move(res);
-    auto sys_res = this->eventloop_->start();
+    auto sys_res = this->eventloop_->run();
     if (sys_res.code() != ERR_ABORTED) {
         return std::move(sys_res);
     }
@@ -71,7 +71,7 @@ const std::shared_ptr<manapi::timerpool> & manapi::async::cthread::timerpool() M
     return this->timerpool_;
 }
 
-const manapi::async::shared_taskpool & manapi::async::cthread::etaskpool() MANAPIHTTP_NOEXCEPT {
+const manapi::async::shared_etaskpool & manapi::async::cthread::etaskpool() MANAPIHTTP_NOEXCEPT {
     return this->eventloop_->taskpool();
 }
 
@@ -109,7 +109,7 @@ manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(std:
         auto timerpool_ = manapi::timerpool::create().unwrap();
 
         /* Main Event Loop */
-        auto watcher_ = manapi::event_loop::create(taskpool_, timerpool_, logger_).unwrap();
+        auto watcher_ = manapi::event_loop::create(0, taskpool_, timerpool_, logger_).unwrap();
 
         auto mainctx = std::shared_ptr<context> (new context (std::move(watcher_), taskpool_, timerpool_, logger_));
 
@@ -146,7 +146,7 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
         try {
             for (std::size_t i = 0; i < loops; ++i) {
                 auto timerpool_ = manapi::timerpool::create().unwrap();
-                auto watcher_ = manapi::event_loop::create(ctx->taskpool_, timerpool_, ctx->logger_).unwrap();
+                auto watcher_ = manapi::event_loop::create(0, ctx->taskpool_, timerpool_, ctx->logger_).unwrap();
 
                 ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, timerpool_, ctx->logger_);
             }
@@ -320,7 +320,7 @@ const std::shared_ptr<manapi::timerpool> & manapi::async::etimerpool() MANAPIHTT
     return manapi::async::current()->timerpool();
 }
 
-const std::shared_ptr<manapi::threadpool> & manapi::async::etaskpool() MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::ethreadpool> & manapi::async::etaskpool() MANAPIHTTP_NOEXCEPT {
     return manapi::async::current()->etaskpool();
 }
 
@@ -368,10 +368,6 @@ void manapi::async::internal::run_prepare_std_exception_(std::exception const &e
 
 void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) MANAPIHTTP_NOEXCEPT {
     manapi_log_error("ctx: unhandled exception: %d, %s", static_cast<int>(e.err_num()), e.what());
-}
-
-const std::shared_ptr<manapi::threadpool> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) MANAPIHTTP_NOEXCEPT {
-    return ctx->eventloop()->taskpool();
 }
 
 

@@ -834,6 +834,10 @@ ssize_t manapi::ev::fs::result() const MANAPIHTTP_NOEXCEPT {
     return this->m_s.result;
 }
 
+void manapi::ev::fs::cleanup() MANAPIHTTP_NOEXCEPT {
+    uv_fs_req_cleanup (&this->m_s);
+}
+
 manapi::ev::random::random() : m_s() {}
 
 int manapi::ev::random::cancel() MANAPIHTTP_NOEXCEPT {

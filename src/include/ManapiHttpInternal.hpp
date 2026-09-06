@@ -7,7 +7,6 @@
 #include "std/ManapiRef.hpp"
 
 namespace manapi::net::http {
-
     struct http_handler_function {
         handler_template_t handler = nullptr;
         uint8_t flags = 0;

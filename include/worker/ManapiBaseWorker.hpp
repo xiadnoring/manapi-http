@@ -5,8 +5,9 @@
 
 #include "../http/ManapiHttpConfig.hpp"
 #include "../http/ManapiHttpCtx.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiCancelToken.hpp"
 #include "../std/ManapiRef.hpp"
+#include "../std/ManapiStopToken.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
@@ -37,7 +38,7 @@ namespace manapi::net::worker {
 
     enum worker_base_flags {
         WORKER_BASE_FLAG_MULTISTREAM = 1,
-        WORKER_BASE_FLAG_CLOSED = 2,
+        WORKER_BASE_FLAG_RESERVED = 2,
         WORKER_BASE_FLAG_AUTO_ACK = 4,
         WORKER_BASE_FLAG_RESERVED2 = 8,
         WORKER_BASE_FLAG_MAX = WORKER_BASE_FLAG_RESERVED2
@@ -253,7 +254,7 @@ namespace manapi::net::worker {
 
         virtual http::config *config() = 0;
 
-        virtual const std::shared_ptr<multithread_storage::worker_t> & worker_data() = 0;
+        virtual manapi::net::worker::worker_data_t * worker_data() = 0;
 
         virtual manapi::future<status> init (std::size_t deep) = 0;
 
@@ -295,7 +296,7 @@ namespace manapi::net::worker {
 
         virtual bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual void stop (std::function<void()> cb) = 0;
+        virtual void stop (manapi::stoken token) = 0;
 
         virtual worker_watcher_cb event_on (const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT = 0;
 

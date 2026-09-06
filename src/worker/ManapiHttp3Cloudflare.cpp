@@ -124,10 +124,8 @@ struct quiche_h3_event_deleter {
 };
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(std::shared_ptr<net::worker::base_http> site,
-    std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
+                                                      manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config) : udp(std::move(site), (wdata), config) {
     this->flags = 0;
-    this->count = 0;
-    this->finish = nullptr;
 }
 
 manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
@@ -141,16 +139,18 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 }
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
-    std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata,
+    std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata,
     manapi::net::http::config *config) {
-    auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config);
+    auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), (wdata), config);
     return std::move(worker);
 }
 
 manapi::future<manapi::status> manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
-    auto status = co_await udp::init(deep + 1);
-    if (!status)
-        co_return std::move(status);
+    {
+        auto st = co_await udp::init(deep + 1);
+        if (!st) co_return std::move(st);
+    }
+
     typedef manapi::internal::config_interface cv;
     
 #define as_cv_bool cv::get_config_param<bool>
@@ -291,18 +291,8 @@ err:
     co_return status_internal("quiche: init() failed");
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
-    std::function<void()> cb_next;
-    MANAPIHTTP_MUST_ALLOC_START
-    cb_next = [this, cb = std::move(cb)] () -> void {
-        this->flags |= WORKER_BASE_FLAG_CLOSED;
-        this->finish = cb;
-
-        if (!this->count)
-            this->finish();
-    };
-    MANAPIHTTP_MUST_ALLOC_END;
-    udp::stop(std::move(cb_next));
+void manapi::net::worker::http_v3_cloudflare_quiche::stop(manapi::stoken token) {
+    udp::stop(token);
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
@@ -799,7 +789,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
             conn_data->cid = res.first->first;
 
-            this->count++;
         }
         catch (std::exception const &e) {
             manapi_log_error("%s:%s failed due to %s", "cf quiche", "onrecv", e.what());
@@ -817,14 +806,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             if (!connection)
                 return;
 
-            if (this->count > static_cast<int>(this->config_->max_connections + this->config_->max_connections) ||
+            auto const count = this->worker_data_->count.fetch_add(1);
+            this->m_token.ref();
+
+            if (count > static_cast<int>(this->config_->max_connections + this->config_->max_connections) ||
                 conn_by_ip->second.size() > this->config_->max_connections_by_ip + this->config_->max_connections_by_ip) {
                 auto const rhs = quiche_conn_close(conn_data->conn, false, 0x02, reinterpret_cast<const uint8_t *> (many_connections_msg.data()), many_connections_msg.size());
                 if (rhs)
                     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %d for conn %p", "quche_conn_close", conn_data, rhs);
             }
 
-            if (this->count > static_cast<int>(this->config_->max_connections) ||
+            if (count > static_cast<int>(this->config_->max_connections) ||
                 conn_by_ip->second.size() > this->config_->max_connections_by_ip) {
                 auto const rhs = quiche_conn_close(conn_data->conn, false, 0x02,  reinterpret_cast<const uint8_t *> (many_connections_msg.data()), many_connections_msg.size());
                 if (rhs)
@@ -965,9 +957,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "quiche:%.*s on %.*s id=%zu",
                                     req_ptr->method.size(), req_ptr->method.data(), req_ptr->uri.size(), req_ptr->uri.data(), stream_id);
 
-                                // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                                // this->event_flags(conn, 0);
-
                                 cdata->router = manapi::net::http::server::cast(this->site().get())->handler(req_ptr);
                                 net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
                             }
@@ -985,7 +974,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                             grab_headers_data.config = this->config_;
                             grab_headers_data.headers = &s->req->trailers;
                             grab_headers_data.headers_size = &s->req->trailers_size;
-                            grab_headers_data.max_headers_size = static_cast<uint32_t>(s->req->handler->trailers_size);
+                            assert(!!s->req->cdata->router);
+                            grab_headers_data.max_headers_size = static_cast<uint32_t>(s->req->cdata->router->handler->trailers_size);
 
                             if (quiche_h3_event_for_each_header(event.get(), http_v3_cloudflare_quiche::grab_headers_, &grab_headers_data)) {
                                 this->close_connection(sconn, CLOSE_CONN_ERR);
@@ -1460,18 +1450,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
 
         conn_data->self.reset();
 
-        wrk->count--;
-
-        if (wrk->flags & WORKER_BASE_FLAG_CLOSED
-            && !wrk->count
-            && wrk->finish) {
-            try {
-                wrk->finish();
-            }
-            catch (std::exception const &e) {
-                manapi_log_error("%s failed due to %s", "force_close: finish()", e.what());
-            }
-        }
+        wrk->worker_data_->count.fetch_sub(1);
+        wrk->m_token.unref();
     }
     else {
         if (!(conn_data->flags & CONN_REMOVED)) {

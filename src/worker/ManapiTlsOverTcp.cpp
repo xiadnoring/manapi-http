@@ -29,7 +29,7 @@ enum conn_tls_flags  {
     CONN_TLS_EARLY_FINISHED = CONN_TLS_EARLY_DATA<<1
 };
 
-manapi::net::worker::TLS::TLS(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
+manapi::net::worker::TLS::TLS(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config) : TCP(std::move(site), (wdata), config) {}
 
 manapi::net::worker::TLS::~TLS() = default;
 
@@ -368,18 +368,12 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     }
 
     auto const wrk = dynamic_cast<TLS*> (connection->worker);
-    if (wrk) {
-        if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
-            manapi_log_trace("tcp:this->global_.cleanup_cb failed");
+    assert (wrk) ;
+    if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
+        manapi_log_trace("tcp:this->global_.cleanup_cb failed");
 
-        wrk->count--;
-        wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
-
-        if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
-            && !wrk->count
-            && wrk->finish)
-            wrk->finish();
-    }
+    wrk->worker_data()->count.fetch_sub(1);
+    wrk->m_token.unref();
 }
 
 void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {

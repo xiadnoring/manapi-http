@@ -21,7 +21,7 @@ UTEST(timer, important_dep) {
         finished = true;
     });
 
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 
@@ -38,7 +38,7 @@ UTEST(timer, default_dep) {
         finished = true;
     });
 
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 
@@ -58,7 +58,7 @@ UTEST(timer, interval) {
         }
     });
 
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 
@@ -78,7 +78,7 @@ UTEST(timer, interval_async) {
             t.stop();
         }
     });
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 
@@ -96,7 +96,7 @@ UTEST(timer, async) {
         a = 5;
     });
 
-    manapi::async::run(ctx->stop());
+    send_stop();
     wait_ctx(ctx);
 
     ASSERT_TRUE(a == 5);
@@ -115,7 +115,7 @@ UTEST(timer, again) {
             t.again(20);
         }
     });
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 
@@ -137,7 +137,7 @@ UTEST(timer, interval_again) {
             t.stop();
         }
     });
-    manapi::async::run(ctx->stop());
+    send_stop();
 
     wait_ctx(ctx);
 

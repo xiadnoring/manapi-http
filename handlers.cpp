@@ -21,7 +21,11 @@ void init_http_server(std::shared_ptr<manapi::net::http::server> router, std::st
         co_return;
     });
 
-    router->GET("/f", "/home/Timur/Downloads/VideoDownloader");
+    router->GET("/f", "/home/Timur/Downloads/VideoDownloader", [] (http::req &req, http::resp &resp)
+            -> manapi::future<> {
+        resp.compress_enabled(false);
+        co_return;
+    });
 
     router->GET("/http", [] (http::req &req, http::uresp resp) -> void {
         std::string http = "";

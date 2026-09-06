@@ -46,30 +46,30 @@ void manapi::print_stacktrace() MANAPIHTTP_NOEXCEPT {
     }
 }
 
-void manapi::print_stacktrace(std::size_t pos) MANAPIHTTP_NOEXCEPT {
-    try {
-#if MANAPIHTTP_CPPTRACE_DEPENDENCY
-        auto stack = cpptrace::stacktrace::current(pos);
-        auto it = stack.begin();
-        manapi_log_info("%p in %.*s at %.*s:%u", it->raw_address,
-            it->symbol.size(), it->symbol.data(),
-            it->filename.size(), it->filename.data(),
-            it->line.value_or(0));
-#elif __cplusplus >= 202100L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
-        auto stack = std::stacktrace::current();
-        auto &it = stack[static_cast<std::basic_stacktrace<std::allocator<std::stacktrace_entry> >::size_type>(pos)];
-        manapi_log_info("%p in %.*s at %.*s:%u", it.native_handle(),
-            it.description().size(), it.description().data(),
-            it.source_file().size(), it.source_file().data(),
-            it.source_line());
-#else
-        manapi_log_error("stack trace is disabled");
-#endif
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "stack trace print failed", e.what());
-    }
-}
+//void manapi::print_stacktrace(std::size_t pos) MANAPIHTTP_NOEXCEPT {
+//    try {
+//#if MANAPIHTTP_CPPTRACE_DEPENDENCY
+//        auto stack = cpptrace::stacktrace::current(pos);
+//        auto it = stack.begin();
+//        manapi_log_info("%p in %.*s at %.*s:%u", it->raw_address,
+//            it->symbol.size(), it->symbol.data(),
+//            it->filename.size(), it->filename.data(),
+//            it->line.value_or(0));
+//#elif __cplusplus >= 202100L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
+//        auto stack = std::stacktrace::current();
+//        auto &it = stack[static_cast<std::basic_stacktrace<std::allocator<std::stacktrace_entry> >::size_type>(pos)];
+//        manapi_log_info("%p in %.*s at %.*s:%u", it.native_handle(),
+//            it.description().size(), it.description().data(),
+//            it.source_file().size(), it.source_file().data(),
+//            it.source_line());
+//#else
+//        manapi_log_error("stack trace is disabled");
+//#endif
+//    }
+//    catch (std::exception const &e) {
+//        manapi_log_error("%s due to %s", "stack trace print failed", e.what());
+//    }
+//}
 
 std::size_t manapi::text_hash::operator()(const char *str) const { return hash_type{}(str); }
 

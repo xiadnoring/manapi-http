@@ -5,6 +5,7 @@
 #include "../json/ManapiJson.hpp"
 #include "../std/ManapiThreadsMutex.hpp"
 #include "../utils/ManapiMultithreadStorage.hpp"
+#include "../worker/ManapiHttpBase.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -20,31 +21,20 @@ namespace manapi::net::http {
 
 namespace manapi::net::http {
     class server_ctx : public std::enable_shared_from_this<server_ctx> {
-        struct data_t;
+        struct data_t {
+            manapi::json data;
+            std::mutex mx;
+            manapi::async::tmutex wmx;
+            net::worker::worker_data_t worker_data;
+        };
 
         server_ctx ();
     public:
-        struct pool_worker_t {
-            void *data;
-            std::size_t ref;
-        };
-
-        struct pool_t {
-            std::vector<pool_worker_t> data;
-            std::unique_ptr<std::mutex> mx;
-        };
-
-        struct worker_data_t {
-            std::atomic<ssize_t> count;
-            std::vector<pool_t> pools;
-        };
-
-
         static manapi::status_or<std::shared_ptr<server_ctx>> create () MANAPIHTTP_NOEXCEPT;
 
         ~server_ctx ();
 
-        multithread_storage &storage ();
+        data_t &storage ();
     private:
         std::unique_ptr <data_t> m_data;
     };

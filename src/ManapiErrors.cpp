@@ -378,7 +378,7 @@ bool manapi::status::ok() const {
 
 void manapi::status::log() const {
     auto s = this->fullmsg();
-    print_stacktrace(2);
+//    print_stacktrace(2);
     manapi_log_debug(s.data());
 }
 

@@ -450,7 +450,10 @@ else ()
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         pkg_check_modules(QUICHE quiche)
         if (NOT QUICHE_FOUND)
-            set(MANAPIHTTP_QUICHE_DEPENDENCY OFF)
+            include(./cmake/FindQuiche.cmake)
+            if (NOT QUICHE_FOUND)
+                set(MANAPIHTTP_QUICHE_DEPENDENCY OFF)
+            endif()
         endif ()
     endif ()
 
@@ -685,7 +688,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiAsync.cpp
         include/ManapiAsync.hpp
         include/std/ManapiMutex.hpp
-        include/std/ManapiConditionVariable.hpp
+        include/std/ManapiStopToken.hpp
         include/std/ManapiChain.hpp
         include/std/ManapiTimer.hpp
         include/crypto/ManapiAEAD.hpp
@@ -716,7 +719,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/std/ManapiContext.hpp
         src/std/ManapiContext.cpp
         src/std/ManapiMutex.cpp
-        src/std/ManapiConditionVariable.cpp
+        src/std/ManapiStopToken.cpp
         include/fs/ManapiFileStream.hpp
         src/fs/ManapiFileStream.cpp
         include/ext/pq/PostgreClient.hpp
@@ -739,8 +742,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiInitTools.cpp
         include/http/ManapiFileTransferInfo.hpp
         src/std/ManapiSocket.cpp
-        include/std/ManapiCancellation.hpp
-        src/std/ManapiCancellation.cpp
+        include/std/ManapiCancelToken.hpp
+        src/std/ManapiCancelToken.cpp
         include/http/ManapiURLDecodeStream.hpp
         src/http/ManapiURLDecodeStream.cpp
         src/http/ManapiURLParams.cpp
@@ -764,8 +767,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/ManapiHttpCtx.cpp
         include/std/ManapiThreadsMutex.hpp
         src/std/ManapiThreadsMutex.cpp
-        include/std/ManapiEasyCancellation.hpp
-        src/std/ManapiEasyCancellation.cpp
+        include/std/ManapiEasyCancelToken.hpp
+        src/std/ManapiEasyCancelToken.cpp
         src/ManapiMemoryPool.cpp
         include/worker/ManapiHttp2Worker.hpp
         src/worker/ManapiHttp2Worker.cpp
@@ -1007,10 +1010,9 @@ endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-if (DEFINED quiche_VERSION)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_QUICHE_VERSION="${quiche_VERSION}")
-elseif (DEFINED QUICHE_VERSION)
+if (DEFINED QUICHE_VERSION)
     target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_QUICHE_VERSION="${QUICHE_VERSION}")
+    message(STATUS "QUICHE_VERSION=${QUICHE_VERSION}")
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

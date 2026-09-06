@@ -14,7 +14,7 @@
 # include "./http/ManapiHttpRequest.hpp"
 # include "./std/ManapiParallelRun.hpp"
 # include "./http/ManapiFileTransferInfo.hpp"
-# include "./std/ManapiCancellation.hpp"
+# include "./std/ManapiCancelToken.hpp"
 
 namespace manapi::net {
    class fetch;

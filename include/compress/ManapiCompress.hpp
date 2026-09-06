@@ -3,17 +3,21 @@
 #include "../ManapiUtils.hpp"
 #include "../std/ManapiSlice.hpp"
 #include "../std/ManapiContext.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "../std/ManapiCancelToken.hpp"
 
 namespace manapi::compress {
 
     class compress_base {
     public:
+        virtual ~compress_base() = default;
+
         virtual manapi::status_or<manapi::slice> compress (manapi::slice_view input, bool finish) = 0;
     };
 
     class decompress_base {
     public:
+        virtual ~decompress_base() = default;
+
         virtual manapi::status_or<manapi::slice> decompress (manapi::slice_view input, bool finish) = 0;
 
         virtual void max_size ( uint64_t max_size ) = 0;
@@ -35,7 +39,7 @@ namespace manapi::compress {
 
         deflate_compress (int method, int window_bits, int mem_level, int level, int strategy);
 
-        ~deflate_compress();
+        ~deflate_compress() override;
 
         manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
     protected:
@@ -51,7 +55,7 @@ namespace manapi::compress {
 
         deflate_decompress ();
 
-        ~deflate_decompress();
+        ~deflate_decompress() override;
 
         manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
 
@@ -77,7 +81,7 @@ namespace manapi::compress {
     public:
         brotli_compress (uint32_t quality, uint32_t window, uint32_t mode);
 
-        ~brotli_compress();
+        ~brotli_compress() override;
 
         manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
     private:
@@ -89,7 +93,7 @@ namespace manapi::compress {
     public:
         brotli_decompress ();
 
-        ~brotli_decompress();
+        ~brotli_decompress() override;
 
         manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
 
@@ -105,7 +109,7 @@ namespace manapi::compress {
     public:
         zstd_compress (int level, int thrds);
 
-        ~zstd_compress();
+        ~zstd_compress() override;
 
         manapi::status_or<manapi::slice> compress(manapi::slice_view input, bool finish) override;
 
@@ -118,7 +122,7 @@ namespace manapi::compress {
     public:
         zstd_decompress();
 
-        ~zstd_decompress();
+        ~zstd_decompress() override;
 
         manapi::status_or<manapi::slice> decompress(manapi::slice_view input, bool finish) override;
 

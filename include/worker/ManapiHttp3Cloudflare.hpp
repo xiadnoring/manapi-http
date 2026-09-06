@@ -25,15 +25,15 @@ namespace manapi::net::worker {
 
         struct connection_stream_t;
 
-        explicit http_v3_cloudflare_quiche(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata,manapi::net::http::config * config);
+        http_v3_cloudflare_quiche(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata,manapi::net::http::config * config);
 
         ~http_v3_cloudflare_quiche() override;
 
-        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config);
 
         manapi::future<manapi::status> init(std::size_t deep) override;
 
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
 
         void onrecv(const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) MANAPIHTTP_NOEXCEPT override;
 
@@ -64,15 +64,6 @@ namespace manapi::net::worker {
         static void force_close_ (shared_conn conn, connection_t *conn_data) MANAPIHTTP_NOEXCEPT;
     protected:
         int flags;
-
-        int count;
-
-        std::function<void()> finish;
-
-        // void recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) override;
-        //
-        // void recv_buffer_dealloc_(const ev::buff_t *buf) override;
-
     private:
         static manapi::future<int> cloudflare_wrk_http3_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish);
 
@@ -88,9 +79,7 @@ namespace manapi::net::worker {
 
         int flush_read_ (const shared_conn &stream) MANAPIHTTP_NOEXCEPT;
 
-
         void wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT override;
-
 
         void reset_all_streams_ (connection_t *conn_data) MANAPIHTTP_NOEXCEPT;
 

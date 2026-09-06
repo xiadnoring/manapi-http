@@ -128,13 +128,8 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_s
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->off_,
+        rhs = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
-
-        if (!res.ok())
-            co_return res.syserr();
-
-        rhs = res.unwrap();
 
         if (rhs < 0)
             break;
@@ -156,15 +151,10 @@ manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->off_,
+        rhs = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
-        if (!res.ok())
-            co_return res.syserr();
-
-        rhs = res.unwrap();
-
-        if (this->m_data->off_ >= 0) {
+        if (rhs > 0 && this->m_data->off_ >= 0) {
             this->m_data->off_ += static_cast<long>(rhs);
         }
 
@@ -211,13 +201,8 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->off_,
+        rhs = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
-
-        if (!res.ok())
-            co_return res.syserr();
-
-        rhs = res.unwrap();
 
         if (rhs < 0)
             break;
@@ -239,16 +224,12 @@ manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        auto res = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->off_,
+        rhs = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->off_,
             manapi::ctoken::unit(this->m_data->cancellation));
 
-        if (!res.ok())
-            co_return res.syserr();
-
-        rhs = res.unwrap();
-
-        if (this->m_data->off_ >= 0)
+        if (rhs > 0 && this->m_data->off_ >= 0) {
             this->m_data->off_ += static_cast<long>(rhs);
+        }
 
         co_return rhs;
     }

@@ -10,7 +10,7 @@
 #include "http/ManapiHttpUtils.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "std/ManapiSocket.hpp"
-#include "std/ManapiEasyCancellation.hpp"
+#include "std/ManapiEasyCancelToken.hpp"
 #include "../include/worker/ManapiQuicOpenSsl.hpp"
 
 #ifdef MANAPIHTTP_OPENSSL_QUIC_SUPPORT
@@ -93,12 +93,10 @@ struct manapi::net::worker::openssl_quic::quic_stream_t : connection_prepared_t 
     std::size_t cur_speed_lim;
 };
 
-manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
-    : udp(std::move(site), std::move(wdata), config) {
+manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config)
+    : udp(std::move(site), (wdata), config) {
     this->listener = nullptr;
     this->ctx = nullptr;
-    this->count = 0;
-    this->finish_ref=0;
     this->flags_ |= WORKER_BASE_FLAG_MULTISTREAM|WORKER_BASE_FLAG_AUTO_ACK;
     this->pool_data_ = nullptr;
     this->deep_worker_id_ = 0;
@@ -110,6 +108,23 @@ manapi::net::worker::openssl_quic::openssl_quic(std::shared_ptr<net::worker::bas
 
 manapi::net::worker::openssl_quic::~openssl_quic() {
     SSL_free(MANAPI_AS_SSL(this->listener));
+
+    if (this->t_) {
+        if (auto rhs = this->t_->stop()) {
+            manapi_log_error (ev::strerror(rhs));
+        }
+
+        this->m_token.unref();
+        this->t_->data( this->t_.get() );
+        this->t_->unbind(+[] (manapi::ev::handle *s)
+            -> void { delete static_cast<manapi::ev::timer *>(s->data); });
+        this->t_.release();
+    }
+
+    if (this->update_limit_timer) {
+        this->update_limit_timer.stop();
+        this->update_limit_timer = nullptr;
+    }
 
     if (this->pool_data_) {
         std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
@@ -126,7 +141,7 @@ manapi::net::worker::openssl_quic::~openssl_quic() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config) {
     auto worker = std::make_shared<worker::openssl_quic>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
@@ -327,7 +342,7 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
         this->polls_.reserve(16);
         this->deep_worker_id_ = deep;
 
-        this->pool_data_ = &this->worker_data_->as<http::server_ctx::worker_data_t>()->pools[this->worker_pool_id_];
+        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
         std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
@@ -369,16 +384,7 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
 
         std::unique_ptr<BIO, openssl_quic_bio_deleter_t> wbio;
         std::unique_ptr<BIO, openssl_quic_bio_deleter_t> rbio;
-        //
-        // BIO *wbiop;
-        // BIO *rbiop;
-        //
-        // if (!BIO_new_bio_dgram_pair(&rbiop, 0, &wbiop, 0))
-        //     co_return status_internal("openssl_quic:BIO_new");
-        //
-        // wbio.reset(wbiop);
-        // rbio.reset(rbiop);
-        //
+
         wbio.reset(BIO_new(BIO_s_dgram_mem()));
         rbio.reset(BIO_new(BIO_s_dgram_mem()));
 
@@ -474,16 +480,19 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
         auto loop = manapi::async::current()->eventloop()->loop();
         if (!loop)
             co_return status_not_found("ev:loop");
+
         this->t_ = std::make_unique<ev::timer>();
 
-        auto rhs = this->t_->bind(loop);
+        int rhs;
 
-        if (rhs) {
+        if ((rhs = this->t_->bind(loop))) {
+            this->t_.reset();
             manapi_log_trace("%s failed due to %s", "openssl_quic:uv timer bind", ev::strerror(rhs));
             co_return status_internal("openssl_quic:uv timer bind");
         }
 
         this->t_->data(this);
+        this->m_token.ref();
 
         SSL_POLL_ITEM poll_item;
 
@@ -493,18 +502,12 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
 
         this->polls_.push_back(poll_item);
 
-        auto timer = manapi::async::current()->timerpool()->append_interval_sync(
+        this->update_limit_timer = manapi::async::current()->timerpool()->append_interval_sync(
             1000, manapi::TIMER_IMPORTANT, [this] (const manapi::timer &t) -> void {
                 this->update_limit_rate();
-            });
+            }).unwrap();
 
-        if (!timer.ok())
-            co_return timer.err();
-
-        this->update_limit_timer = timer.unwrap();
-
-        rhs = this->udp_accept_->recv_start();
-        if (rhs) {
+        if ((rhs = this->udp_accept_->recv_start())) {
             manapi_log_trace("%s failed due to %s", "openssl_quic:recv_start", ev::strerror(rhs));
             co_return status_internal("openssl_quic:recv_start");
         }
@@ -517,44 +520,16 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
     co_return status_internal("openssl_quic:init failed");
 }
 
-void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
-    try {
-        if (this->count) {
-            this->flags_ |= WORKER_BASE_FLAG_CLOSED;
-            this->finish = std::move(cb);
-        }
-        else {
-            if (this->t_) {
-                if (auto err = this->t_->stop()) {
-                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,"%s due to %s",
-                        "openssl_quic:timer stop failed", ev::strerror(err));
-                }
-
-                this->finish_ref++;
-                this->t_->unbind(io_unbind_cb);
-            }
-
-            if (this->update_limit_timer) {
-                this->update_limit_timer.stop();
-                this->update_limit_timer = nullptr;
-            }
-
-            if (this->finish_ref) {
-                this->finish = std::move(cb);
-            }
-            else {
-                udp::stop(std::move(cb));
-            }
+void manapi::net::worker::openssl_quic::stop(manapi::stoken token) {
+    if (this->t_) {
+        if (auto rhs = this->t_->stop()) {
+            manapi_log_error (ev::strerror(rhs));
         }
 
-        return;
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s: %s failed due to %s", "openssl_quic", "stop", e.what());
+        this->t_->unbind(io_unbind_cb);
     }
 
-    if (cb)
-        cb();
+    udp::stop( token );
 }
 
 void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
@@ -1429,17 +1404,8 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
                 manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
         }
 
-        wrk->count--;
-        wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
-
-        if (wrk->count < wrk->config_->max_connections) {
-            // TODO: start accepting
-        }
-
-        if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
-            && !wrk->count && wrk->finish) {
-            wrk->stop(std::move(wrk->finish));
-        }
+        wrk->worker_data()->count.fetch_sub(1);
+        wrk->m_token.unref();
     }
 }
 
@@ -1783,24 +1749,12 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 }
 
 void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_NOEXCEPT {
-    try {
-        auto w = static_cast<openssl_quic *>(s->data);
-        if (w) {
-            w->finish_ref--;
-            if (w->finish_ref)
-                return;
 
-            w->t_.reset();
+    auto w = static_cast<openssl_quic *>(s->data);
+    assert (!!w);
 
-            if (w->finish)
-                w->udp::stop(std::move(w->finish));
-        }
-        else
-            manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "openssl_quic", "io_unbind_cb", "data is null");
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s: %s failed due to %s", "openssl_quic", "io_unbind_cb", e.what());
-    }
+    w->t_.reset();
+    w->m_token.unref();
 }
 
 manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream, int flags) MANAPIHTTP_NOEXCEPT {
@@ -2000,8 +1954,7 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
             // return status_internal("openssl_quic: conn accept failed");
         }
 
-        this->count++;
-        this->worker_data_->as<http::server_ctx::worker_data_t>()->count.fetch_add(1);
+        auto const count = this->worker_data_->count.fetch_add(1);
 
         this->waiting(conn, true);
 
@@ -2031,11 +1984,11 @@ manapi::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl
 
 
         if (conn_by_ip->second.size() > (this->config_->max_connections_by_ip + this->config_->max_connections_by_ip)
-            || this->count > this->config_->max_connections + this->config_->max_connections) {
+            || count > this->config_->max_connections + this->config_->max_connections) {
             this->close_connection(conn, CLOSE_CONN_ERR);
         }
         else if (conn_by_ip->second.size() > this->config_->max_connections_by_ip
-            || this->count > this->config_->max_connections) {
+            || count > this->config_->max_connections) {
             this->close_connection(conn, CLOSE_CONN_ERR);
         }
     }

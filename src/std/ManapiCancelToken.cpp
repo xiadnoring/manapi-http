@@ -3,7 +3,7 @@
 #include "ManapiTimerObject.hpp"
 #include "ManapiTimerPool.hpp"
 #include "ManapiThreadPool.hpp"
-#include "std/ManapiCancellation.hpp"
+#include "std/ManapiCancelToken.hpp"
 #include "std/ManapiContext.hpp"
 #include "../include/ManapiUtils.hpp"
 
@@ -15,12 +15,15 @@ enum manapi__ctoken_status_flags {
 
 struct manapi::ctoken_data_t {
     int status;
-    size_t timeout; /* ms */
     manapi::timer timeout_struct;
     std::move_only_function<void()> cancel_sync_callback;
-    std::unique_ptr<manapi::chain<ctoken>> unites;
-    manapi::chain<ctoken>::iterator it;
+    manapi::chain<ctoken> unites;
+    manapi::chain<ctoken>::iterator it = nullptr;
     ctoken_data_t *parent;
+
+    ~ctoken_data_t () {
+        if (this->cancel_sync_callback) manapi::async::etaskpool()->release_tasks( manapi::TASK_TYPE_FUNC, 1 );
+    }
 };
 
 static void manapi__ctoken_stop_timeout( std::shared_ptr<manapi::ctoken_data_t> m_data) MANAPIHTTP_NOEXCEPT {
@@ -36,23 +39,23 @@ static void manapi__ctoken_cancel( std::shared_ptr<manapi::ctoken_data_t> m_data
     if (m_data->cancel_sync_callback) {
         auto cb = std::move(m_data->cancel_sync_callback);
         m_data->cancel_sync_callback=nullptr;
+        manapi::async::etaskpool()->release_tasks( manapi::TASK_TYPE_FUNC, 1 );
         if (!(m_data->status & MANAPI__CTOKEN_FLAG_DISABLED)) {
             manapi::async::etaskpool()->append_task(std::move(cb));
         }
     }
 
-    if (m_data->unites) {
-        while (!m_data->unites->empty()) {
-            auto it = std::move(m_data->unites->back());
-            m_data->unites->pop_back();
+    while (!m_data->unites.empty()) {
+        auto it = std::move(m_data->unites.back());
+        m_data->unites.pop_back();
 
-            auto &data = it.data();
-            data->parent = nullptr;
-            data->it = nullptr;
+        auto &data = it.data();
+        data->parent = nullptr;
+        data->it = nullptr;
 
-            it.cancel();
-        }
+        it.cancel();
     }
+
 }
 
 static void manapi__ctoken_send_async(const std::shared_ptr<manapi::ctoken_data_t>& m_data) MANAPIHTTP_NOEXCEPT {
@@ -69,8 +72,7 @@ manapi::ctoken::ctoken(std::nullptr_t) {
 }
 
 manapi::ctoken::ctoken() {
-    this->m_data = std::make_shared<ctoken_data_t>(0, 0UL, manapi::timer{nullptr},
-            nullptr, nullptr, nullptr, nullptr);
+    this->m_data = std::make_shared<ctoken_data_t>();
 }
 
 manapi::ctoken manapi::ctoken::unit(ctoken cancellation) {
@@ -117,20 +119,20 @@ manapi::ctoken::~ctoken() {
             if (this->m_data->parent) {
                 assert(this->m_data->it);
 
-                this->m_data->parent->unites->erase(this->m_data->it);
+                this->m_data->parent->unites.erase(this->m_data->it);
                 this->m_data->it = nullptr;
                 this->m_data->parent = nullptr;
             }
 
-            if (this->m_data->unites) {
-                while (!this->m_data->unites->empty()) {
-                    auto it = std::move(this->m_data->unites->back());
-                    this->m_data->unites->pop_back();
+            while (!this->m_data->unites.empty()) {
+                auto it = std::move(this->m_data->unites.back());
+                this->m_data->unites.pop_back();
 
-                    it.m_data->it = nullptr;
-                    it.m_data->parent = nullptr;
-                }
+                it.m_data->it = nullptr;
+                it.m_data->parent = nullptr;
             }
+
+            this->m_data->timeout_struct.stop();
             this->m_data.reset();
         }
     }
@@ -146,12 +148,12 @@ manapi::ctoken &manapi::ctoken::operator=(nullptr_t) {
 }
 
 void manapi::ctoken::reset() {
-    this->m_data = std::make_shared<ctoken_data_t>(0, 0UL, manapi::timer{nullptr},
-            nullptr, nullptr, nullptr, nullptr);
+    this->m_data = std::make_shared<ctoken_data_t>();
 }
 
 void manapi::ctoken::cancel_callback (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT {
     if (this->m_data) {
+        if (!this->m_data->cancel_sync_callback) manapi::async::etaskpool()->reserve_tasks( manapi::TASK_TYPE_FUNC, 1 );
         this->m_data->cancel_sync_callback = (std::move(callback));
     }
 }
@@ -160,7 +162,7 @@ void manapi::ctoken::cancel_callback(ctoken cancellation) {
     if (this->m_data && cancellation) {
         if (this->m_data->parent) {
             assert(this->m_data);
-            this->m_data->parent->unites->erase(this->m_data->it);
+            this->m_data->parent->unites.erase(this->m_data->it);
             this->m_data->parent = nullptr;
             this->m_data->it = nullptr;
         }
@@ -171,15 +173,12 @@ void manapi::ctoken::cancel_callback(ctoken cancellation) {
             this->m_data->status |= MANAPI__CTOKEN_FLAG_CANCEL;
         }
         else {
-            if (!cancellation.m_data->unites) {
-                cancellation.m_data->unites = std::make_unique<decltype(cancellation.m_data->unites)::element_type>();
-            }
 
             this->ask_cancel_callback();
 
-            cancellation.m_data->unites->push_back((*this));
+            cancellation.m_data->unites.push_back((*this));
             this->m_data->parent = cancellation.m_data.get();
-            this->m_data->it = cancellation.m_data->unites->rbegin();
+            this->m_data->it = cancellation.m_data->unites.rbegin();
         }
     }
 }
@@ -208,13 +207,14 @@ bool manapi::ctoken::is_cancelled() const MANAPIHTTP_NOEXCEPT {
 
 manapi::status manapi::ctoken::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
     if (this->m_data) {
-        this->m_data->timeout = timeout;
-
-        if (this->m_data->timeout > 0) {
+        if (timeout > 0) {
             try {
-                auto rhs = manapi::async::current()->timerpool()
-                    ->append_timer_sync(this->timeout(), [data = this->m_data] (const manapi::timer& t) mutable
+                auto handler = manapi::async::current()->timerpool()
+                    ->append_timer_sync(timeout, [wdata = std::weak_ptr (this->m_data)] (const manapi::timer& t) mutable
                     -> void {
+                        auto data = wdata.lock();
+                        assert ( !!data );
+
                         if ((data->status & (MANAPI__CTOKEN_FLAG_CANCEL|MANAPI__CTOKEN_FLAG_DISABLED))) {
                             return;
                         }
@@ -222,23 +222,20 @@ manapi::status manapi::ctoken::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
                         data->status |= MANAPI__CTOKEN_FLAG_CANCEL;
 
                         manapi__ctoken_cancel(std::move(data));
-                });
+                }).unwrap();
 
-                if (!rhs.ok()) {
-                    this->m_data->timeout = 0;
-                    return rhs.err();
-                }
+                if (this->m_data->timeout_struct)
+                    this->m_data->timeout_struct.stop();
 
+                this->m_data->timeout_struct = std::move(handler);
                 this->m_data->status |= MANAPI__CTOKEN_FLAG_ASK_CANCEL;
-                this->m_data->timeout_struct = rhs.unwrap();
-
             }
             catch (std::bad_alloc const &) {
                 return status_resource_exhausted();
             }
             catch (std::exception const &e) {
                 manapi_log_error(e.what());
-                return status_internal();
+                return status_unknown();
             }
         }
     }
@@ -255,10 +252,6 @@ bool manapi::ctoken::contains_cancel_callback() const {
     return this->m_data && (this->m_data->status & MANAPI__CTOKEN_FLAG_ASK_CANCEL);
 }
 
-size_t manapi::ctoken::timeout() const {
-    return this->m_data ? this->m_data->timeout : 0;
-}
-
 void manapi::ctoken::disable() {
     if (this->m_data) {
         this->m_data->status |= (MANAPI__CTOKEN_FLAG_DISABLED);
@@ -273,4 +266,3 @@ void manapi::ctoken::disable() {
 const std::shared_ptr<manapi::ctoken_data_t> &manapi::ctoken::data() const MANAPIHTTP_NOEXCEPT {
     return this->m_data;
 }
-

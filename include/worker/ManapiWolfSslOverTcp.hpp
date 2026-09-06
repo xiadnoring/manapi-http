@@ -8,15 +8,15 @@
 namespace manapi::net::worker {
     class WolfSSL_TLS : public worker::TLS {
     public:
-        WolfSSL_TLS (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        WolfSSL_TLS (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config);
 
         ~WolfSSL_TLS () override;
 
         manapi::future<manapi::status> init(std::size_t deep) override;
 
-        static std::shared_ptr<worker::WolfSSL_TLS> create (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::WolfSSL_TLS> create (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config);
 
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
     protected:
 
         bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXCEPT override;
@@ -53,9 +53,9 @@ namespace manapi::net::worker {
 
         manapi::status_or<void *> ssl_create_context (size_t version) MANAPIHTTP_NOEXCEPT;
 
-        manapi::status ssl_configure_context (void *ctx, http::server_ctx::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT;
+        manapi::status ssl_configure_context (void *ctx, worker::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT;
     private:
-        http::server_ctx::pool_t *pool_data_;
+        net::worker::pool_t *pool_data_;
     };
 }
 #endif

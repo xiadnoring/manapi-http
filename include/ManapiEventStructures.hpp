@@ -969,6 +969,8 @@ namespace manapi::ev {
         int lchown (const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT;
         
         MANAPIHTTP_NODISCARD ssize_t result () const MANAPIHTTP_NOEXCEPT;
+
+        void cleanup () MANAPIHTTP_NOEXCEPT;
     private:
         loop_ref m_loop;
         uv_fs_t m_s;

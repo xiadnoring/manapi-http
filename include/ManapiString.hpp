@@ -79,6 +79,15 @@ namespace manapi::string {
     std::vector<std::string_view> split (std::string_view s, std::string_view c, ssize_t cnt = -1);
 
     /**
+     * Finds all separators
+     *
+     * @param s the source string
+     * @param c the separator
+     * @return array of indexes
+     */
+    std::vector<std::size_t> find_all (std::string_view s, std::string_view c, ssize_t cnt = -1);
+
+    /**
      * Split the string by the separator
      *
      * @param s the source string
@@ -87,6 +96,17 @@ namespace manapi::string {
      */
     inline std::vector<std::string_view> split (std::string_view s, char c, ssize_t cnt = -1) {
         return manapi::string::split (s, std::string_view(&c, 1), cnt );
+    }
+
+    /**
+     * Finds all separators
+     *
+     * @param s the source string
+     * @param c the separator
+     * @return array of indexes
+     */
+    inline std::vector<std::size_t> find_all (std::string_view s, char c, ssize_t cnt = -1) {
+        return manapi::string::find_all (s, std::string_view(&c, 1), cnt );
     }
 
     /**

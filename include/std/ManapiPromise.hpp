@@ -82,13 +82,13 @@ namespace manapi::async {
     template<typename T = void>
     class promise_resolve {
     public:
-        promise_resolve () : data_(nullptr) {}
+        promise_resolve () : m_data(nullptr) {}
 
         promise_resolve (std::shared_ptr<internal::promise_data_t<T>> data) {
-            this->data_ = std::move(data);
+            this->m_data = std::move(data);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->data_; }
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->m_data; }
 
         promise_resolve (promise_resolve &&n) MANAPIHTTP_NOEXCEPT = default;
 
@@ -99,26 +99,26 @@ namespace manapi::async {
         promise_resolve&operator= (const promise_resolve &n) = default;
 
         void operator () (const T &v) const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<T> (this->data_, T(v));
+            internal::call_promise_resolve<T> (this->m_data, T(v));
         }
 
         void operator () (T &&v) const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve<T> (this->data_, std::forward<decltype(v)>(v));
+            internal::call_promise_resolve<T> (this->m_data, std::forward<decltype(v)>(v));
         }
     private:
-        std::shared_ptr<internal::promise_data_t<T>> data_;
+        std::shared_ptr<internal::promise_data_t<T>> m_data;
     };
 
     template<>
     class promise_resolve<void> {
     public:
-        promise_resolve () : data_(nullptr) {}
+        promise_resolve () : m_data(nullptr) {}
 
         promise_resolve (std::shared_ptr<internal::promise_data_t<void>> data) {
-            this->data_ = std::move(data);
+            this->m_data = std::move(data);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->data_; }
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->m_data; }
 
         promise_resolve (promise_resolve &&n) MANAPIHTTP_NOEXCEPT = default;
 
@@ -129,24 +129,24 @@ namespace manapi::async {
         promise_resolve&operator= (const promise_resolve &n) = default;
 
         void operator () () const MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_resolve (this->data_);
+            internal::call_promise_resolve (this->m_data);
         }
     private:
-        std::shared_ptr<internal::promise_data_t<void>> data_;
+        std::shared_ptr<internal::promise_data_t<void>> m_data;
     };
 
     template<typename T = void>
     class promise_reject {
     public:
-        promise_reject () : data_(nullptr) {}
+        promise_reject () : m_data(nullptr) {}
 
         promise_reject (std::shared_ptr<internal::promise_data_t<T>> data) {
-            this->data_ = std::move(data);
+            this->m_data = std::move(data);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT { return !!this->data_; }
+        MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT { return !!this->m_data; }
 
-        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->data_; }
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT { return !!this->m_data; }
 
         promise_reject (promise_reject &&n) MANAPIHTTP_NOEXCEPT = default;
 
@@ -157,14 +157,14 @@ namespace manapi::async {
         promise_reject&operator= (const promise_reject &n) = default;
 
         void operator () (const std::exception_ptr &err) MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_reject(this->data_, std::exception_ptr(err));
+            internal::call_promise_reject(this->m_data, std::exception_ptr(err));
         }
 
         void operator () (std::exception_ptr &&err) MANAPIHTTP_NOEXCEPT {
-            internal::call_promise_reject(this->data_, std::forward<decltype(err)>(err));
+            internal::call_promise_reject(this->m_data, std::forward<decltype(err)>(err));
         }
     private:
-        std::shared_ptr<internal::promise_data_t<T>> data_;
+        std::shared_ptr<internal::promise_data_t<T>> m_data;
     };
 }
 

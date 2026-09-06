@@ -10,7 +10,7 @@
 #include "ManapiHttp.hpp"
 #include "json/ManapiJson.hpp"
 #include "ManapiTimerPool.hpp"
-#include "std/ManapiEasyCancellation.hpp"
+#include "std/ManapiEasyCancelToken.hpp"
 
 #define HTTP1PORT "8888"
 #define HTTP2PORT "8887"
@@ -40,6 +40,11 @@ inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout
         manapi::async::run(manapi::async::current()->stop());
     }).unwrap();
     return ctx;
+}
+
+inline void send_stop () {
+    manapi::async::etaskpool()->append_task([] ()
+        -> void {  manapi::async::eventloop()->send_stop( manapi::stoken() ); });
 }
 
 inline void wait_ctx (manapi::async::shared_ctx ctx) {

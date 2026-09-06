@@ -87,7 +87,7 @@ manapi::async::internal::promise_base_future::promise_base_future() = default;
 manapi::async::internal::promise_base_future::~promise_base_future() = default;
 
 void manapi::async::internal::promise_base_future::unhandled_exception() {
-    this->exception = std::current_exception();
+    this->m_exception = std::current_exception();
 }
 
 std::coroutine_handle<> manapi::async::internal::promise_base_future::final_awaiter_suspend() MANAPIHTTP_NOEXCEPT {
@@ -117,8 +117,8 @@ void manapi::async::internal::promise<void>::return_void() {
 }
 
 void manapi::async::internal::promise<void>::run_finish_cb() MANAPIHTTP_NOEXCEPT {
-    if (this->finish_cb) {
-        this->finish_cb->operator()(std::move(this->exception));
+    if (this->m_finish_cb) {
+        this->m_finish_cb (std::move(this->m_exception));
     }
 }
 

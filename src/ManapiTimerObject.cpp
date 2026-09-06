@@ -202,8 +202,6 @@ void manapi::timer::stop() MANAPIHTTP_NOEXCEPT {
         return;
     }
 
-    this->m_data->flags ^= TIMER_TASK_ENABLED;
-
     manapi::async::current()->timerpool()->remove_timer(this->m_data);
 }
 

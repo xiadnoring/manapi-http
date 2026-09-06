@@ -36,10 +36,15 @@ namespace manapi {
 
         reference& operator= (reference &&n) MANAPIHTTP_NOEXCEPT {
             if (this != &n) {
-                this->reset();
-
-                this->src = n.src;
-                n.src = nullptr;
+                if (n.src) {
+                    n.src->refcnt++;
+                    this->reset();
+                    this->src = n.src;
+                    n.reset();
+                }
+                else {
+                    this->reset();
+                }
             }
             return *this;
         }
@@ -65,10 +70,13 @@ namespace manapi {
         }
 
         void reset (T *n) MANAPIHTTP_NOEXCEPT {
-            this->reset();
-            this->src = n;
-            if (this->src) {
-                ++this->src->refcnt;
+            if (n) {
+                n->refcnt++;
+                this->reset();
+                this->src = n;
+            }
+            else {
+                this->reset();
             }
         }
 

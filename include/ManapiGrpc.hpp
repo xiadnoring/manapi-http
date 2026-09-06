@@ -10,6 +10,7 @@
 #include "./utils/ManapiConfig.hpp"
 #include "./std/ManapiContext.hpp"
 #include "./utils/ManapiMultithreadStorage.hpp"
+#include "./std/ManapiStopToken.hpp"
 
 
 namespace manapi::net::wgrpc {
@@ -18,21 +19,17 @@ namespace manapi::net::wgrpc {
     manapi::future<manapi::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
 
     class server_ctx : public std::enable_shared_from_this<server_ctx> {
-        struct data_t;
 
         server_ctx ();
 
     public:
+        struct data_t;
 
         ~server_ctx();
 
-        struct worker_data_t {
-            std::atomic<ssize_t> cnt;
-        };
-
         static manapi::status_or<std::shared_ptr<server_ctx>> create () MANAPIHTTP_NOEXCEPT;
 
-        multithread_storage &storage ();
+        server_ctx::data_t &storage ();
 
         manapi::status enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
 
@@ -57,7 +54,9 @@ namespace manapi::net::wgrpc {
 
         manapi::future<manapi::status> start (std::move_only_function<manapi::status(::grpc::ServerBuilder &b, grpc::Service *arg)> cb, grpc::Service * service = nullptr);
 
-        manapi::status stop ();
+        void send_stop (manapi::stoken token);
+
+        manapi::future<manapi::status> stop ();
     private:
 
         std::unique_ptr <data_t> m_data;

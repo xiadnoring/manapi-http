@@ -1,15 +1,9 @@
 #include "http/ManapiHttpCtx.hpp"
 #include "../include/ManapiUtils.hpp"
-
-struct manapi::net::http::server_ctx::data_t {
-    multithread_storage st;
-};
+#include "../include/ManapiHttpInternal.hpp"
 
 manapi::net::http::server_ctx::server_ctx() {
-    auto n = std::make_unique<worker_data_t>();
-    this->m_data = std::make_unique <data_t>(
-    multithread_storage (nullptr, static_cast<void*>(n.release()), +[] (void *ptr)
-        -> void { delete static_cast<worker_data_t*> (ptr); }));
+    this->m_data = std::make_unique <server_ctx::data_t>();
 }
 
 manapi::status_or<std::shared_ptr<manapi::net::http::server_ctx>> manapi::net::http::server_ctx::create() MANAPIHTTP_NOEXCEPT {
@@ -24,6 +18,6 @@ manapi::status_or<std::shared_ptr<manapi::net::http::server_ctx>> manapi::net::h
 
 manapi::net::http::server_ctx::~server_ctx() = default;
 
-manapi::multithread_storage & manapi::net::http::server_ctx::storage() {
-    return this->m_data->st;
+manapi::net::http::server_ctx::data_t & manapi::net::http::server_ctx::storage() {
+    return *this->m_data;
 }

@@ -19,15 +19,15 @@ namespace manapi::net::worker {
 
         struct quic_stream_t;
     public:
-        openssl_quic (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+        openssl_quic (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config);
 
         ~openssl_quic() override;
 
-        static std::shared_ptr<worker::openssl_quic> create (std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
+        static std::shared_ptr<worker::openssl_quic> create (std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config);
 
         manapi::future<status> init(std::size_t deep) override;
 
-        void stop(std::function<void()> cb) override;
+        void stop(manapi::stoken token) override;
 
         void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
@@ -101,13 +101,7 @@ namespace manapi::net::worker {
 
         int try_init_conn_ (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-        std::function<void()> finish;
-
-        uint32_t finish_ref;
-
         std::unordered_map <std::string, std::map<std::uintptr_t, shared_conn>, manapi::text_hash, std::equal_to<>> conns_;
-
-        std::size_t count;
     private:
         static manapi::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
 
@@ -116,7 +110,7 @@ namespace manapi::net::worker {
         std::size_t pending_writes = 0;
         BIO *rbio;
         BIO *wbio;
-        http::server_ctx::pool_t *pool_data_;
+        net::worker::pool_t *pool_data_;
         std::size_t deep_worker_id_;
         std::vector<SSL_POLL_ITEM> polls_;
         manapi::timer update_limit_timer;

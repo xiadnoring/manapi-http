@@ -75,7 +75,7 @@ static std::string wgenerate_alpn_ossltest (const std::vector<std::string_view> 
     return std::move(b);
 }
 
-manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
+manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config *config) : TLS (std::move(site), (wdata), config) {
     this->ssl_error_none_ = WOLFSSL_ERROR_NONE;
     this->ssl_error_syscall_ = WOLFSSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = WOLFSSL_ERROR_WANT_READ;
@@ -123,7 +123,7 @@ manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_
     this->deep_worker_id_ = deep;
 
     try {
-        this->pool_data_ = &this->worker_data_->as<http::server_ctx::worker_data_t>()->pools[this->worker_pool_id_];
+        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
         std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
@@ -168,13 +168,13 @@ manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_
     co_return status_internal("openssl_tls:Failed");
 }
 
-std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(std::shared_ptr<net::worker::base_http> site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
-    auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config);
+std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(std::shared_ptr<net::worker::base_http> site, manapi::net::worker::worker_data_t* wdata, manapi::net::http::config* config) {
+    auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), (wdata), config);
     return std::move(worker);
 }
 
-void manapi::net::worker::WolfSSL_TLS::stop(std::function<void()> cb) {
-    TLS::stop(std::move(cb));
+void manapi::net::worker::WolfSSL_TLS::stop(manapi::stoken token) {
+    TLS::stop(std::move(token));
 }
 
 bool manapi::net::worker::WolfSSL_TLS::ssl_is_init_fininshed_(void *ssl) MANAPIHTTP_NOEXCEPT {
@@ -419,7 +419,7 @@ err:
     return std::move(status);
 }
 
-manapi::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(void *ctx, http::server_ctx::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT {
+manapi::status manapi::net::worker::WolfSSL_TLS::ssl_configure_context(void *ctx, worker::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT {
     try {
         using ci = manapi::internal::config_interface;
 
