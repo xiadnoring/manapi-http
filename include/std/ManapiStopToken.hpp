@@ -2,6 +2,8 @@
 
 #include "./../ManapiUtils.hpp"
 
+#include <functional>
+
 namespace manapi {
     enum stoken_flags {
         STOKEN_FLAG_IMMEDIATELY_CALL = 1<<0
