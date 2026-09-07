@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <utility>
+#include <functional>
 
 struct manapi::stoken::data_t {
     std::move_only_function<void()> fin_cb;
