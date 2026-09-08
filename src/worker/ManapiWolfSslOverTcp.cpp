@@ -101,7 +101,7 @@ manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(std::shared_ptr<net::worker::base_
 
 manapi::net::worker::WolfSSL_TLS::~WolfSSL_TLS() {
     if (this->pool_data_) {
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
         auto &wdata = this->pool_data_->data[this->deep_worker_id_];
         if (wdata.ref) {
             if (!(--wdata.ref)) {
@@ -123,8 +123,8 @@ manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_
     this->deep_worker_id_ = deep;
 
     try {
-        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        this->pool_data_ = this->worker_data_->pools[this->worker_pool_id_];
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
             this->pool_data_->data.resize(deep + 1);
@@ -153,7 +153,7 @@ manapi::future<manapi::status> manapi::net::worker::WolfSSL_TLS::init(std::size_
             if (!status.ok())
                 co_return status.err();
             ctx_data->ctx = static_cast<WOLFSSL_CTX*>(status.unwrap());
-            res = this->ssl_configure_context(ctx_data->ctx, this->pool_data_, deep);
+            res = this->ssl_configure_context(ctx_data->ctx, this->pool_data_.get(), deep);
 
             if (!res.ok())
                 co_return std::move(res);

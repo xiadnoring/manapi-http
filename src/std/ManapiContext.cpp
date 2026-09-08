@@ -29,12 +29,6 @@ void manapi::async::cthread::current(std::shared_ptr<cthread> thr) MANAPIHTTP_NO
 
 manapi::async::cthread::~cthread() = default;
 
-// manapi::future<void> manapi::async::cthread::start() {
-//     this->taskpool_->start();
-//     this->timerpool_->start();
-//     co_await this->eventloop_->start(this->eventloop_);
-// }
-
 manapi::ev::status manapi::async::cthread::start() {
     this->taskpool_->start();
     auto res = timerpool()->start();
@@ -88,20 +82,6 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 
 }
 
-// void manapi::async::context::inloops(shared_ctx thr, std::function<void()> callback) {
-//     auto loops = thr->loops_;
-//     loops.push_back(std::move(thr));
-//
-//     for (auto const &loop : loops) {
-//         /* run the callback in other event loop */
-//         manapi::async::run(loop->eventloop()->custom_callback(
-//             [this, callback] (event_loop *ev) mutable
-//             -> void {
-//             callback();
-//         }));
-//     }
-// }
-
 manapi::status_or<manapi::async::shared_ctx> manapi::async::context::create(std::size_t threadnum) MANAPIHTTP_NOEXCEPT {
     try {
         auto logger_ = std::make_shared<manapi::logger>();
@@ -134,19 +114,20 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
 
         ctx->eventloop()->setup_handle_interrupt();
 
-        auto const mtaskpool = (ctx->taskpool_.get());
-
-        if (loops > mtaskpool->size()) {
-            loops = mtaskpool->size();
-            manapi_log_info("not enough threads for the additional event loops. Reduce to %zu", mtaskpool->size());
+        if (loops > ctx->taskpool_->size()) {
+            loops = ctx->taskpool_->size();
+            manapi_log_info("not enough threads for the additional event loops. Reducing to %zu", ctx->taskpool_->size());
         }
 
-        ctx->loops_.resize(loops);
+        ctx->loops_.resize(ctx->taskpool_->size());
 
         try {
-            for (std::size_t i = 0; i < loops; ++i) {
+            for (std::size_t i = 0; i < ctx->taskpool_->size(); ++i) {
+                int flags = 0;
+                if ( i >= loops ) flags |= manapi::event_loop::FLAG_WORKER_THREAD;
+
                 auto timerpool_ = manapi::timerpool::create().unwrap();
-                auto watcher_ = manapi::event_loop::create(0, ctx->taskpool_, timerpool_, ctx->logger_).unwrap();
+                auto watcher_ = manapi::event_loop::create(flags, ctx->taskpool_, timerpool_, ctx->logger_).unwrap();
 
                 ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, timerpool_, ctx->logger_);
             }
@@ -168,36 +149,43 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
         manapi::init_tools::curl_library_init();
 
         manapi::ev::shared_async main_loop_waits{nullptr};
-        std::atomic<std::size_t> loops_active = loops;
+        std::atomic<std::size_t> loops_active = ctx->taskpool_->size();
 
-        if (loops) {
-            loops_active = loops;
+        if (loops_active) {
             main_loop_waits = manapi::async::eventloop()->create_watcher_async(
                 [&loops_active] (const manapi::ev::shared_async &w) mutable -> void {
                 if (!loops_active.load()) { w->unref(); }
             }).unwrap();
         }
 
-        for (std::size_t i = 0; i < loops; ++i) {
-            mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
+        for (std::size_t i = 0; i < ctx->taskpool_->size(); ++i) {
+            ctx->taskpool_->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
                 -> void {
-                manapi::init_tools::ssl_library_init();
-                manapi::init_tools::ev_library_init();
-                manapi::init_tools::curl_library_init();
-                manapi::init_tools::grpc_library_init();
-
                 (*v)[i].push_back([callback, thr = ctx->loops_[i], main_loop_waits, &loops_active] ()
                     -> void {
+
                     async::cthread::current(thr);
 
-                    callback([thr] () -> void {
+                    manapi::init_tools::ssl_library_init();
+                    manapi::init_tools::ev_library_init();
+                    manapi::init_tools::curl_library_init();
+                    manapi::init_tools::grpc_library_init();
+
+                    std::function<void()> bind_cb = [thr]() -> void {
                         thr->eventloop()->m_etaskpool->start();
                         thr->start().unwrap();
 
                         thr->timerpool()->stop();
 
                         thr->eventloop()->wait_all(false);
-                    });
+                    };
+
+                    if (thr->eventloop()->is_worker()) {
+                        bind_cb ();
+                    }
+                    else {
+                        callback( std::move (bind_cb) );
+                    }
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
                     thr->eventloop()->wait_all(false);
@@ -215,27 +203,29 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
                     clear_tools::clear_thread_all();
 
                     loops_active.fetch_sub(1);
-                    if (auto rhs = main_loop_waits->send()) {
+
+                    int rhs;
+                    if (main_loop_waits && (rhs = main_loop_waits->send())) {
                         manapi_log_error ("%s failed due to %s", "ctx:fatal error context", ev::strerror(rhs));
                     }
                 });
             });
         }
 
-
         auto tres= manapi::async::current()->timerpool()->append_interval_sync(15 * 60 * 1000,
             [] (const manapi::timer &t) -> void {
             manapi::async::current()->memory_fabric().clear();
         });
 
-        if (!tres)
-            tres.err().log();
+        if (!tres) tres.err().log();
 
         callback([ctx] () -> void {
             ctx->eventloop()->m_etaskpool->start();
             ctx->start().unwrap();
 
             ctx->timerpool_->stop();
+            // notify worker event loops
+            ctx->taskpool_->notify_all();
 
             ctx->eventloop_->wait_all(false);
         });

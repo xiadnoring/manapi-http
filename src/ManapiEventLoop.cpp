@@ -163,85 +163,6 @@ namespace manapi::ev::internal {
         after_work_cb after_cb;
     };
 
-    struct adding_watcher_io_data_init_t {
-        union {
-            manapi::fd_t fd = 0;
-            manapi::socket_t sd;
-        };
-        manapi::ev::io_cb cb = nullptr;
-    };
-
-    struct adding_watcher_io_data_payload_t {
-        adding_watcher_io_data_init_t init{};
-        std::shared_ptr<manapi::ev::io> s = nullptr;
-    };
-
-    struct adding_watcher_io_data_t {
-        int flag;
-        int m_flags;
-        adding_watcher_io_data_payload_t payload;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::io>>::resolve_t resolve;
-    };
-
-    struct adding_watcher_fs_data_t {
-        int flag;
-        const void *data;
-        std::string path1;
-        std::string path2;
-        ssize_t s1;
-        ssize_t s2;
-        ev::file file;
-        ev::fs_cb cb;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::fs>>::resolve_t resolve;
-        ev::file file2{0};
-    };
-
-    struct adding_watcher_async_data_payload_t {
-        manapi::ev::async_cb cb = nullptr;
-        std::shared_ptr<manapi::ev::async> s = nullptr;
-    };
-
-    struct adding_watcher_async_data_t {
-        int flag;
-        adding_watcher_async_data_payload_t payload;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::async>>::resolve_t resolve{nullptr};
-    };
-
-    struct adding_watcher_prepare_data_payload_t {
-        manapi::ev::prepare_cb cb = nullptr;
-        std::shared_ptr<manapi::ev::prepare> s = nullptr;
-    };
-
-    struct adding_watcher_prepare_data_t {
-        int flag;
-        adding_watcher_prepare_data_payload_t payload;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::async>>::resolve_t resolve{nullptr};
-    };
-
-    struct adding_watcher_check_data_payload_t {
-        manapi::ev::check_cb cb = nullptr;
-        std::shared_ptr<manapi::ev::check> s = nullptr;
-    };
-
-    struct adding_watcher_check_data_t {
-        int flag;
-        adding_watcher_check_data_payload_t payload;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::check>>::resolve_t resolve{nullptr};
-    };
-
-    struct adding_watcher_timer_data_payload_t {
-        manapi::ev::timer_cb cb = nullptr;
-        std::shared_ptr<manapi::ev::timer> s = nullptr;
-    };
-
-    struct adding_watcher_timer_data_t {
-        int flag;
-        uint64_t delay;
-        uint64_t repeat;
-        adding_watcher_timer_data_payload_t payload;
-        manapi::async::promise_sync<std::shared_ptr<manapi::ev::timer>>::resolve_t resolve{nullptr};
-    };
-
     struct adding_custom_callback_data_t {
         std::move_only_function<void(manapi::event_loop *ev)> cb;
     };
@@ -672,13 +593,18 @@ manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::c
         ev->m_taskpool = std::move(taskpool);
         ev->m_flags = 0;
 
-        if (flags & event_loop::FLAG_WORKER_THREAD) {
-            ev->m_flags |= EVENT_LOOP_FLAG_WORKER_THREAD;
-        }
-
         if (auto rhs = uv_loop_init(ev->m_loop.get())) {
             status = ev::status_internal("uv_loop_init:Failed", rhs);
             goto err;
+        }
+
+        if (flags & event_loop::FLAG_WORKER_THREAD) {
+            ev->m_flags |= EVENT_LOOP_FLAG_WORKER_THREAD;
+
+            ev->m_idle_worker_tasks = ev->create_watcher_idle([ev = ev.get()] (const ev::shared_idle &w) mutable
+                                                                      -> void {
+                ev->m_taskpool->task();
+            }).unwrap();
         }
 
         ev->m_idle_tasks = ev->create_watcher_idle([ev = ev.get()] (const ev::shared_idle &w) mutable
@@ -728,13 +654,15 @@ manapi::ev::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_loop::c
             -> void { ::manapi__handle_curl_process_connections(ev->m_curl_watcher.get()); }).unwrap();
 #endif
 
-        if (auto rhs = ev->m_prepare_tasks->start()) {
-            status = ev::status_internal("prepare_tasks::start", rhs);
+        int rhs;
+
+        if ((rhs = ev->m_prepare_tasks->start())) {
+            status = ev::status_unknown("prepare_tasks::start", rhs);
             goto err;
         }
 
-        if (auto rhs = ev->m_idle_tasks->start()) {
-            status = ev::status_internal("idle_tasks::start", rhs);
+        if ((rhs = ev->m_idle_tasks->start()) || (ev->m_idle_worker_tasks && (rhs = ev->m_idle_worker_tasks->start()))) {
+            status = ev::status_unknown("idle_tasks::start", rhs);
             goto err;
         }
 
@@ -791,6 +719,7 @@ manapi::event_loop::~event_loop() {
     this->stop_watcher(std::move(this->m_interrupted_watcher));
     this->stop_watcher(std::move(this->m_prepare_tasks));
     this->stop_watcher(std::move(this->m_idle_tasks));
+    this->stop_watcher(std::move(this->m_idle_worker_tasks));
 
     // !!! MUST BE HERE !!!
     // CALLS A CALLBACK ON DESTROY
@@ -844,6 +773,7 @@ void manapi::event_loop::wait_all (bool shutdown) MANAPIHTTP_NOEXCEPT {
     ::manapi__event_loop_unregister (event_loop::m_stop_mx, event_loop::m_events, this);
 
     this->stop_watcher(std::move(this->m_interrupted_watcher));
+    this->stop_watcher(std::move(this->m_idle_worker_tasks));
 //    this->stop_watcher(std::move(this->m_idle_tasks));
 //    this->stop_watcher(std::move(this->m_prepare_tasks));
 
@@ -1536,7 +1466,7 @@ manapi::ev::status manapi::event_loop::run() MANAPIHTTP_NOEXCEPT {
     return this->run(manapi::ev::RUN_DEFAULT);
 }
 
-void manapi::event_loop::breakit() MANAPIHTTP_NOEXCEPT {
+void manapi::event_loop::shutdown() MANAPIHTTP_NOEXCEPT {
     if (this->m_loop)
         ::uv_stop(this->m_loop.get());
 }
@@ -2006,4 +1936,157 @@ bool manapi::event_loop::has_stop_callback(const std::shared_ptr<ev::udp> &s) {
     auto const data = static_cast<ev::internal::udp_ctx*> (s->data());
     if (data) { return !!data->close_cb; }
     return false;
+}
+
+manapi::future<manapi::ev::status> manapi::event_loop::wait_task ( std::move_only_function< void ( const std::atomic<bool> & ) > cb, manapi::ctoken token) {
+    using promise = manapi::async::promise_sync<void>;
+
+    struct data_t {
+        std::move_only_function< void ( const std::atomic<bool> & ) > *cb;
+        manapi::ctoken *token;
+        manapi::ev::status st;
+        manapi::ev::shared_async w;
+        std::atomic<bool> is_cancelled;
+
+        ~data_t () {
+            this->token->disable();
+            manapi::async::eventloop()->stop_watcher(std::move(this->w));
+        }
+    };
+
+    struct worker_locker_t {
+        manapi::ev::async *m_w;
+
+        worker_locker_t(manapi::ev::async *w) : m_w(w) {
+            auto& ctx = manapi::async::eventloop();
+            int rhs;
+
+            if (ctx->m_idle_worker_tasks && (rhs = ctx->m_idle_worker_tasks->stop())) {
+                manapi_log_error(manapi::ev::strerror(rhs));
+            }
+        }
+
+        ~worker_locker_t() {
+            auto &ctx = manapi::async::eventloop();
+            int rhs;
+
+            if (ctx->m_idle_worker_tasks && (rhs = ctx->m_idle_worker_tasks->start()))
+                manapi_log_error(manapi::ev::strerror(rhs));
+
+            if ((rhs = this->m_w->send())) {
+                manapi_log_error(manapi::ev::strerror(rhs));
+            }
+        }
+    };
+
+    data_t data ( &cb, &token, manapi::ev::status_unknown("wait_task:failed") );
+
+    if (token.contains_cancel_callback()) {
+        token.cancel_callback([&data] ()
+            -> void { data.is_cancelled.store(true); });
+    }
+
+    co_await promise ( [&data](promise::resolve_t resolve) -> void {
+        data.w = manapi::async::eventloop()->create_watcher_async( [resolve] (const manapi::ev::shared_async &)
+             -> void { resolve(); } ).unwrap();
+
+        manapi::async::mtaskpool()->append_task( [&data] ()
+               -> void {
+            worker_locker_t worker_locker (data.w.get());
+
+            (*data.cb) ( data.is_cancelled );
+            data.st = manapi::ev::status_ok();
+        });
+    });
+
+    co_return std::move(data.st);
+}
+
+manapi::future<manapi::ev::status> manapi::event_loop::wait_async_task ( std::move_only_function< manapi::future<> ( const std::atomic<bool> & ) > cb, manapi::ctoken token) {
+    using promise = manapi::async::promise_sync<void>;
+
+    struct data_t {
+        std::move_only_function< manapi::future<> ( const std::atomic<bool> & ) > *cb;
+        manapi::ctoken *token;
+        manapi::ev::status st;
+        manapi::ev::shared_async w;
+        std::atomic<bool> is_cancelled;
+
+        ~data_t () {
+            this->token->disable();
+            manapi::async::eventloop()->stop_watcher(std::move(this->w));
+        }
+    };
+
+    class data_worker_t {
+    public:
+        data_worker_t (data_t *p) : m_data(p) {
+            if (!this->m_data) return;
+            auto& ctx = manapi::async::eventloop();
+            int rhs;
+
+            if (ctx->m_idle_worker_tasks && (rhs = ctx->m_idle_worker_tasks->stop())) {
+                manapi_log_error(manapi::ev::strerror(rhs));
+            }
+        }
+
+        ~data_worker_t() {
+            if (!this->m_data) return;
+            auto &ctx = manapi::async::eventloop();
+            int rhs;
+
+            if (ctx->m_idle_worker_tasks && (rhs = ctx->m_idle_worker_tasks->start())) {
+                manapi_log_error(manapi::ev::strerror(rhs));
+            }
+
+            if ((rhs = this->m_data->w->send())) {
+                manapi_log_error(manapi::ev::strerror(rhs));
+            }
+        }
+
+        data_worker_t (data_worker_t &&n) MANAPIHTTP_NOEXCEPT {
+            this->m_data = n.m_data;
+            n.m_data = nullptr;
+        }
+
+        data_worker_t &operator= (data_worker_t &&n) MANAPIHTTP_NOEXCEPT {
+            if (this != &n) {
+                this->m_data = n.m_data;
+                n.m_data = nullptr;
+            }
+            return *this;
+        }
+
+        MANAPIHTTP_NODISCARD data_t *get () const { return this->m_data; }
+    private:
+        data_t *m_data;
+    };
+
+    data_t data ( &cb, &token, manapi::ev::status_unknown("wait_task:failed") );
+
+    if (token.contains_cancel_callback()) {
+        token.cancel_callback([&data] ()
+              -> void { data.is_cancelled.store(true); });
+    }
+
+    co_await promise ( [&data](promise::resolve_t resolve) -> void {
+        data.w = manapi::async::eventloop()->create_watcher_async( [resolve] (const manapi::ev::shared_async &)
+              -> void { resolve(); } ).unwrap();
+
+        manapi::async::mtaskpool()->append_task( [&data] ()
+                 -> void {
+            data_worker_t worker_data (&data);
+            manapi::async::run([worker_data = std::move(worker_data)]() -> manapi::future<> {
+                auto data = worker_data.get();
+                co_await (*data->cb)(data->is_cancelled);
+                data->st = manapi::ev::status_ok();
+            });
+        });
+    });
+
+    co_return std::move(data.st);
+}
+
+bool manapi::event_loop::is_worker() const MANAPIHTTP_NOEXCEPT {
+    return this->m_flags & EVENT_LOOP_FLAG_WORKER_THREAD;
 }

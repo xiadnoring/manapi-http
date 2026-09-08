@@ -27,12 +27,12 @@ namespace manapi::net::worker {
 
     struct pool_t {
         std::vector<pool_worker_t> data;
-        std::unique_ptr<std::mutex> mx;
+        std::mutex mx;
     };
 
     struct worker_data_t {
         std::atomic<ssize_t> count;
-        std::vector<pool_t> pools;
+        std::vector<std::shared_ptr<pool_t>> pools;
     };
 
     class base_http {

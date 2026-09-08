@@ -38,11 +38,11 @@ namespace manapi {
 
         void stop () MANAPIHTTP_NOEXCEPT;
 
+        void notify_all () MANAPIHTTP_NOEXCEPT;
+
         void start ();
 
         void append_task (std::move_only_function<void()>&& cb);
-
-        void append_task (const std::coroutine_handle<> &handle);
 
         MANAPIHTTP_NODISCARD std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
@@ -52,7 +52,7 @@ namespace manapi {
 
         void release_task (std::move_only_function<void()>&& cb) MANAPIHTTP_NOEXCEPT;
 
-        void release_task (const std::coroutine_handle<> &handle) MANAPIHTTP_NOEXCEPT;
+        void task ();
     private:
         std::unique_ptr<data_t> m_data;
     };

@@ -27,8 +27,6 @@ struct manapi::mthreadpool::data_t {
 
     std::vector <std::move_only_function<void()>> m_tasks;
 
-    std::vector <std::coroutine_handle<>> m_handlers;
-
     std::mutex m_queue_mutex;
 
     std::atomic<int> m_flags;
@@ -90,7 +88,7 @@ static void task_doit(std::coroutine_handle<> &task) MANAPIHTTP_NOEXCEPT {
 static int mthreadpool_get_task(manapi::mthreadpool::data_t *data, std::size_t index, threadpool__source *source) MANAPIHTTP_NOEXCEPT {
     std::lock_guard<std::mutex> lk (data->m_queue_mutex);
 
-    if (!data->m_tasks_by_thread[index].empty()) {
+    if ( index < data->m_tasks_by_thread.size() && !data->m_tasks_by_thread[index].empty()) {
         new (&source->cb) decltype(source->cb) (std::move(data->m_tasks_by_thread[index].back()));
         data->m_tasks_by_thread[index].pop_back();
         return 1;
@@ -100,12 +98,6 @@ static int mthreadpool_get_task(manapi::mthreadpool::data_t *data, std::size_t i
         new (&source->cb) decltype(source->cb) (std::move(data->m_tasks.back()));
         data->m_tasks.pop_back ();
         return 1;
-    }
-
-    if (!data->m_handlers.empty()) {
-        new (&source->handle) decltype(source->handle) (data->m_handlers.back());
-        data->m_handlers.pop_back ();
-        return 2;
     }
 
     return 0;
@@ -122,14 +114,8 @@ static void mthreadpool_run(manapi::mthreadpool::data_t *data, std::size_t index
                 break;
             }
             case 1:
-                manapi::async::internal::current_stack_cnt_set(0);
                 task_doit(source.cb);
                 source.cb.~move_only_function();
-            break;
-            case 2:
-                manapi::async::internal::current_stack_cnt_set(0);
-                task_doit(source.handle);
-                source.handle.~coroutine_handle();
             break;
         }
     }
@@ -151,7 +137,6 @@ namespace manapi {
         this->m_data->m_threadnum = thread_num;
         this->m_data->m_threadnum = thread_num;
         this->m_data->m_tasks_by_thread.resize(this->m_data->m_threadnum);
-        this->m_data->m_handlers.reserve(512);
         this->m_data->m_tasks.reserve(512);
     }
 
@@ -187,13 +172,12 @@ namespace manapi {
 
     std::size_t mthreadpool::tasks_size() const MANAPIHTTP_NOEXCEPT {
         std::lock_guard<std::mutex> lk (this->m_data->m_queue_mutex);
-        return this->m_data->m_tasks.size() + this->m_data->m_handlers.size();
+        return this->m_data->m_tasks.size();
     }
 
     void mthreadpool::clear() {
         if (!(this->m_data->m_flags & THREADPOOL__FLAG_ACTIVE)) {
             this->m_data->m_tasks.clear();
-            this->m_data->m_handlers.clear();
         }
     }
 
@@ -249,22 +233,6 @@ namespace manapi {
         this->m_data->m_cv.notify_one();
     }
 
-    void mthreadpool::append_task(const std::coroutine_handle<> &handle) {
-        {
-            // obtain a mutex
-            std::lock_guard<std::mutex> lk (this->m_data->m_queue_mutex);
-
-            assert(this->m_data->m_handlers.capacity() >= this->m_data->m_reserved_handlers);
-            if (this->m_data->m_handlers.capacity() - this->m_data->m_reserved_handlers == 0) {
-                this->m_data->m_handlers.resize(this->m_data->m_handlers.size() + THREADPOOL__PREALLOC_ALIGN);
-            }
-
-            this->m_data->m_handlers.push_back(handle);
-        }
-
-        this->m_data->m_cv.notify_one();
-    }
-
     void mthreadpool::reserve_tasks(manapi::task_types type, std::size_t sz) {
         std::lock_guard<std::mutex> lk (this->m_data->m_queue_mutex);
         std::size_t rez;
@@ -273,11 +241,6 @@ namespace manapi {
                 rez = this->m_data->m_tasks.size() + sz;
                 this->m_data->m_tasks.reserve((rez + (THREADPOOL__PREALLOC_ALIGN - 1)) & ~(THREADPOOL__PREALLOC_ALIGN - 1));
                 this->m_data->m_reserved_tasks += sz;
-                break;
-            case TASK_TYPE_HANDLE:
-                rez = this->m_data->m_handlers.size() + sz;
-                this->m_data->m_handlers.reserve((rez + (THREADPOOL__PREALLOC_ALIGN - 1)) & ~(THREADPOOL__PREALLOC_ALIGN - 1));
-                this->m_data->m_reserved_handlers += sz;
                 break;
         }
     }
@@ -294,16 +257,26 @@ namespace manapi {
         this->m_data->m_cv.notify_one();
     }
 
-    void mthreadpool::release_task(const std::coroutine_handle<> &handle) MANAPIHTTP_NOEXCEPT {
-        {
-            std::lock_guard<std::mutex> lk(this->m_data->m_queue_mutex);
-            assert(this->m_data->m_reserved_handlers >= 1);
-            this->m_data->m_reserved_handlers -= 1;
+    void mthreadpool::task() {
+        threadpool__source source;
 
-            this->m_data->m_handlers.push_back(handle);
+        if ((this->m_data->m_flags & THREADPOOL__FLAG_ACTIVE)) {
+            switch (mthreadpool_get_task(this->m_data.get(), std::numeric_limits<std::size_t>::max(), &source)) {
+                case 0: {
+                    std::unique_lock<std::mutex> lk (this->m_data->m_m);
+                    this->m_data->m_cv.wait(lk);
+                    break;
+                }
+                case 1:
+                    task_doit(source.cb);
+                    source.cb.~move_only_function();
+                    break;
+            }
         }
+    }
 
-        this->m_data->m_cv.notify_one();
+    void mthreadpool::notify_all() MANAPIHTTP_NOEXCEPT {
+        this->m_data->m_cv.notify_all ();
     }
 
     ethreadpool::ethreadpool() {

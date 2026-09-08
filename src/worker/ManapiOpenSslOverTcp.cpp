@@ -179,7 +179,7 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(std::shared_ptr<net::worker::base_
 
 manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
     if (this->pool_data_) {
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
         auto &wdata = this->pool_data_->data[this->deep_worker_id_];
         if (wdata.ref) {
             if (!(--wdata.ref)) {
@@ -202,8 +202,8 @@ void manapi::net::worker::OpenSSL_TLS::stop(manapi::stoken token) {
     TLS::stop (std::move(token));
 }
 
-void ssl_flush_sessions (std::mutex *mx, openssl_tls_worker_ctx_t *ctx_data) {
-    std::lock_guard<std::mutex> lk (*mx);
+void ssl_flush_sessions (std::mutex &mx, openssl_tls_worker_ctx_t *ctx_data) {
+    std::lock_guard<std::mutex> lk (mx);
     auto &sessions = ctx_data->sessions;
     auto const current_time = ::time(nullptr);
 
@@ -234,8 +234,8 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
     this->deep_worker_id_ = deep;
 
     try {
-        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        this->pool_data_ = this->worker_data_->pools[this->worker_pool_id_];
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
             this->pool_data_->data.resize(deep + 1);
@@ -248,7 +248,7 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
 
         if (!ctx_data->sessions_flush_timer) {
             ctx_data->sessions_flush_timer = manapi::async::current()->timerpool()->append_interval_sync(
-                10000, manapi::TIMER_IMPORTANT,[ctx_data, mx = this->pool_data_->mx.get()](const manapi::timer& t)
+                10000, manapi::TIMER_IMPORTANT,[ctx_data, &mx = this->pool_data_->mx](const manapi::timer& t)
                     ->void {
                 ssl_flush_sessions (mx, ctx_data);
             }).unwrap();
@@ -275,10 +275,6 @@ manapi::future<manapi::status> manapi::net::worker::OpenSSL_TLS::init(std::size_
         manapi_log_error("%s due to %s", "openssl_tls:Failed", e.what());
     }
     co_return status_internal("openssl_tls:Failed");
-}
-
-manapi::net::worker::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXCEPT {
-    return this->pool_data_;
 }
 
 bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) MANAPIHTTP_NOEXCEPT {

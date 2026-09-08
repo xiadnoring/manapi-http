@@ -55,7 +55,7 @@ namespace manapi::net::worker {
 
         manapi::status ssl_configure_context (void *ctx, worker::pool_t *pool_data, std::size_t deeplvl) MANAPIHTTP_NOEXCEPT;
     private:
-        net::worker::pool_t *pool_data_;
+        std::shared_ptr<net::worker::pool_t> pool_data_;
     };
 }
 #endif

@@ -647,110 +647,120 @@ manapi::compress::gzip_decompress::gzip_decompress() : deflate_decompress (15 | 
 
 manapi::future<manapi::status>
 manapi::compress::compress_file(manapi::compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation) {
-    std::shared_ptr< manapi::fs::fstream  > fin, fout;
-    manapi::status res;
-    if (! ( res = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
-        co_return std::move(res);
+    manapi::status st;
+    manapi::unwrap(co_await manapi::async::eventloop()->wait_async_task ([&] ( const std::atomic<bool> &is_cancelled ) -> manapi::future<> {
+        std::shared_ptr< manapi::fs::fstream  > fin, fout;
 
-    auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
-
-    co_return co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st) -> manapi::future<manapi::status> {
-
-        bool finish = false;
-
-        auto prun = manapi::async::parallel_run <ssize_t>::create(parallel_st).unwrap();
-
-        ssize_t rhs = co_await fin->read(read_sv);
-
-        while (!finish) {
-            if (rhs < 0) {
-                co_return manapi::status_unknown("compress_file:read failed");
-            }
-
-            if (!rhs) {
-                finish = true;
-            }
-
-
-            auto write_sv = inst->compress(read_sv.subslice(0, static_cast<std::size_t>(rhs)).unwrap(),
-                                           finish).unwrap();
-
-            prun->run(fin->read (read_sv)).unwrap();
-
-            rhs = co_await fout->fwrite(write_sv);
-
-            write_sv.clear();
-
-            if (rhs < 0) {
-                co_return manapi::status_unknown("compress_file:write failed");
-            }
-
-            if (!rhs && finish)
-                break;
-
-            rhs = co_await prun->get_or (-1);
-
-            if (rhs < 0) {
-                co_return manapi::status_unknown("compress_file:read failed");
-            }
+        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) )) {
+            co_return;
         }
-        co_return manapi::status_ok();
-    });
 
+        auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
+
+        st = co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st)
+                -> manapi::future<manapi::status> {
+
+            bool finish = false;
+
+            auto prun = manapi::async::parallel_run <ssize_t>::create(parallel_st).unwrap();
+
+            ssize_t rhs = co_await fin->read(read_sv);
+
+            while (!finish) {
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("compress_file:read failed");
+                }
+
+                if (!rhs) {
+                    finish = true;
+                }
+
+
+                auto write_sv = inst->compress(read_sv.subslice(0, static_cast<std::size_t>(rhs)).unwrap(),
+                                               finish).unwrap();
+
+                prun->run(fin->read (read_sv)).unwrap();
+
+                rhs = co_await fout->fwrite(write_sv);
+
+                write_sv.clear();
+
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("compress_file:write failed");
+                }
+
+                if (!rhs && finish)
+                    break;
+
+                rhs = co_await prun->get_or (-1);
+
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("compress_file:read failed");
+                }
+            }
+            co_return manapi::status_ok();
+        });
+    }, std::move(cancellation)));
+    co_return std::move(st);
 }
 
 manapi::future<manapi::status>
 manapi::compress::decompress_file(manapi::compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation) {
-    std::shared_ptr< manapi::fs::fstream  > fin, fout;
-    manapi::status res;
-    if (! ( res = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
-        co_return std::move(res);
+    manapi::status st;
+    manapi::unwrap (co_await manapi::async::eventloop()->wait_async_task([&] (const std::atomic<bool> &is_cancelled) -> manapi::future<> {
+        std::shared_ptr< manapi::fs::fstream  > fin, fout;
 
-    auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
+        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
+            co_return;
 
-    co_return co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st) -> manapi::future<manapi::status> {
+        auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
 
-        bool finish = false;
+        st = co_await manapi::async::parallel_wait_get<manapi::status> ([&] (manapi::reference<manapi::async::parallel_t> parallel_st)
+                -> manapi::future<manapi::status> {
 
-        auto prun = manapi::async::parallel_run<ssize_t>::create(parallel_st).unwrap();
+            bool finish = false;
 
-        ssize_t rhs = co_await fin->read(read_sv);
+            auto prun = manapi::async::parallel_run<ssize_t>::create(parallel_st).unwrap();
 
-        while (!finish) {
-            if (rhs < 0) {
-                co_return manapi::status_unknown("decompress_file:read failed");
+            ssize_t rhs = co_await fin->read(read_sv);
+
+            while (!finish) {
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("decompress_file:read failed");
+                }
+
+                if (!rhs) {
+                    finish = true;
+                }
+
+
+                auto write_sv = inst->decompress(read_sv.subslice(0, static_cast<std::size_t>(rhs)).unwrap(),
+                                                 finish).unwrap();
+
+                prun->run(fin->read(read_sv)).unwrap();
+
+                rhs = co_await fout->fwrite(write_sv);
+
+                write_sv.clear();
+
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("decompress_file:write failed");
+                }
+
+                if (!rhs && finish)
+                    break;
+
+                rhs = co_await prun->get_or (-1);
+
+                if (rhs < 0) {
+                    co_return manapi::status_unknown("decompress_file:read failed");
+                }
             }
 
-            if (!rhs) {
-                finish = true;
-            }
-
-
-            auto write_sv = inst->decompress(read_sv.subslice(0, static_cast<std::size_t>(rhs)).unwrap(),
-                                             finish).unwrap();
-
-            prun->run(fin->read(read_sv)).unwrap();
-
-            rhs = co_await fout->fwrite(write_sv);
-
-            write_sv.clear();
-
-            if (rhs < 0) {
-                co_return manapi::status_unknown("decompress_file:write failed");
-            }
-
-            if (!rhs && finish)
-                break;
-
-            rhs = co_await prun->get_or (-1);
-
-            if (rhs < 0) {
-                co_return manapi::status_unknown("decompress_file:read failed");
-            }
-        }
-
-        co_return manapi::status_ok();
-    });
+            co_return manapi::status_ok();
+        });
+    }));
+    co_return std::move(st);
 }
 
 manapi::status_or<manapi::slice>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <atomic>
 
 #include "./ManapiUtils.hpp"
 #include "./ManapiInt.hpp"
@@ -244,6 +245,10 @@ namespace manapi {
 
         ev::status_or<ev::shared_work> append_task (std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) MANAPIHTTP_NOEXCEPT;
 
+        manapi::future<manapi::ev::status> wait_task ( std::move_only_function< void ( const std::atomic<bool> & ) > cb, manapi::ctoken token = nullptr);
+
+        manapi::future<manapi::ev::status> wait_async_task ( std::move_only_function< manapi::future<> ( const std::atomic<bool> & ) > cb, manapi::ctoken token = nullptr);
+
         void stop_watcher_ptr (ev::io *w) MANAPIHTTP_NOEXCEPT;
 
         void stop_watcher_ptr (ev::async *w) MANAPIHTTP_NOEXCEPT;
@@ -313,7 +318,7 @@ namespace manapi {
 
         manapi::ev::status run () MANAPIHTTP_NOEXCEPT;
 
-        void breakit () MANAPIHTTP_NOEXCEPT;
+        void shutdown () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Run Event Loop
@@ -327,6 +332,8 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_stopping () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool is_active () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool is_worker () const MANAPIHTTP_NOEXCEPT;
 
         void increase_deps () MANAPIHTTP_NOEXCEPT;
 
@@ -376,6 +383,8 @@ namespace manapi {
         std::unique_ptr<ev::internal::custom_callback_t> m_callback_watcher;
 
         std::shared_ptr<ev::idle> m_idle_tasks;
+
+        std::shared_ptr<ev::idle> m_idle_worker_tasks;
 
         std::shared_ptr<ev::prepare> m_prepare_tasks;
 

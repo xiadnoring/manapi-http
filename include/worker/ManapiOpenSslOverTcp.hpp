@@ -17,8 +17,6 @@ namespace manapi::net::worker {
         void stop(manapi::stoken token) override;
 
         manapi::future<manapi::status> init(std::size_t deep) override;
-
-        manapi::net::worker::pool_t *openssl_pool_data_ () MANAPIHTTP_NOEXCEPT;
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXCEPT override;
 
@@ -56,7 +54,7 @@ namespace manapi::net::worker {
 
         manapi::status ssl_configure_context (void* ctx);
     private:
-        net::worker::pool_t *pool_data_;
+        std::shared_ptr<net::worker::pool_t> pool_data_;
     };
 }
 #endif

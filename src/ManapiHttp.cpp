@@ -315,9 +315,11 @@ static manapi::future<> manapi__http_server_init_pool(std::shared_ptr<manapi::ne
     if (pools_it->second.is_array()) {
         auto &pools = pools_it->second;
 
-        for (std::size_t i = 0; i < pools.size(); i++) {
-            data.worker_data.pools.emplace_back( std::vector<manapi::net::worker::pool_worker_t>(),
-                    std::make_unique<std::mutex>() );
+        {
+            std::lock_guard<std::mutex> lk(data.mx);
+            while (data.worker_data.pools.size() < pools.size()) {
+                data.worker_data.pools.push_back(std::make_shared<manapi::net::worker::pool_t>());
+            }
         }
 
         for (auto it = pools.begin<json::ARRAY>(); it != pools.end<json::ARRAY>(); ++it, m_data->next_pool_id++) {

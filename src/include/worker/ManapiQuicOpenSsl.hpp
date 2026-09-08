@@ -110,7 +110,7 @@ namespace manapi::net::worker {
         std::size_t pending_writes = 0;
         BIO *rbio;
         BIO *wbio;
-        net::worker::pool_t *pool_data_;
+        std::shared_ptr<net::worker::pool_t> pool_data_;
         std::size_t deep_worker_id_;
         std::vector<SSL_POLL_ITEM> polls_;
         manapi::timer update_limit_timer;

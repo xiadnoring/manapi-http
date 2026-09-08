@@ -127,7 +127,7 @@ manapi::net::worker::openssl_quic::~openssl_quic() {
     }
 
     if (this->pool_data_) {
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
         auto &wdata = this->pool_data_->data[this->deep_worker_id_];
         if (wdata.ref) {
             if (!(--wdata.ref)) {
@@ -342,8 +342,8 @@ manapi::future<manapi::status> manapi::net::worker::openssl_quic::init(std::size
         this->polls_.reserve(16);
         this->deep_worker_id_ = deep;
 
-        this->pool_data_ = &this->worker_data_->pools[this->worker_pool_id_];
-        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        this->pool_data_ = this->worker_data_->pools[this->worker_pool_id_];
+        std::lock_guard<std::mutex> lk (this->pool_data_->mx);
 
         if (this->pool_data_->data.size() <= deep)
             this->pool_data_->data.resize(deep + 1);
