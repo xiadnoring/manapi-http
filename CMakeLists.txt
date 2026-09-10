@@ -109,6 +109,11 @@ if (MANAPIHTTP_STRICT_MEM)
     else()
 #        add_compile_options(/WX /Zi /fsanitize=address)
     endif()
+else()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-fno-sanitize=address)
+        add_link_options(-fno-sanitize=address)
+    endif()
 endif()
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
@@ -653,6 +658,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/http/ManapiHttpMime.hpp
         include/worker/ManapiTcp.hpp
         include/json/ManapiJson.hpp
+        include/hash/ManapiHash.hpp
         ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp
 
         src/ManapiHttp.cpp
@@ -820,6 +826,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiAsyncInternal.hpp
         include/std/ManapiChannel.hpp
         src/std/ManapiChannel.cpp
+        src/hash/ManapiHash.cpp
 )
 
 set(MANAPIHTTP_MODULES

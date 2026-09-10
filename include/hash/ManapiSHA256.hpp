@@ -11,9 +11,10 @@
 
 #include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
+#include "./ManapiHash.hpp"
 
 namespace manapi::hash {
-    class sha256 {
+    class sha256 : public hash_base {
         protected:
             typedef unsigned char uint8;
             typedef unsigned int uint32;
@@ -23,8 +24,9 @@ namespace manapi::hash {
             static const unsigned int SHA224_256_BLOCK_SIZE = (512/8);
         public:
             sha256();
-            void update(const unsigned char *message, std::size_t len);
-            void final(unsigned char *digest);
+            void update(const unsigned char *message, std::size_t len) override;
+            void final(unsigned char *digest) override;
+            MANAPIHTTP_NODISCARD std::size_t final_size () const override;
             static const unsigned int DIGEST_SIZE = ( 256 / 8);
 
         protected:

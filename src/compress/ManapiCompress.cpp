@@ -7,9 +7,9 @@
 #include "std/ManapiParallelRun.hpp"
 #include "../include/ManapiUtils.hpp"
 
-static manapi::future<manapi::status> manapi__compress_file_init (std::shared_ptr<manapi::fs::fstream> &input, std::shared_ptr<manapi::fs::fstream> &output, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken &cancellation) {
-    auto ires = manapi::fs::fstream::create (src, false, manapi::ctoken::unit(cancellation));
-    auto ores = manapi::fs::fstream::create (dest, false, manapi::ctoken::unit(cancellation));
+static manapi::future<manapi::status> manapi__compress_file_init (std::shared_ptr<manapi::fs::fstream> &input, std::shared_ptr<manapi::fs::fstream> &output, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken token = nullptr) {
+    auto ires = manapi::fs::fstream::create (src, false, token.sub());
+    auto ores = manapi::fs::fstream::create (dest, false, token.sub());
 
     if (!ires) co_return ires.err();
 
@@ -646,14 +646,17 @@ manapi::compress::gzip_decompress::gzip_decompress() : deflate_decompress (15 | 
 #endif
 
 manapi::future<manapi::status>
-manapi::compress::compress_file(manapi::compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation) {
+manapi::compress::compress_file(manapi::compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest, int64_t src_offset, int64_t dest_offset, manapi::ctoken token) {
     manapi::status st;
     manapi::unwrap(co_await manapi::async::eventloop()->wait_async_task ([&] ( const std::atomic<bool> &is_cancelled ) -> manapi::future<> {
         std::shared_ptr< manapi::fs::fstream  > fin, fout;
 
-        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) )) {
+        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest)) )) {
             co_return;
         }
+
+        fin->seekg( src_offset, manapi::fs::fstream::FILE_SEEK_START );
+        fout->seekg( dest_offset, manapi::fs::fstream::FILE_SEEK_START );
 
         auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
 
@@ -700,18 +703,21 @@ manapi::compress::compress_file(manapi::compress::compress_base *inst, manapi::e
             }
             co_return manapi::status_ok();
         });
-    }, std::move(cancellation)));
+    }, std::move(token)));
     co_return std::move(st);
 }
 
 manapi::future<manapi::status>
-manapi::compress::decompress_file(manapi::compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation) {
+manapi::compress::decompress_file(manapi::compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest, int64_t src_offset, int64_t dest_offset, manapi::ctoken token) {
     manapi::status st;
     manapi::unwrap (co_await manapi::async::eventloop()->wait_async_task([&] (const std::atomic<bool> &is_cancelled) -> manapi::future<> {
         std::shared_ptr< manapi::fs::fstream  > fin, fout;
 
-        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest), cancellation) ))
+        if (! ( st = co_await manapi__compress_file_init (fin, fout, (src), (dest)) ))
             co_return;
+
+        fin->seekg( src_offset, manapi::fs::fstream::FILE_SEEK_START );
+        fout->seekg( dest_offset, manapi::fs::fstream::FILE_SEEK_START );
 
         auto read_sv = manapi::async::memory_fabric()->slice(manapi::object_pool::area_size() * 16).unwrap();
 

@@ -181,6 +181,10 @@ namespace manapi::hash {
         }
     }
 
+    std::size_t sha256::final_size() const {
+        return sha256::DIGEST_SIZE;
+    }
+
     manapi::status_or<std::string> sha256str (std::string_view input) {
         try {
             std::string output;

@@ -41,12 +41,8 @@ manapi::ev::status manapi::async::cthread::start() {
     return ev::status_ok();
 }
 
-manapi::future<void> manapi::async::cthread::stop() {
-    co_await this->eventloop_->stop();
-    this->timerpool_->stop();
-    this->taskpool_->stop();
-
-    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "cthread has been stopped");
+void manapi::async::cthread::send_stop(manapi::stoken token) MANAPIHTTP_NOEXCEPT {
+    this->eventloop_->send_stop(std::move(token));
 }
 
 void manapi::async::cthread::join() MANAPIHTTP_NOEXCEPT {
@@ -75,6 +71,15 @@ const std::shared_ptr<manapi::logger> & manapi::async::cthread::logger() MANAPIH
 
 manapi::object_pool & manapi::async::cthread::memory_fabric() MANAPIHTTP_NOEXCEPT {
     return this->memory_fabric_;
+}
+
+manapi::future<> manapi::async::cthread::stop() {
+    using promise = manapi::async::promise_sync<void>;
+    co_await promise ( [this] (promise::resolve_t resolve) -> void {
+        manapi::stoken token ([resolve = std::move(resolve)] ()
+                                      -> void { resolve (); });
+        this->send_stop( token );
+    } );
 }
 
 manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthreadpool> taskpool, shared_timerpool timerpool, shared_logger logger)
@@ -166,10 +171,10 @@ manapi::status manapi::async::context::run(std::size_t loops, std::function<void
 
                     async::cthread::current(thr);
 
-                    manapi::init_tools::ssl_library_init();
-                    manapi::init_tools::ev_library_init();
-                    manapi::init_tools::curl_library_init();
-                    manapi::init_tools::grpc_library_init();
+//                    manapi::init_tools::ssl_library_init();
+//                    manapi::init_tools::ev_library_init();
+//                    manapi::init_tools::curl_library_init();
+//                    manapi::init_tools::grpc_library_init();
 
                     std::function<void()> bind_cb = [thr]() -> void {
                         thr->eventloop()->m_etaskpool->start();

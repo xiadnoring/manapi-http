@@ -1000,8 +1000,11 @@ manapi::ev::unique_file::unique_file(unique_file &&n) MANAPIHTTP_NOEXCEPT {
 }
 
 manapi::ev::unique_file & manapi::ev::unique_file::operator=(unique_file &&n) MANAPIHTTP_NOEXCEPT {
-    this->m_fd = n.m_fd;
-    n.m_fd.reset();
+    if (this != &n) {
+        this->reset();
+        this->m_fd = n.m_fd;
+        n.m_fd.reset();
+    }
     return *this;
 }
 

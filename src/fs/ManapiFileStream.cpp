@@ -19,28 +19,11 @@ struct manapi::fs::fstream::fstream_data_t {
     manapi::ctoken cancellation;
     manapi::ev::file file;
     int status;
-    off_t off_;
+    off64_t offset;
 };
 
 static bool manapi__check_fd (manapi::fs::fstream::fstream_data_t *data) {
     return (data->status & FILE_HAS_FD);
-}
-
-static ssize_t manapi__fstream_seekg(manapi::fs::fstream::fstream_data_t *data, ssize_t pos, manapi::fs::fstream::seek_flag_t flag) {
-    if (data->off_ < 0) {
-        data->off_ = 0;
-    }
-
-    if ((data->status & FILE_EOF)) {
-        data->status ^= FILE_EOF;
-    }
-
-    auto prev = data->off_;
-    switch (flag) {
-        case manapi::fs::fstream::FILE_SEEK_START: data->off_ = static_cast<long>(pos); break;
-        case manapi::fs::fstream::FILE_SEEK_CURRENT: data->off_ += static_cast<long>(pos); break;
-    }
-    return prev;
 }
 
 manapi::fs::fstream::fstream(std::string path, ctoken cancellation) : m_data(new fstream_data_t{}) {
@@ -82,9 +65,9 @@ manapi::future<manapi::ev::status> manapi::fs::fstream::open(int flags, int mode
     if (! (this->m_data->status & FILE_HAS_FD)) {
 
         if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY | ev::FS_O_RDWR))) {
-            this->m_data->off_ = -1;
+            this->m_data->offset = -1;
         } else {
-            this->m_data->off_ = 0;
+            this->m_data->offset = 0;
         }
 
         try {
@@ -128,7 +111,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_s
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->off_,
+        rhs = co_await manapi::fs::async_read(this->m_data->file, buff, buff_size, this->m_data->offset,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (rhs < 0)
@@ -137,8 +120,8 @@ manapi::future<ssize_t> manapi::fs::fstream::read(void *buff, std::size_t buff_s
         if (rhs == 0)
             this->m_data->status |= FILE_EOF;
 
-        if (this->m_data->off_ >= 0)
-            this->m_data->off_ += static_cast<long>(rhs);
+        if (this->m_data->offset >= 0)
+            this->m_data->offset += static_cast<long>(rhs);
 
         co_return rhs;
     }
@@ -151,11 +134,11 @@ manapi::future<ssize_t> manapi::fs::fstream::write(const void *buff, std::size_t
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->off_,
+        rhs = co_await manapi::fs::async_write(this->m_data->file, buff, buff_size, this->m_data->offset,
             manapi::ctoken::unit(this->m_data->cancellation));
 
-        if (rhs > 0 && this->m_data->off_ >= 0) {
-            this->m_data->off_ += static_cast<long>(rhs);
+        if (rhs > 0 && this->m_data->offset >= 0) {
+            this->m_data->offset += static_cast<long>(rhs);
         }
 
         co_return rhs;
@@ -201,7 +184,7 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->off_,
+        rhs = co_await manapi::fs::async_read(this->m_data->file, slice, this->m_data->offset,
             manapi::ctoken::unit(this->m_data->cancellation));
 
         if (rhs < 0)
@@ -210,8 +193,8 @@ manapi::future<ssize_t> manapi::fs::fstream::read(manapi::slice_view slice) {
         if (rhs == 0)
             this->m_data->status |= FILE_EOF;
 
-        if (this->m_data->off_ >= 0)
-            this->m_data->off_ += static_cast<long>(rhs);
+        if (this->m_data->offset >= 0)
+            this->m_data->offset += static_cast<long>(rhs);
 
         co_return rhs;
     }
@@ -224,11 +207,11 @@ manapi::future<ssize_t> manapi::fs::fstream::write(manapi::slice_view slice) {
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->off_,
+        rhs = co_await manapi::fs::async_write(this->m_data->file, slice, this->m_data->offset,
             manapi::ctoken::unit(this->m_data->cancellation));
 
-        if (rhs > 0 && this->m_data->off_ >= 0) {
-            this->m_data->off_ += static_cast<long>(rhs);
+        if (rhs > 0 && this->m_data->offset >= 0) {
+            this->m_data->offset += static_cast<long>(rhs);
         }
 
         co_return rhs;
@@ -289,12 +272,25 @@ void manapi::fs::fstream::close() {
     }
 }
 
-ssize_t manapi::fs::fstream::tellg() const {
-    return this->m_data->off_;
+int64_t manapi::fs::fstream::tellg() const {
+    return this->m_data->offset;
 }
 
-ssize_t manapi::fs::fstream::seekg(ssize_t pos, seek_flag_t flag) {
-    return ::manapi__fstream_seekg(this->m_data, pos, flag);
+int64_t manapi::fs::fstream::seekg(int64_t pos, seek_flag_t flag) {
+    if (this->m_data->offset < 0) {
+        this->m_data->offset = 0;
+    }
+
+    if ((this->m_data->status & FILE_EOF)) {
+        this->m_data->status ^= FILE_EOF;
+    }
+
+    auto prev = this->m_data->offset;
+    switch (flag) {
+        case manapi::fs::fstream::FILE_SEEK_START: this->m_data->offset = static_cast<off64_t>(pos); break;
+        case manapi::fs::fstream::FILE_SEEK_CURRENT: this->m_data->offset += static_cast<off64_t>(pos); break;
+    }
+    return prev;
 }
 
 manapi::future<manapi::ev::status_or<std::size_t>> manapi::fs::fstream::size() const {

@@ -61,9 +61,9 @@ namespace manapi::fs {
 
         void close ();
 
-        MANAPIHTTP_NODISCARD ssize_t tellg() const;
+        MANAPIHTTP_NODISCARD int64_t tellg() const;
 
-        ssize_t seekg (ssize_t pos, seek_flag_t flag = FILE_SEEK_START);
+        int64_t seekg (int64_t pos, seek_flag_t flag = FILE_SEEK_START);
 
         MANAPIHTTP_NODISCARD manapi::future<manapi::ev::status_or<std::size_t>> size () const;
 

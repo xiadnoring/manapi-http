@@ -23,8 +23,10 @@ namespace manapi::compress {
         virtual void max_size ( uint64_t max_size ) = 0;
     };
 
-    future<manapi::status> compress_file(compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
-    future<manapi::status> decompress_file(compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest, manapi::ctoken cancellation = nullptr);
+    future<manapi::status> compress_file(compress::compress_base *inst, manapi::ev::file src, manapi::ev::file dest,
+                                         int64_t src_offset = -1, int64_t dest_offset = -1, manapi::ctoken cancellation = nullptr);
+    future<manapi::status> decompress_file(compress::decompress_base *inst, manapi::ev::file src, manapi::ev::file dest,
+                                           int64_t src_offset = -1, int64_t dest_offset = -1, manapi::ctoken cancellation = nullptr);
 
     manapi::status_or<manapi::slice> compress_string (compress::compress_base *inst, manapi::slice_view original);
     manapi::status_or<manapi::slice> decompress_string (compress::decompress_base *inst, manapi::slice_view compressed);

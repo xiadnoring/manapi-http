@@ -5,10 +5,9 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiMemoryPool.hpp"
+#include "../std/ManapiStopToken.hpp"
 
 namespace manapi {
-    class threadpool;
-
     class logger;
 }
 
@@ -199,10 +198,12 @@ namespace manapi::async {
         void join () MANAPIHTTP_NOEXCEPT;
 
         /**
-         * stop working asynchronously
-         * @return the future
+         * stop working
+         * @return
          */
-        virtual manapi::future<> stop ();
+        virtual void send_stop ( manapi::stoken token ) MANAPIHTTP_NOEXCEPT;
+
+        manapi::future<> stop ();
     protected:
         int flags;
 

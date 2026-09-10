@@ -86,7 +86,8 @@ static manapi::future<manapi::status> manapi__compress_file(std::shared_ptr<mana
                                                                     0755));
 
                             auto compress_ctx = features->compressor ();
-                            auto compress_res = co_await manapi::compress::compress_file(compress_ctx.get(), fdata->fd.get(), cached_fd.get());
+                            auto compress_res = co_await manapi::compress::compress_file(compress_ctx.get(), fdata->fd.get(), cached_fd.get(), -1, -1,
+                                                                                         manapi::ctokens::timeout(60000));
                             if (!compress_res.ok()) {
                                 zres = std::move(compress_res);
                             } else {

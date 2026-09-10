@@ -3,8 +3,8 @@
 #include "../ManapiUtils.hpp"
 #include "./ManapiMutex.hpp"
 #include "./ManapiContext.hpp"
-#include "./std/ManapiRef.hpp"
-#include "./std/ManapiPromise.hpp"
+#include "./ManapiRef.hpp"
+#include "./ManapiPromise.hpp"
 
 namespace manapi::async {
     struct parallel_t {
