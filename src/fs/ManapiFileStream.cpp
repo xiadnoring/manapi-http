@@ -19,7 +19,7 @@ struct manapi::fs::fstream::fstream_data_t {
     manapi::ctoken cancellation;
     manapi::ev::file file;
     int status;
-    off64_t offset;
+    int64_t offset;
 };
 
 static bool manapi__check_fd (manapi::fs::fstream::fstream_data_t *data) {
@@ -287,8 +287,8 @@ int64_t manapi::fs::fstream::seekg(int64_t pos, seek_flag_t flag) {
 
     auto prev = this->m_data->offset;
     switch (flag) {
-        case manapi::fs::fstream::FILE_SEEK_START: this->m_data->offset = static_cast<off64_t>(pos); break;
-        case manapi::fs::fstream::FILE_SEEK_CURRENT: this->m_data->offset += static_cast<off64_t>(pos); break;
+        case manapi::fs::fstream::FILE_SEEK_START: this->m_data->offset = static_cast<int64_t>(pos); break;
+        case manapi::fs::fstream::FILE_SEEK_CURRENT: this->m_data->offset += static_cast<int64_t>(pos); break;
     }
     return prev;
 }
